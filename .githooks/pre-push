@@ -1,0 +1,35 @@
+#!/bin/sh
+# Feature pushes are checkpoints. Integration tests locally before merging a PR;
+# release's complete candidate proof authorizes its separate version update.
+#
+# Enabled per clone: `git config core.hooksPath .githooks`.
+# Bypass a known-bad one with `git push --no-verify`.
+set -e
+
+# `main` moves only to a commit `staging` already carries, so promotion is a
+# fast-forward of `main` to `staging` and a staging tag reaches `main` unchanged.
+# GitHub cannot enforce it for us — branch protection on a private repo needs a
+# paid plan. The fetch is so a `staging` pushed from another clone counts, and
+# FETCH_HEAD rather than `refs/remotes/$1/…` because `$1` is a URL when the push
+# names no remote. A delete of `main` pushes the zero sha, which no branch
+# carries, so it is refused too.
+#
+# git feeds `<local ref> <local sha> <remote ref> <remote sha>` per ref on stdin.
+while read -r _ local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/staging)
+      node "$(dirname "$0")/../scripts/integration.mjs" push "$remote_sha" "$local_sha" || exit 1
+      continue ;;
+    refs/heads/feat/*|refs/heads/main|refs/tags/*) ;;
+    refs/heads/*)
+      echo 'pre-push: push feature work as feat/<name>, then integrate its PR.' >&2
+      exit 1 ;;
+  esac
+  [ "$remote_ref" = refs/heads/main ] || continue
+  git fetch --quiet "$1" staging
+  if ! git merge-base --is-ancestor "$local_sha" FETCH_HEAD; then
+    echo "pre-push: refusing to move main to $local_sha — it is not on staging."
+    echo "          Integrate its feature PR into staging first, then promote main."
+    exit 1
+  fi
+done

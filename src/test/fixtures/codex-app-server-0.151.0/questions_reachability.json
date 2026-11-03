@@ -1,0 +1,184 @@
+[
+  {
+    "experimentalApi": true,
+    "defaultModeFeature": false,
+    "emitted": false,
+    "isBlocking": null,
+    "parserAccepted": false,
+    "request": null,
+    "evidence": null,
+    "final": ["REACH_DONE"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-1>",
+        "turn": {
+          "id": "<id-1>",
+          "status": "completed"
+        }
+      }
+    }
+  },
+  {
+    "experimentalApi": true,
+    "defaultModeFeature": true,
+    "emitted": true,
+    "isBlocking": false,
+    "parserAccepted": false,
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 0,
+      "params": {
+        "threadId": "<thread-2>",
+        "turnId": "<uuid-1>",
+        "itemId": "<item-1>",
+        "questions": [
+          {
+            "id": "reach",
+            "header": "Reach",
+            "question": "Choose one",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Choose Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Choose Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": false,
+        "autoResolutionMs": null
+      }
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-12>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"Reach\",\"id\":\"reach\",\"options\":[{\"description\":\"Choose Alpha.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Choose Beta.\",\"label\":\"Beta\"}],\"question\":\"Choose one\"}]}",
+        "call_id": "<item-1>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<uuid-1>",
+          "create_time": 1788445682.108011
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-13>",
+        "call_id": "<item-1>",
+        "output": "{\"answers\":{\"reach\":{\"answers\":[\"Alpha (Recommended)\"]}}}",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<uuid-1>",
+          "create_time": 1788445684.899998
+        }
+      }
+    },
+    "final": ["REACH_DONE"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-2>",
+        "turn": {
+          "id": "<uuid-1>",
+          "status": "completed"
+        }
+      }
+    }
+  },
+  {
+    "experimentalApi": false,
+    "defaultModeFeature": false,
+    "emitted": false,
+    "isBlocking": null,
+    "parserAccepted": false,
+    "request": null,
+    "evidence": null,
+    "final": ["REACH_DONE"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-3>",
+        "turn": {
+          "id": "<id-16>",
+          "status": "completed"
+        }
+      }
+    }
+  },
+  {
+    "experimentalApi": false,
+    "defaultModeFeature": true,
+    "emitted": true,
+    "isBlocking": false,
+    "parserAccepted": false,
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 0,
+      "params": {
+        "threadId": "<thread-4>",
+        "turnId": "<uuid-2>",
+        "itemId": "<item-2>",
+        "questions": [
+          {
+            "id": "reach",
+            "header": "Reach",
+            "question": "Choose one",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Select Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Select Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": false,
+        "autoResolutionMs": null
+      }
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-27>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"Reach\",\"id\":\"reach\",\"options\":[{\"description\":\"Select Alpha.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Select Beta.\",\"label\":\"Beta\"}],\"question\":\"Choose one\"}]}",
+        "call_id": "<item-2>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<uuid-2>",
+          "create_time": 1788445708.702864
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-28>",
+        "call_id": "<item-2>",
+        "output": "{\"answers\":{\"reach\":{\"answers\":[\"Alpha (Recommended)\"]}}}",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<uuid-2>",
+          "create_time": 1788445711.222487
+        }
+      }
+    },
+    "final": ["REACH_DONE"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-4>",
+        "turn": {
+          "id": "<uuid-2>",
+          "status": "completed"
+        }
+      }
+    }
+  }
+]

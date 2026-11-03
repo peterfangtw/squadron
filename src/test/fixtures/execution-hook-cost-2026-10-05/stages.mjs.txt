@@ -1,0 +1,54 @@
+// Time actual Git subprocesses and cache-copy lifetimes in the vscode-free module.
+// Usage: node stages.mjs <scratch-root> <baseline|candidate> <repo>
+import { createRequire } from 'node:module';
+import { promisify } from 'node:util';
+import { performance } from 'node:perf_hooks';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+const require = createRequire(import.meta.url);
+const root = await fs.realpath(process.argv[2]);
+const variant = process.argv[3], repo = process.argv[4];
+process.env.HOME = path.join(root, 'stages-home-' + variant + '-' + repo);
+await fs.mkdir(process.env.HOME, { recursive: true });
+const commands = [], copies = [];
+const cp = require('node:child_process'), fsp = require('node:fs/promises');
+const exec = cp.execFile, open = fsp.open;
+cp.execFile = (...args) => {
+  const start = performance.now(), callback = args.pop();
+  return exec(...args, (error, ...result) => {
+    if (args[0] === 'git' && ['add', 'write-tree'].includes(args[1][0])) commands.push({ command: args[1][0], ms: performance.now() - start });
+    callback(error, ...result);
+  });
+};
+cp.execFile[promisify.custom] = (...args) => new Promise((resolve,reject) => cp.execFile(...args,(error,stdout,stderr)=>error?reject(error):resolve({stdout,stderr})));
+fsp.open = async (...args) => {
+  const start = performance.now(), handle = await open(...args), close = handle.close.bind(handle);
+  if (String(args[0]).endsWith('.index')) handle.close = async () => {
+    await close(); copies.push({ source: path.basename(args[0]), ms: performance.now() - start });
+  };
+  return handle;
+};
+const core = path.join(root, variant, 'core');
+const checkpoint = require(path.join(core, 'checkpoint.js'));
+const execution = require(path.join(core, 'execution.js'));
+const integration = require(path.join(core, 'claude/execution.js')).integration;
+const prepared = await execution.prepareExecution(integration, path.join(root, variant, 'execution.js'), true);
+const cwd = await fs.realpath(path.join(root, 'stages-' + repo));
+const before = [], after = [], full = [];
+for (let i = 0; i < 31; i++) {
+  const request = { cwd, owner: 'measurement', runtime: prepared.runtime.runtime, actor: 'writer', call: String(i), edge: 'before' };
+  const start = performance.now(), at = commands.length;
+  const first = await checkpoint.captureExecution(request, prepared.runtime.contextFile);
+  before.push(commands.slice(at).find(row => row.command === 'add')?.ms);
+  const next = commands.length;
+  const second = await checkpoint.captureExecution({ ...request, edge: 'after' }, prepared.runtime.contextFile);
+  after.push(commands.slice(next).find(row => row.command === 'add')?.ms);
+  if (!first?.snapshot || first.snapshot.tree !== second?.snapshot?.tree) throw new Error('tree mismatch');
+  full.push(performance.now() - start);
+}
+const names = await fs.readdir(path.join(cwd, '.git'));
+const indexes = await Promise.all(names.filter(name => name.startsWith('squadron-') && name.endsWith('.index')).map(async name => ({ name, size: (await fs.stat(path.join(cwd, '.git', name))).size })));
+await checkpoint.endExecutionRuntime(prepared.runtime.runtime, prepared.runtime.contextFile);
+const report = { repo, variant, before, after, full, copies, indexes };
+await fs.writeFile(path.join(root, 'stages-' + variant + '-' + repo + '.json'), JSON.stringify(report, null, 2));
+console.log(JSON.stringify(report));

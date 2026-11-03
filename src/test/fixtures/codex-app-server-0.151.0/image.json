@@ -1,0 +1,988 @@
+{
+  "turnId": "<turn-2>",
+  "completed": {
+    "method": "turn/completed",
+    "params": {
+      "threadId": "<thread-1>",
+      "turn": {
+        "id": "<turn-2>",
+        "items": [
+          {
+            "type": "agentMessage",
+            "id": "<message-2>",
+            "text": "White",
+            "phase": "final_answer",
+            "memoryCitation": null,
+            "delivery": null
+          }
+        ],
+        "itemsView": "summary",
+        "status": "completed",
+        "error": null,
+        "startedAt": 0,
+        "completedAt": 0,
+        "durationMs": 38485
+      }
+    },
+    "emittedAtMs": 0
+  },
+  "messages": [
+    {
+      "id": 9,
+      "result": {
+        "turn": {
+          "id": "<turn-2>",
+          "items": [],
+          "itemsView": "notLoaded",
+          "status": "inProgress",
+          "error": null,
+          "startedAt": null,
+          "completedAt": null,
+          "durationMs": null
+        }
+      }
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "active",
+          "activeFlags": []
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "turn/started",
+      "params": {
+        "threadId": "<thread-1>",
+        "turn": {
+          "id": "<turn-2>",
+          "items": [],
+          "itemsView": "notLoaded",
+          "status": "inProgress",
+          "error": null,
+          "startedAt": 0,
+          "completedAt": null,
+          "durationMs": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<id-4>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "Name the dominant color in the attached 1x1 image. Reply with one word.",
+              "text_elements": []
+            },
+            {
+              "type": "localImage",
+              "detail": null,
+              "path": "<cwd>/red.png"
+            }
+          ]
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<id-4>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "Name the dominant color in the attached 1x1 image. Reply with one word.",
+              "text_elements": []
+            },
+            {
+              "type": "localImage",
+              "detail": null,
+              "path": "<cwd>/red.png"
+            }
+          ]
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-1>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-1>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-2>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"magick identify -verbose red.png | rg 'mean:|red:|green:|blue:'\"",
+          "cwd": "<cwd>",
+          "processId": "22218",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "magick identify -verbose red.png | rg 'mean:|red:|green:|blue:'"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": null,
+          "durationMs": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-2>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"magick identify -verbose red.png | rg 'mean:|red:|green:|blue:'\"",
+          "cwd": "<cwd>",
+          "processId": "22218",
+          "source": "unifiedExecStartup",
+          "status": "failed",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "magick identify -verbose red.png | rg 'mean:|red:|green:|blue:'"
+            }
+          ],
+          "aggregatedOutput": "zsh:1: command not found: magick\n",
+          "exitCode": 1,
+          "durationMs": 0
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 31677,
+            "inputTokens": 31472,
+            "cachedInputTokens": 22016,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 205,
+            "reasoningOutputTokens": 90
+          },
+          "last": {
+            "totalTokens": 15982,
+            "inputTokens": 15784,
+            "cachedInputTokens": 11008,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 198,
+            "reasoningOutputTokens": 90
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-3>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-3>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-4>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc 'sips -g pixelWidth -g pixelHeight -g format red.png && xxd -p red.png'",
+          "cwd": "<cwd>",
+          "processId": "39548",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "sips -g pixelWidth -g pixelHeight -g format red.png && xxd -p red.png"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": null,
+          "durationMs": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-4>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc 'sips -g pixelWidth -g pixelHeight -g format red.png && xxd -p red.png'",
+          "cwd": "<cwd>",
+          "processId": "39548",
+          "source": "unifiedExecStartup",
+          "status": "completed",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "sips -g pixelWidth -g pixelHeight -g format red.png && xxd -p red.png"
+            }
+          ],
+          "aggregatedOutput": "<cwd>/red.png\n  pixelWidth: 1\n  pixelHeight: 1\n  format: png\n89504e470d0a1a0a0000000d4948445200000001000000010804000000b5\n1c0c020000000b4944415478da63fcff1f0002eb01f569769c6400000000\n49454e44ae426082\n",
+          "exitCode": 0,
+          "durationMs": 0
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 47819,
+            "inputTokens": 47489,
+            "cachedInputTokens": 33024,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 330,
+            "reasoningOutputTokens": 106
+          },
+          "last": {
+            "totalTokens": 16142,
+            "inputTokens": 16017,
+            "cachedInputTokens": 11008,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 125,
+            "reasoningOutputTokens": 16
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-5>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-5>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-6>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"python3 -c 'import zlib,struct; d=open(\\\"red.png\\\",\\\"rb\\\").read(); p=8; out=[]\nwhile p<len(d):\n n=struct.unpack(\\\">I\\\",d[p:p+4])[0]; t=d[p+4:p+8]; x=d[p+8:p+8+n]; p+=12+n\n if t==b\\\"IDAT\\\": out.append(x)\nprint(list(zlib.decompress(b\\\"\\\".join(out))))'\"",
+          "cwd": "<cwd>",
+          "processId": "72035",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "python3 -c 'import zlib,struct; d=open(\"red.png\",\"rb\").read(); p=8; out=[]\nwhile p<len(d):\n n=struct.unpack(\">I\",d[p:p+4])[0]; t=d[p+4:p+8]; x=d[p+8:p+8+n]; p+=12+n\n if t==b\"IDAT\": out.append(x)\nprint(list(zlib.decompress(b\"\".join(out))))'"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": null,
+          "durationMs": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-6>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"python3 -c 'import zlib,struct; d=open(\\\"red.png\\\",\\\"rb\\\").read(); p=8; out=[]\nwhile p<len(d):\n n=struct.unpack(\\\">I\\\",d[p:p+4])[0]; t=d[p+4:p+8]; x=d[p+8:p+8+n]; p+=12+n\n if t==b\\\"IDAT\\\": out.append(x)\nprint(list(zlib.decompress(b\\\"\\\".join(out))))'\"",
+          "cwd": "<cwd>",
+          "processId": "72035",
+          "source": "unifiedExecStartup",
+          "status": "failed",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "python3 -c 'import zlib,struct; d=open(\"red.png\",\"rb\").read(); p=8; out=[]\nwhile p<len(d):\n n=struct.unpack(\">I\",d[p:p+4])[0]; t=d[p+4:p+8]; x=d[p+8:p+8+n]; p+=12+n\n if t==b\"IDAT\": out.append(x)\nprint(list(zlib.decompress(b\"\".join(out))))'"
+            }
+          ],
+          "aggregatedOutput": "Traceback (most recent call last):\n  File \"<string>\", line 5, in <module>\n    print(list(zlib.decompress(b\"\".join(out))))\n               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^\nzlib.error: Error -3 while decompressing data: incorrect data check\n",
+          "exitCode": 1,
+          "durationMs": 0
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 64435,
+            "inputTokens": 63788,
+            "cachedInputTokens": 48128,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 647,
+            "reasoningOutputTokens": 232
+          },
+          "last": {
+            "totalTokens": 16616,
+            "inputTokens": 16299,
+            "cachedInputTokens": 15104,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 317,
+            "reasoningOutputTokens": 126
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-7>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-7>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-8>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"python3 -c 'import struct;d=open(\\\"red.png\\\",\\\"rb\\\").read();p=8\nwhile p<len(d):\n n=struct.unpack(\\\">I\\\",d[p:p+4])[0];t=d[p+4:p+8];x=d[p+8:p+8+n];print(t,n,x.hex());p+=12+n'\"",
+          "cwd": "<cwd>",
+          "processId": "50467",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "python3 -c 'import struct;d=open(\"red.png\",\"rb\").read();p=8\nwhile p<len(d):\n n=struct.unpack(\">I\",d[p:p+4])[0];t=d[p+4:p+8];x=d[p+8:p+8+n];print(t,n,x.hex());p+=12+n'"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": null,
+          "durationMs": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-8>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"python3 -c 'import struct;d=open(\\\"red.png\\\",\\\"rb\\\").read();p=8\nwhile p<len(d):\n n=struct.unpack(\\\">I\\\",d[p:p+4])[0];t=d[p+4:p+8];x=d[p+8:p+8+n];print(t,n,x.hex());p+=12+n'\"",
+          "cwd": "<cwd>",
+          "processId": "50467",
+          "source": "unifiedExecStartup",
+          "status": "completed",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "python3 -c 'import struct;d=open(\"red.png\",\"rb\").read();p=8\nwhile p<len(d):\n n=struct.unpack(\">I\",d[p:p+4])[0];t=d[p+4:p+8];x=d[p+8:p+8+n];print(t,n,x.hex());p+=12+n'"
+            }
+          ],
+          "aggregatedOutput": "b'IHDR' 13 00000001000000010804000000\nb'IDAT' 11 78da63fcff1f0002eb01f5\nb'IEND' 0 \n",
+          "exitCode": 0,
+          "durationMs": 0
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 81576,
+            "inputTokens": 80487,
+            "cachedInputTokens": 64256,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1089,
+            "reasoningOutputTokens": 511
+          },
+          "last": {
+            "totalTokens": 17141,
+            "inputTokens": 16699,
+            "cachedInputTokens": 16128,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 442,
+            "reasoningOutputTokens": 279
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-9>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-9>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-10>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"python3 -c 'import zlib; x=bytes.fromhex(\\\"63fcff1f00\\\"); print(list(zlib.decompress(x,-15)))'\"",
+          "cwd": "<cwd>",
+          "processId": "12291",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "python3 -c 'import zlib; x=bytes.fromhex(\"63fcff1f00\"); print(list(zlib.decompress(x,-15)))'"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": null,
+          "durationMs": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-10>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"python3 -c 'import zlib; x=bytes.fromhex(\\\"63fcff1f00\\\"); print(list(zlib.decompress(x,-15)))'\"",
+          "cwd": "<cwd>",
+          "processId": "12291",
+          "source": "unifiedExecStartup",
+          "status": "completed",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "python3 -c 'import zlib; x=bytes.fromhex(\"63fcff1f00\"); print(list(zlib.decompress(x,-15)))'"
+            }
+          ],
+          "aggregatedOutput": "[1, 255, 255]\n",
+          "exitCode": 0,
+          "durationMs": 0
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 98943,
+            "inputTokens": 97698,
+            "cachedInputTokens": 80384,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1245,
+            "reasoningOutputTokens": 546
+          },
+          "last": {
+            "totalTokens": 17367,
+            "inputTokens": 17211,
+            "cachedInputTokens": 16128,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 156,
+            "reasoningOutputTokens": 35
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-11>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-11>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "<message-2>",
+          "text": "",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "itemId": "<message-2>",
+        "delta": "White"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "<message-2>",
+          "text": "White",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-2>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 116457,
+            "inputTokens": 115097,
+            "cachedInputTokens": 96512,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1360,
+            "reasoningOutputTokens": 654
+          },
+          "last": {
+            "totalTokens": 17514,
+            "inputTokens": 17399,
+            "cachedInputTokens": 16128,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 115,
+            "reasoningOutputTokens": 108
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "idle"
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-1>",
+        "turn": {
+          "id": "<turn-2>",
+          "items": [
+            {
+              "type": "agentMessage",
+              "id": "<message-2>",
+              "text": "White",
+              "phase": "final_answer",
+              "memoryCitation": null,
+              "delivery": null
+            }
+          ],
+          "itemsView": "summary",
+          "status": "completed",
+          "error": null,
+          "startedAt": 0,
+          "completedAt": 0,
+          "durationMs": 38485
+        }
+      },
+      "emittedAtMs": 0
+    }
+  ]
+}

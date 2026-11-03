@@ -1,0 +1,5 @@
+interface:
+  display_name: 'Squadron Heavy Runs'
+  short_description: 'Take turns with other sessions on heavy commands'
+policy:
+  allow_implicit_invocation: true

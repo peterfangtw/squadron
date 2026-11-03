@@ -1,0 +1,34 @@
+node_modules/
+out/
+dist/
+*.vsix
+.publish.env
+.env
+
+# Built releases, newest few, kept so a rollback is an install and not a
+# rebuild. `deploy.mjs` fills and sweeps it.
+dist-releases/
+.DS_Store
+*.tsbuildinfo
+
+# This project's linked worktrees, `git worktree add .worktrees/<branch>`.
+# Git skips a registered worktree in `status`, but only while it is registered:
+# a stale or half-removed one would otherwise read as untracked files in the
+# main tree. Tools that walk directories rather than ask git need their own
+# rule — see `.prettierignore` and `eslint.config.js`.
+#
+# Dot-prefixed and not `worktrees/`, which is the same trade `.claude/` was
+# making by accident: ripgrep and most bundlers skip a dotdir by default, so a
+# visible directory here would put every checkout into every `**/*.test.ts` and
+# every watcher. Not under `.claude/` any more because a worktree is not
+# Claude's — a Codex or Grok session gets one on the same terms.
+.worktrees/
+
+# Per-machine agent state: Claude Code settings, impeccable critiques.
+.claude/
+.impeccable/
+
+# Stryker's sandbox and the mutation report. A reading, never a gate —
+# `npm run check`, the hooks and `release` do not run it.
+.stryker-tmp/
+reports/mutation/

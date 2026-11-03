@@ -1,0 +1,57 @@
+{
+  "rename": {},
+  "settings": {},
+  "messages": [
+    {
+      "id": 10,
+      "result": {}
+    },
+    {
+      "method": "thread/name/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "threadName": "AgentsView C0 probe"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "id": 11,
+      "result": {}
+    },
+    {
+      "method": "thread/settings/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "threadSettings": {
+          "cwd": "<cwd>",
+          "approvalPolicy": "on-request",
+          "approvalsReviewer": "user",
+          "sandboxPolicy": {
+            "type": "workspaceWrite",
+            "writableRoots": [],
+            "networkAccess": false,
+            "excludeTmpdirEnvVar": false,
+            "excludeSlashTmp": false
+          },
+          "activePermissionProfile": null,
+          "model": "gpt-5.6-sol",
+          "modelProvider": "openai",
+          "serviceTier": null,
+          "effort": "low",
+          "summary": null,
+          "collaborationMode": {
+            "mode": "default",
+            "settings": {
+              "model": "gpt-5.6-sol",
+              "reasoning_effort": "low",
+              "developer_instructions": null
+            }
+          },
+          "multiAgentMode": "explicitRequestOnly",
+          "personality": "pragmatic"
+        }
+      },
+      "emittedAtMs": 0
+    }
+  ]
+}

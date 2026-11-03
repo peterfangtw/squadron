@@ -1,0 +1,90 @@
+{
+  "request": {
+    "method": "item/tool/requestUserInput",
+    "id": 0,
+    "params": {
+      "threadId": "<thread-6>",
+      "turnId": "<turn-7>",
+      "itemId": "<item-9>",
+      "questions": [
+        {
+          "id": "<id-73>",
+          "header": "Steer",
+          "question": "Choose Alpha or Beta",
+          "isOther": true,
+          "isSecret": false,
+          "options": [
+            {
+              "label": "Alpha (Recommended)",
+              "description": "Select Alpha."
+            },
+            {
+              "label": "Beta",
+              "description": "Select Beta."
+            }
+          ]
+        }
+      ],
+      "isBlocking": true,
+      "autoResolutionMs": null
+    }
+  },
+  "steered": {
+    "turnId": "<turn-7>"
+  },
+  "userMessage": {
+    "method": "item/completed",
+    "params": {
+      "item": {
+        "type": "userMessage",
+        "id": "<id-74>",
+        "clientId": "<client-11>",
+        "content": [
+          {
+            "type": "text",
+            "text": "STEER_NONCE_6D28",
+            "text_elements": []
+          }
+        ]
+      },
+      "threadId": "<thread-6>",
+      "turnId": "<turn-7>",
+      "completedAtMs": 0
+    },
+    "emittedAtMs": 0
+  },
+  "evidence": {
+    "call": {
+      "type": "function_call",
+      "id": "<id-81>",
+      "name": "request_user_input",
+      "arguments": "{\"questions\":[{\"header\":\"Steer\",\"id\":\"steer_choice\",\"question\":\"Choose Alpha or Beta\",\"options\":[{\"label\":\"Alpha (Recommended)\",\"description\":\"Select Alpha.\"},{\"label\":\"Beta\",\"description\":\"Select Beta.\"}]}]}",
+      "call_id": "<item-9>",
+      "internal_chat_message_metadata_passthrough": {
+        "turn_id": "<turn-7>",
+        "create_time": 1788445835.066854
+      }
+    },
+    "output": {
+      "type": "function_call_output",
+      "id": "<id-82>",
+      "call_id": "<item-9>",
+      "output": "{\"answers\":{}}",
+      "internal_chat_message_metadata_passthrough": {
+        "turn_id": "<turn-7>",
+        "create_time": 1788445837.552318
+      }
+    }
+  },
+  "final": ["A steered nonce arrived: `STEER_NONCE_6D28`."],
+  "completed": {
+    "method": "turn/completed",
+    "params": {
+      "threadId": "<thread-6>",
+      "turn": {
+        "id": "<turn-7>",
+        "status": "completed"
+      }
+    }
+  }
+}

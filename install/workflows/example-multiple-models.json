@@ -1,0 +1,63 @@
+{
+  "id": "example-multiple-models",
+  "label": "Example: Multiple Models",
+  "description": "Workflow v2: dependencies open a Claude Opus 5.5 Reviewer and a Grok 4.7 Implementer, then reuse those sessions. Change the opener model choices in the editor to suit your accounts. Enable session spawning before running. If a chosen model cannot start, Squadron can fall back to the starting session's model and reports that fallback. Edit, duplicate, or delete this example freely.",
+  "lanes": ["Reviewer", "Implementer"],
+  "steps": [
+    {
+      "id": "read-and-plan",
+      "label": "Read and plan task",
+      "prompt": "Read the user's task and repository instructions in ${cwd}. Read relevant code, establish acceptance criteria, and record the starting commit and pre-existing changes. Decide the necessary planning depth, keeping small tasks simple. Write the task brief and plan in the repository's usual location when appropriate; before marking this step done, write a message in this session recording the actual paths, acceptance, scope, baseline, and intended checks so other sessions can read them in your transcript. Resolve critical unknowns with the user and honor any request to review the plan before implementation. The workflow's dependency edges open the Reviewer and Implementer sessions; do not manually spawn copies of those lanes."
+    },
+    {
+      "id": "review-plan",
+      "label": "Review plan",
+      "lane": "Reviewer",
+      "brand": "claude",
+      "model": "claude-opus-5-5",
+      "needs": ["read-and-plan"],
+      "prompt": "Review the task brief and plan in a fresh session. The start --anchor-session-id command in your first message identifies the starting session. Run squadron-list, match that sessionId, and read its transcript to find the task, acceptance criteria, baseline, and actual artifact paths recorded by Read and plan task. Read those files and the relevant code; do not assume you inherited the conversation. If the brief is missing, ask the starting session with squadron-send using --interrupt when an answer is needed before you can continue. Review correctness, scope, feasibility, and unnecessary complexity without editing. Before marking this step done, write a message in this session with actionable findings and artifact paths. Run each squadron-* verb in the form the squadron skill's Running a verb section gives for your shell."
+    },
+    {
+      "id": "align-plan",
+      "label": "Align plan",
+      "needs": ["read-and-plan", "review-plan"],
+      "prompt": "Use squadron-list to locate your Reviewer child and read its transcript. Evaluate its plan findings, discuss unresolved points using squadron-send --interrupt when an answer is needed before you can continue, and settle the plan. An ordinary send can be held behind the Reviewer's dependency wait. Ask the user where product decisions or disagreements need their judgment. Before marking this step done, write a message in this session with the settled task brief, acceptance criteria, baseline, checks, and actual plan/file paths for the Implementer to read. Do not implement here: completing this step lets the workflow open the Implementer on its stated model. Run each squadron-* verb in the form the squadron skill's Running a verb section gives for your shell."
+    },
+    {
+      "id": "implement",
+      "label": "Implement",
+      "lane": "Implementer",
+      "brand": "grok",
+      "model": "grok-4.7",
+      "needs": ["align-plan"],
+      "prompt": "Implement the settled plan in ${cwd}. Use the anchor sessionId from your initial start --anchor-session-id command and squadron-list to locate the starting session's transcript. Read the settled brief and artifact paths from Align plan, then read those files and the repository instructions. If essential context is missing, ask the starting session with squadron-send --interrupt rather than guessing. Make the smallest complete change, preserve unrelated work, and use failing tests first where practical. Add the UI or smoke checks the repository requires. Update the plan for necessary deviations. Before marking this step done, write a message in this session with the files changed, relevant diff, and checks/results so the Reviewer can inspect them. Do not manually spawn a Reviewer; the workflow opens or wakes that lane. Run each squadron-* verb in the form the squadron skill's Running a verb section gives for your shell."
+    },
+    {
+      "id": "review-implementation",
+      "label": "Review implementation",
+      "lane": "Reviewer",
+      "needs": ["review-plan", "implement"],
+      "prompt": "Review the implementation against the settled task and acceptance criteria. Locate the starting session's Implementer child through squadron-list and read its transcript and the recorded artifact paths. Read the actual diff against the recorded baseline, keeping pre-existing changes separate. Check correctness, missing coverage, and unnecessary complexity. Review without editing. Before marking this step done, write a message in this session with actionable findings, file locations, reasoning, and any required checks. This reuses your existing Reviewer session and its model. Run each squadron-* verb in the form the squadron skill's Running a verb section gives for your shell."
+    },
+    {
+      "id": "apply-review",
+      "label": "Apply review",
+      "lane": "Implementer",
+      "needs": ["implement", "review-implementation"],
+      "prompt": "Read the Reviewer sibling's transcript using squadron-list. Evaluate its findings against the code and task, discuss with squadron-send when necessary, and apply those supported by evidence. Ask the starting session with --interrupt about unresolved disagreements or scope changes that need human judgment. Rerun affected checks. Before marking this step done, write a message in this session recording what changed and the results. This reuses your existing Implementer session and model; do not create another worker. Run each squadron-* verb in the form the squadron skill's Running a verb section gives for your shell."
+    },
+    {
+      "id": "verify",
+      "label": "Verify",
+      "needs": ["align-plan", "apply-review"],
+      "prompt": "Read the Implementer and Reviewer transcripts, inspect the final diff, and compare it with the task's acceptance criteria. Run the repository's documented checks. Record the results and anything that cannot be verified. Check the workflow's notices before reporting the models used: a requested model that fell back must not be described as having run successfully."
+    },
+    {
+      "id": "finish",
+      "label": "Finish",
+      "needs": ["verify"],
+      "prompt": "Summarize the delivered changes, validation, and remaining limitations. Use squadron-list --mine to identify this run's completed Reviewer and Implementer children, then end those idle sessions with squadron-end --pid. Do not end unrelated sessions or a busy child. Do not commit, deploy, publish, create a branch, or create a worktree unless the user requested it. Run each squadron-* verb in the form the squadron skill's Running a verb section gives for your shell."
+    }
+  ]
+}

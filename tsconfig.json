@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "outDir": "out",
+    "rootDir": "src",
+    "sourceMap": true,
+    "strict": true,
+    "incremental": true,
+
+    // The DOM tests pull in @types/jsdom, whose parse5 declarations don't
+    // resolve under this project's moduleResolution. Their checking is not
+    // this repo's job.
+    "skipLibCheck": true,
+
+    // Everything here parses files the CLI wrote and this repo does not
+    // control, so an index that might miss is the house bug. These make the
+    // compiler say so rather than hand back a confident `undefined`.
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": ["src"],
+  // Browser code, checked against the DOM by its own config. The whole
+  // directory is excluded, so a new file there cannot silently join this
+  // compilation and fail on a DOM type.
+  "exclude": ["src/webview"],
+  // Except the wire format, which both halves check against. `files` survives
+  // `exclude`, which is the only reason this can be stated so bluntly above.
+  "files": ["src/webview/protocol.d.ts"]
+}

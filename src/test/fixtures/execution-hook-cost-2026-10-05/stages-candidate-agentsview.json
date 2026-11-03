@@ -1,0 +1,363 @@
+{
+  "repo": "agentsview",
+  "variant": "candidate",
+  "before": [
+    339.71837500000004,
+    48.47579200000007,
+    60.18041599999992,
+    49.459499999999935,
+    45.880750000000035,
+    47.34174999999982,
+    34.89920799999982,
+    32.86141599999996,
+    48.22600000000011,
+    58.22499999999991,
+    40.74870800000008,
+    52.56012499999997,
+    39.445250000000215,
+    42.63675000000012,
+    36.237959000000046,
+    40.78529099999969,
+    44.72462499999983,
+    40.42049999999972,
+    39.27320800000007,
+    32.38695900000039,
+    38.74354200000016,
+    38.20024999999987,
+    38.41558400000031,
+    42.140166000000136,
+    39.78466599999956,
+    43.125584000000345,
+    32.983416000000034,
+    32.02616599999965,
+    42.46149999999943,
+    44.15179100000023,
+    37.26350000000002
+  ],
+  "after": [
+    36.208541999999966,
+    61.65870799999993,
+    59.43100000000004,
+    55.428499999999985,
+    55.38866700000017,
+    42.88695800000005,
+    43.149584000000004,
+    42.46758399999976,
+    39.958250000000135,
+    40.739624999999705,
+    37.69958399999996,
+    52.02712500000007,
+    35.9987500000002,
+    38.12379200000032,
+    38.68329199999971,
+    38.15312500000027,
+    35.996250000000146,
+    45.654625000000124,
+    36.31462499999998,
+    42.530666999999994,
+    31.47624999999971,
+    44.6185830000004,
+    54.55229200000031,
+    42.808209000000716,
+    36.59208299999955,
+    39.504124999999476,
+    37.22820800000045,
+    43.60795899999994,
+    33.96562500000073,
+    39.80645900000036,
+    35.73424999999952
+  ],
+  "full": [
+    467.644042,
+    211.00599999999997,
+    308.522208,
+    287.8667919999998,
+    249.0491669999999,
+    196.88995899999986,
+    167.2651249999999,
+    177.90912500000013,
+    205.12379099999998,
+    200.75608300000022,
+    164.262334,
+    199.81362500000023,
+    155.323042,
+    174.84020899999996,
+    203.01399999999967,
+    151.6255839999999,
+    164.7540829999998,
+    197.0724170000003,
+    161.07658300000048,
+    153.7607909999997,
+    148.24612499999967,
+    184.94608400000016,
+    199.36445900000035,
+    165.34787500000039,
+    167.32750000000033,
+    171.57600000000002,
+    147.08129199999985,
+    178.9426250000006,
+    156.4823749999996,
+    185.69325000000026,
+    176.14808400000038
+  ],
+  "copies": [
+    {
+      "source": "squadron-234dcc2a3f70caef080b5dbe451895bfaee829bdc4081e721b9898ecc7bb1205.index",
+      "ms": 2.626166000000012
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.036583999999948
+    },
+    {
+      "source": "squadron-376da13c9aff72c4367fa560edb6850bdd891efb8ad4b263bef95ff0d056e770.index",
+      "ms": 3.3654579999999896
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 3.3710829999999987
+    },
+    {
+      "source": "squadron-b1a35a9cdaaadf43aa6ef6cefad9dce4d1eb288b4cf75cfefd8beafbbe90ef8d.index",
+      "ms": 3.930417000000034
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 12.146999999999935
+    },
+    {
+      "source": "squadron-477739ecff0963d2916df89f35fb35ce9cdb070e7110a00f9bcca62939743eac.index",
+      "ms": 23.411167000000205
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 11.648666999999932
+    },
+    {
+      "source": "squadron-6b5b36126f49282b8d48f11fbc708d4df6b3d9103e61429c0b076878a9bbd712.index",
+      "ms": 1.9323329999999714
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 9.703082999999879
+    },
+    {
+      "source": "squadron-284864a56eb9277dc94008d9a3e86a492bd87945a1f3f3c605d3bbfcb84247d4.index",
+      "ms": 1.9966249999999945
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.9615000000001146
+    },
+    {
+      "source": "squadron-7019b16372938d38611f629e6f21cd3f913d426318d17f1fea68e0738be8eb59.index",
+      "ms": 4.891541999999845
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.3530409999998483
+    },
+    {
+      "source": "squadron-268eaa68d3bdf5d5e0bb63c3ab18ec9069c9b47d71ebe8b5047b1bb42f3ede1d.index",
+      "ms": 2.1110419999999976
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.269582999999784
+    },
+    {
+      "source": "squadron-c30afaf84f594bfee46ea60cce23b450069e3f111884d3874b0775501e2967e2.index",
+      "ms": 2.327082999999675
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.322041999999783
+    },
+    {
+      "source": "squadron-674ad116f9c280a92505e60a4764242ecf02fdce5c378f5df0be847e20406730.index",
+      "ms": 1.9272080000000642
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 4.879416000000219
+    },
+    {
+      "source": "squadron-f4089e73d54120d32d10af1a983954c5b078107663b4658983b4ba02e858f855.index",
+      "ms": 2.811000000000149
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.5436249999997926
+    },
+    {
+      "source": "squadron-65b4c2d78a3aeee612a94c378aada7a7b8ab61548358b9bf9c182455ddb5fb77.index",
+      "ms": 1.4013330000002497
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.33849999999984
+    },
+    {
+      "source": "squadron-c0c3c0f09f36b89a131e66c2602733a7d5fa96ed637b0401dbefaefb011d8e16.index",
+      "ms": 1.2528330000000096
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.2157499999998436
+    },
+    {
+      "source": "squadron-029a54e6a9320d46d480f4eda3a8f369326132c02dbb77372967eff93fd86192.index",
+      "ms": 1.41924999999992
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.562916999999743
+    },
+    {
+      "source": "squadron-245655f94c00bdba243014d42b7f23474bd543bbc7c4e9b7c4a13a866a51dac8.index",
+      "ms": 4.541541999999936
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.4479590000000826
+    },
+    {
+      "source": "squadron-08da7d06b2f43233fb303386813a573d6843daf418caf896e67222acbf5cefc3.index",
+      "ms": 2.0487920000000486
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.9232500000002801
+    },
+    {
+      "source": "squadron-a7654b43279b846936e12edf8b00850faefabfa4bbdca1202f29ffdf668c3572.index",
+      "ms": 2.1510840000000826
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.6582079999998314
+    },
+    {
+      "source": "squadron-f21ad4503d345dd29939db41f6fe40b4ae81b7f937ee8eb861ef30fa42ae956f.index",
+      "ms": 1.3162919999999758
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.6099160000003394
+    },
+    {
+      "source": "squadron-ce8a0c11373dcdfa0a742b823f37013c6ef79538a16fb2e7f0ed609e3b08691b.index",
+      "ms": 1.706250000000182
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.0707079999992857
+    },
+    {
+      "source": "squadron-8f87d2c75aecda16bbcb60111c696a696c9090f24b96b4bb64f0a9f60375f2bc.index",
+      "ms": 2.1957090000005337
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.945292000000336
+    },
+    {
+      "source": "squadron-4bd6dfe1b9c72f720e77034618f5e8aa8ffda1d84c667212254c690da898b2aa.index",
+      "ms": 1.3839590000006865
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.8474159999996118
+    },
+    {
+      "source": "squadron-66a9791c9194c038579406ebb9f2d909296cfbde4d97d47c0fd5d516f4e7dfa1.index",
+      "ms": 2.7625410000000556
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 3.333042000000205
+    },
+    {
+      "source": "squadron-71e69e08ee7445168f2ea25c1cb061a4630f675625582bad429dd7c326f4c742.index",
+      "ms": 1.701625000000604
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 3.4224169999997684
+    },
+    {
+      "source": "squadron-b35e41aa1a469f69f18703c06e9d73005729b62c60fdbb9f6f6b25b6133cb211.index",
+      "ms": 3.8214160000006814
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 3.8594999999995707
+    },
+    {
+      "source": "squadron-9c711f8ac54656b65a53ea4eb74689ca709f9de78153373b44db5aa330c5172c.index",
+      "ms": 1.1676250000000437
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.2155000000002474
+    },
+    {
+      "source": "squadron-4b541653159a436f9d4ea3badc95f78fe51916b41660322428b88768e23fe1c9.index",
+      "ms": 2.837083999999777
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.5609170000006998
+    },
+    {
+      "source": "squadron-6221439a09b0dfc383e2aaf248505d2bf33399eb84b1673c3b5f34b8c16be814.index",
+      "ms": 1.760707999999795
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.605583999999908
+    },
+    {
+      "source": "squadron-dcf2816c8095632442683989ba4a1b336aa6a4c0b94e388af49e43c6fbc4d7dc.index",
+      "ms": 2.0392079999992347
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 2.2885839999999007
+    },
+    {
+      "source": "squadron-46233cb3b5fb7b18affd3c9ed017b3518ad368bc041d427ba5470aba5f445c1a.index",
+      "ms": 1.4192500000008295
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 1.733541999999943
+    },
+    {
+      "source": "squadron-f620743e25ccc708caddbe8d65bbe58a22f45800b63e94c21d49a6ca0da0b572.index",
+      "ms": 4.535791000000245
+    },
+    {
+      "source": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "ms": 5.512958000000253
+    },
+    {
+      "source": "squadron-2ad7db199f393ef993e5226facfb08b1b9a95b8c5cfdeb41d33ac31ed035dc14.index",
+      "ms": 1.3975000000000364
+    }
+  ],
+  "indexes": [
+    {
+      "name": "squadron-274b37505ec12388e7dee3c0564a5403334a2c06ebeb2cbe1aab6416a7c20d2f.index",
+      "size": 122770
+    },
+    {
+      "name": "squadron-4c0984b6db5331b06d45582f46ba58fb67f8277f0513a968ab1ef175a29ec8e2.index",
+      "size": 122770
+    },
+    {
+      "name": "squadron-c08f3028731d844f817571de60f63fb7eadea5f30c992076213c3da262fcb500.index",
+      "size": 122770
+    }
+  ]
+}

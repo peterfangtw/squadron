@@ -1,0 +1,5 @@
+interface:
+  display_name: 'Squadron'
+  short_description: 'Name and coordinate Squadron sessions'
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,26 @@
+out/
+dist/
+node_modules/
+package-lock.json
+
+# This project's linked worktrees live under here. Git skips a registered
+# worktree; prettier walks it like any directory, so one session's half-written
+# file failed every other session's pre-commit hook.
+.worktrees/
+
+# Scratch scripts and their output. Untracked, thrown away, and named so —
+# `*.tmp.mjs` beside a mockup is one session's screenshot rig, and it failed
+# every other session's pre-commit hook, and one release.
+*.tmp.mjs
+*.tmp/
+
+# Prose, hand-wrapped, with tables kept readable in the source. Formatting it
+# would churn every doc without making one of them clearer.
+*.md
+docs/
+
+# Captures of other programs' output. A fixture is the bytes a CLI wrote, minus
+# a deliberate sanitizing pass — reformatting one means the committed file is no
+# longer what was observed. Never came up while every fixture was `.jsonl`,
+# which prettier has no parser for; the first `.json` capture failed the gate.
+src/test/fixtures/

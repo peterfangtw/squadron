@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "framework": "4.8.1",
+  "referenceEvidence": "Microsoft.NETFramework.ReferenceAssemblies.net48/1.0.3",
+  "referencePackage": {
+    "version": "1.0.3",
+    "sha256": "8a7e348538e7eb91351696911689f49e3d4f63f8bab517432bbe159b8b1104a2"
+  },
+  "target": "win32-x64",
+  "files": {
+    "csc.exe": "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00",
+    "mscorlib.dll": "6b35530467b914b0b195146ca1d1485ddd219afaad6461103f16f54e952f75a9",
+    "System.dll": "2fe343569f794f2ca92ee14a41875571a9f21bf92637b8f8ee86306534209cca",
+    "System.Core.dll": "94a1fc97eb0d36f13acd209bb7207da504c8be10caf7e5096b2c46e671dc6fe2",
+    "System.Web.Extensions.dll": "7512218c4a6a83de0cdbb8a25240b8b5ee542f93ff9b31acfbf9f7399394450e"
+  }
+}

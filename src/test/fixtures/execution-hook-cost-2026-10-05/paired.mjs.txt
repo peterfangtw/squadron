@@ -1,0 +1,46 @@
+import * as fs from 'node:fs/promises';
+import * as cp from 'node:child_process';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { createRequire } from 'node:module';
+import { performance } from 'node:perf_hooks';
+const root=await fs.realpath(process.argv[2]), require=createRequire(import.meta.url);
+const reports=[];
+const stats=values=>{const v=[...values].sort((a,b)=>a-b);return {n:v.length,p50:v[Math.ceil(v.length*.5)-1],p90:v[Math.ceil(v.length*.9)-1]};};
+for(const repo of ['agentsview','acme-web']) {
+ const cwd=await fs.realpath(path.join(root,'measure-'+repo)), configs=[];
+ for(const variant of ['baseline','master-only','matcher-only','combined']) {
+  const artifacts=path.join(root,['master-only','combined'].includes(variant)?'candidate':'baseline');
+  const home=path.join(root,'paired-home-'+repo+'-'+variant);await fs.mkdir(home,{recursive:true});process.env.HOME=home;
+  for(const key of Object.keys(require.cache))if(key.startsWith(artifacts+'/core/'))delete require.cache[key];
+  const execution=require(artifacts+'/core/execution.js'),checkpoint=require(artifacts+'/core/checkpoint.js'),native=require(artifacts+'/core/claude/execution.js');
+  const prepared=await execution.prepareExecution(native.integration,artifacts+'/execution.js',true),sid=repo+'-'+variant;
+  await execution.admitExecution(prepared.runtime,'claude',sid,'measurement');
+  configs.push({variant,home,prepared,sid,checkpoint,id:0,samples:[],turns:[],parallel:[],startLoad:os.loadavg()});
+ }
+ async function edge(c,payload,tag) {
+  const memory=path.join(root,'paired-memory-'+c.sid+'-'+tag),start=performance.now();
+  const env={...process.env,HOME:c.home,SQUADRON_EXECUTION_CONTEXT:c.prepared.runtime.contextFile};for(const key of Object.keys(env))if(key.startsWith('GIT_'))delete env[key];
+  await new Promise((resolve,reject)=>{const child=cp.spawn('/usr/bin/time',['-l','-o',memory,process.execPath,c.prepared.runtime.runner],{env});let stdout='',stderr='';child.stdout.on('data',b=>stdout+=b);child.stderr.on('data',b=>stderr+=b);child.once('error',reject);child.once('close',code=>code===0&&!stdout&&!stderr?resolve():reject(new Error(JSON.stringify({code,stdout,stderr}))));child.stdin.end(JSON.stringify(payload));});
+  const ms=performance.now()-start,usage=await fs.readFile(memory,'utf8');await fs.rm(memory);return {ms,rssBytes:Number(usage.match(/(\d+)\s+maximum resident set size/)?.[1])};
+ }
+ async function call(c,kind,cohort) {
+  const id='call-'+ ++c.id;
+  if(kind==='read'&&['matcher-only','combined'].includes(c.variant)){const row={kind,cohort,before:0,after:0,ms:0,rssBytes:0,launches:0};c.samples.push(row);return row;}
+  const payload={session_id:c.sid,cwd,tool_name:kind==='read'?'Read':'Write',tool_use_id:id};
+  const before=await edge(c,{...payload,hook_event_name:'PreToolUse'},id+'-pre');
+  if(kind==='write')await fs.writeFile(path.join(cwd,'hook-cost-measured.txt'),c.sid+'-'+id+'\n');
+  const after=await edge(c,{...payload,hook_event_name:'PostToolUse'},id+'-post');
+  const row={kind,cohort,before:before.ms,after:after.ms,ms:before.ms+after.ms,rssBytes:Math.max(before.rssBytes,after.rssBytes),launches:2};c.samples.push(row);return row;
+ }
+ const ordered=i=>configs.slice(i%4).concat(configs.slice(0,i%4));
+ for(const c of configs)await call(c,'write','first');
+ for(let i=0;i<30;i++)for(const c of ordered(i))await call(c,'write','writer');
+ for(let i=0;i<30;i++)for(const c of ordered(i))await call(c,'read','read');
+ let i=0;for(const count of [...Array(8).fill(3),16,16,54]) {
+  for(const c of ordered(i++)){const rows=[];for(let k=0;k<count;k++)rows.push(await call(c,k%3===1?'write':'read','mixed'));c.turns.push({count,writes:rows.filter(r=>r.kind==='write').length,ms:rows.reduce((sum,r)=>sum+r.ms,0)});}
+ }
+ for(let i=0;i<10;i++)for(const c of ordered(i)){const start=performance.now(),rows=await Promise.all(Array.from({length:3},()=>call(c,'write','parallel')));c.parallel.push({criticalMs:performance.now()-start,workMs:rows.reduce((sum,r)=>sum+r.ms,0)});}
+ for(const c of configs){const store=await c.checkpoint.readExecution(cwd);if(store.edges.some(r=>!r.snapshot))throw new Error('missing snapshot');const writer=c.samples.filter(r=>r.cohort==='writer');const report={repo,variant:c.variant,brand:'claude (shared capture pipeline)',startLoad:c.startLoad,endLoad:os.loadavg(),writer:{before:stats(writer.map(r=>r.before)),after:stats(writer.map(r=>r.after)),pair:stats(writer.map(r=>r.ms)),rssBytes:stats(writer.map(r=>r.rssBytes))},reads:stats(c.samples.filter(r=>r.cohort==='read').map(r=>r.ms)),mixedCalls:stats(c.samples.filter(r=>r.cohort==='mixed').map(r=>r.ms)),mixedTurns:stats(c.turns.map(r=>r.ms)),rssBytes:stats(c.samples.filter(r=>r.rssBytes).map(r=>r.rssBytes)),launches:c.samples.reduce((sum,r)=>sum+r.launches,0),samples:c.samples,turns:c.turns,parallel:c.parallel};reports.push(report);await c.checkpoint.endExecutionRuntime(c.prepared.runtime.runtime,c.prepared.runtime.contextFile);console.log(JSON.stringify({repo,variant:c.variant,writer:report.writer,mixedTurns:report.mixedTurns,launches:report.launches}));}
+ await fs.writeFile(root+'/paired-results.json',JSON.stringify({date:new Date().toISOString(),source:'03248658',node:process.version,method:'Rotating configurations per call/turn, independent runtime state stores; shared kernel measured via Claude writer/read payloads; native controls all brands separately',reports},null,2));
+}

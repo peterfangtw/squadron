@@ -1,0 +1,164 @@
+{
+  "version": "codex-cli 0.151.0",
+  "current": {
+    "account": {
+      "ok": true,
+      "result": {
+        "account": {
+          "type": "chatgpt",
+          "email": "<redacted-email>",
+          "planType": "<redacted-plan>"
+        },
+        "requiresOpenaiAuth": true
+      }
+    }
+  },
+  "scratch": {
+    "signedOut": {
+      "ok": true,
+      "result": {
+        "account": null,
+        "requiresOpenaiAuth": true
+      }
+    },
+    "deviceCancel": {
+      "started": {
+        "type": "chatgptDeviceCode",
+        "loginId": "<login-1>",
+        "verificationUrl": "https://auth.openai.com/codex/device",
+        "userCode": "<redacted-user-code>"
+      },
+      "canceled": {
+        "status": "canceled"
+      },
+      "completed": {
+        "observed": true,
+        "message": {
+          "method": "account/login/completed",
+          "params": {
+            "loginId": "<login-1>",
+            "success": false,
+            "error": "Login was not completed",
+            "onboardingEntrypoint": null
+          },
+          "emittedAtMs": 0
+        }
+      },
+      "messages": [
+        {
+          "id": 13,
+          "result": {
+            "type": "chatgptDeviceCode",
+            "loginId": "<login-1>",
+            "verificationUrl": "https://auth.openai.com/codex/device",
+            "userCode": "<redacted-user-code>"
+          }
+        },
+        {
+          "id": 14,
+          "result": {
+            "status": "canceled"
+          }
+        },
+        {
+          "method": "account/login/completed",
+          "params": {
+            "loginId": "<login-1>",
+            "success": false,
+            "error": "Login was not completed",
+            "onboardingEntrypoint": null
+          },
+          "emittedAtMs": 0
+        }
+      ]
+    },
+    "afterDeviceCancel": {
+      "ok": true,
+      "result": {
+        "account": null,
+        "requiresOpenaiAuth": true
+      }
+    },
+    "browserCancel": {
+      "started": {
+        "type": "chatgpt",
+        "loginId": "<login-2>",
+        "authUrl": "<redacted-auth-url>"
+      },
+      "canceled": {
+        "status": "canceled"
+      },
+      "completed": {
+        "observed": true,
+        "message": {
+          "method": "account/login/completed",
+          "params": {
+            "loginId": "<login-2>",
+            "success": false,
+            "error": "Login server error: Login was not completed",
+            "onboardingEntrypoint": null
+          },
+          "emittedAtMs": 0
+        }
+      },
+      "messages": [
+        {
+          "id": 16,
+          "result": {
+            "type": "chatgpt",
+            "loginId": "<login-2>",
+            "authUrl": "<redacted-auth-url>"
+          }
+        },
+        {
+          "id": 17,
+          "result": {
+            "status": "canceled"
+          }
+        },
+        {
+          "method": "account/login/completed",
+          "params": {
+            "loginId": "<login-2>",
+            "success": false,
+            "error": "Login server error: Login was not completed",
+            "onboardingEntrypoint": null
+          },
+          "emittedAtMs": 0
+        }
+      ]
+    },
+    "afterBrowserCancel": {
+      "ok": true,
+      "result": {
+        "account": null,
+        "requiresOpenaiAuth": true
+      }
+    },
+    "signedOutLogout": {
+      "ok": true,
+      "result": {}
+    },
+    "signedOutLogoutUpdated": {
+      "observed": true,
+      "message": {
+        "method": "account/updated",
+        "params": {
+          "authMode": null,
+          "planType": null
+        },
+        "emittedAtMs": 0
+      }
+    },
+    "afterSignedOutLogout": {
+      "ok": true,
+      "result": {
+        "account": null,
+        "requiresOpenaiAuth": true
+      }
+    },
+    "interactive": {
+      "skipped": true
+    }
+  }
+}

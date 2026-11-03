@@ -1,0 +1,6 @@
+# LF in every checkout, whatever core.autocrlf says: prettier, the shell
+# hooks and every parser here are written for it. Batch files are the
+# exception, because cmd.exe misreads them without CR.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf

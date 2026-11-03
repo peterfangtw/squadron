@@ -1,0 +1,548 @@
+{
+  "turnId": "<turn-3>",
+  "completed": {
+    "method": "turn/completed",
+    "params": {
+      "threadId": "<thread-1>",
+      "turn": {
+        "id": "<turn-3>",
+        "items": [
+          {
+            "type": "agentMessage",
+            "id": "<message-3>",
+            "text": "C0_FILE_DONE",
+            "phase": "final_answer",
+            "memoryCitation": null,
+            "delivery": null
+          }
+        ],
+        "itemsView": "summary",
+        "status": "completed",
+        "error": null,
+        "startedAt": 0,
+        "completedAt": 0,
+        "durationMs": 7232
+      }
+    },
+    "emittedAtMs": 0
+  },
+  "messages": [
+    {
+      "method": "mcpServer/startupStatus/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "name": "pencil",
+        "status": "starting",
+        "error": null,
+        "failureReason": null
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "mcpServer/startupStatus/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "name": "pencil",
+        "status": "failed",
+        "error": "MCP client for `pencil` failed to start: MCP startup failed: No such file or directory (os error 2)",
+        "failureReason": null
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "mcpServer/startupStatus/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "name": "codex_apps",
+        "status": "ready",
+        "error": null,
+        "failureReason": null
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/settings/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "threadSettings": {
+          "cwd": "<cwd>",
+          "approvalPolicy": "on-request",
+          "approvalsReviewer": "user",
+          "sandboxPolicy": {
+            "type": "readOnly",
+            "networkAccess": false
+          },
+          "activePermissionProfile": null,
+          "model": "gpt-5.6-sol",
+          "modelProvider": "openai",
+          "serviceTier": null,
+          "effort": "low",
+          "summary": null,
+          "collaborationMode": {
+            "mode": "default",
+            "settings": {
+              "model": "gpt-5.6-sol",
+              "reasoning_effort": "low",
+              "developer_instructions": null
+            }
+          },
+          "multiAgentMode": "explicitRequestOnly",
+          "personality": "pragmatic"
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "id": 12,
+      "result": {
+        "turn": {
+          "id": "<turn-3>",
+          "items": [],
+          "itemsView": "notLoaded",
+          "status": "inProgress",
+          "error": null,
+          "startedAt": null,
+          "completedAt": null,
+          "durationMs": null
+        }
+      }
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "active",
+          "activeFlags": []
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "turn/started",
+      "params": {
+        "threadId": "<thread-1>",
+        "turn": {
+          "id": "<turn-3>",
+          "items": [],
+          "itemsView": "notLoaded",
+          "status": "inProgress",
+          "error": null,
+          "startedAt": 0,
+          "completedAt": null,
+          "durationMs": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<id-5>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "Use a shell command, not apply_patch, to run exactly: printf 'codex-c0\\n' > c0-approved.txt . Then reply exactly C0_FILE_DONE.",
+              "text_elements": []
+            }
+          ]
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<id-5>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "Use a shell command, not apply_patch, to run exactly: printf 'codex-c0\\n' > c0-approved.txt . Then reply exactly C0_FILE_DONE.",
+              "text_elements": []
+            }
+          ]
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-12>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-12>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "active",
+          "activeFlags": ["waitingOnApproval"]
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-13>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"printf 'codex-c0\\\\n' > c0-approved.txt\"",
+          "cwd": "<cwd>",
+          "processId": null,
+          "source": "agent",
+          "status": "inProgress",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "printf 'codex-c0\\n' > c0-approved.txt"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": null,
+          "durationMs": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/commandExecution/requestApproval",
+      "id": 0,
+      "params": {
+        "kind": "command",
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "itemId": "<item-13>",
+        "startedAtMs": 0,
+        "environmentId": "local",
+        "reason": "Allow writing c0-approved.txt with the exact requested shell command?",
+        "command": "/bin/zsh -lc \"printf 'codex-c0\\\\n' > c0-approved.txt\"",
+        "cwd": "<cwd>",
+        "commandActions": [
+          {
+            "type": "unknown",
+            "command": "printf 'codex-c0\\n' > c0-approved.txt"
+          }
+        ],
+        "proposedExecpolicyAmendment": [
+          "/bin/zsh",
+          "-lc",
+          "printf 'codex-c0\\n' > c0-approved.txt"
+        ],
+        "availableDecisions": [
+          "accept",
+          {
+            "acceptWithExecpolicyAmendment": {
+              "execpolicy_amendment": ["/bin/zsh", "-lc", "printf 'codex-c0\\n' > c0-approved.txt"]
+            }
+          },
+          "cancel"
+        ]
+      }
+    },
+    {
+      "method": "serverRequest/resolved",
+      "params": {
+        "threadId": "<thread-1>",
+        "requestId": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "active",
+          "activeFlags": []
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "<item-13>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "/bin/zsh -lc \"printf 'codex-c0\\\\n' > c0-approved.txt\"",
+          "cwd": "<cwd>",
+          "processId": "34979",
+          "source": "unifiedExecStartup",
+          "status": "completed",
+          "commandActions": [
+            {
+              "type": "unknown",
+              "command": "printf 'codex-c0\\n' > c0-approved.txt"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": 0,
+          "durationMs": 0
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 135103,
+            "inputTokens": 133584,
+            "cachedInputTokens": 107520,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1519,
+            "reasoningOutputTokens": 687
+          },
+          "last": {
+            "totalTokens": 18646,
+            "inputTokens": 18487,
+            "cachedInputTokens": 11008,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 159,
+            "reasoningOutputTokens": 33
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "<message-3>",
+          "text": "",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "itemId": "<message-3>",
+        "delta": "C"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "itemId": "<message-3>",
+        "delta": "0"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "itemId": "<message-3>",
+        "delta": "_FILE"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "itemId": "<message-3>",
+        "delta": "_DONE"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "<message-3>",
+          "text": "C0_FILE_DONE",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-3>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 153780,
+            "inputTokens": 152253,
+            "cachedInputTokens": 125696,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1527,
+            "reasoningOutputTokens": 687
+          },
+          "last": {
+            "totalTokens": 18677,
+            "inputTokens": 18669,
+            "cachedInputTokens": 18176,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 8,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "idle"
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-1>",
+        "turn": {
+          "id": "<turn-3>",
+          "items": [
+            {
+              "type": "agentMessage",
+              "id": "<message-3>",
+              "text": "C0_FILE_DONE",
+              "phase": "final_answer",
+              "memoryCitation": null,
+              "delivery": null
+            }
+          ],
+          "itemsView": "summary",
+          "status": "completed",
+          "error": null,
+          "startedAt": 0,
+          "completedAt": 0,
+          "durationMs": 7232
+        }
+      },
+      "emittedAtMs": 0
+    }
+  ]
+}

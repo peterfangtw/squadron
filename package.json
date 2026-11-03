@@ -1,0 +1,435 @@
+{
+  "name": "squadron",
+  "displayName": "Squadron",
+  "description": "Run Claude Code, Codex and Grok in the same UI on your editor, and let them work with each other autonomously.",
+  "version": "0.6.9",
+  "squadronBuild": "posix-staging",
+  "publisher": "peterfangtw",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "bugs": {
+    "url": "https://github.com/peterfangtw/squadron-media/issues"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Visualization"
+  ],
+  "keywords": [
+    "ai",
+    "agent",
+    "orchestration",
+    "workflow",
+    "aggregator",
+    "claude",
+    "claude code",
+    "codex",
+    "gpt",
+    "grok",
+    "multi-agent",
+    "anthropic",
+    "openai",
+    "xai",
+    "vscode",
+    "antigravity",
+    "cursor",
+    "macos"
+  ],
+  "main": "./dist/extension.js",
+  "files": [
+    "CHANGELOG.md",
+    "LICENSE",
+    "dist/**/*.js",
+    "dist/helpers/private-files-v1.exe",
+    "dist/helpers/private-files-v1.json",
+    "src/core/platform/private_files/helper/**",
+    "scripts/windows-helper-artifacts.mjs",
+    "scripts/private-files-helper.mjs",
+    "dist/helpers/console-login-v1.exe",
+    "dist/helpers/console-login-v1.json",
+    "src/core/platform/console_login/helper/**",
+    "scripts/console-login-helper.mjs",
+    "install/**",
+    "media/icon.png",
+    "media/icon-editor-light.svg",
+    "media/icon-editor-dark.svg",
+    "media/onboarding/*.png"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "squadron.showOverview",
+        "title": "Squadron: Show Sessions Overview",
+        "icon": {
+          "light": "media/icon-editor-light.svg",
+          "dark": "media/icon-editor-dark.svg"
+        }
+      },
+      {
+        "command": "squadron.connectLinear",
+        "title": "Squadron: Connect Linear"
+      },
+      {
+        "command": "squadron.disconnectLinear",
+        "title": "Squadron: Disconnect Linear"
+      },
+      {
+        "command": "squadron.logPerf",
+        "title": "Squadron: Log Performance Counters"
+      },
+      {
+        "command": "squadron.remote.turnOn",
+        "title": "Squadron: Turn Remote On"
+      },
+      {
+        "command": "squadron.remote.turnOff",
+        "title": "Squadron: Turn Remote Off"
+      },
+      {
+        "command": "squadron.remote.connect",
+        "title": "Squadron: Connect Remote Messenger"
+      },
+      {
+        "command": "squadron.remote.disconnect",
+        "title": "Squadron: Disconnect Remote Messenger"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "squadron.showOverview",
+          "group": "navigation",
+          "when": "activeWebviewPanelId != 'squadron.overview'"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "squadron.logPerf",
+          "when": "config.squadron.debug"
+        },
+        {
+          "command": "squadron.remote.turnOn",
+          "when": "config.squadron.debug"
+        },
+        {
+          "command": "squadron.remote.turnOff",
+          "when": "config.squadron.debug"
+        },
+        {
+          "command": "squadron.remote.connect",
+          "when": "config.squadron.debug"
+        },
+        {
+          "command": "squadron.remote.disconnect",
+          "when": "config.squadron.debug"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Squadron",
+      "properties": {
+        "squadron.debug": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show Squadron's diagnostic commands in the Command Palette: `Squadron: Log Performance Counters`, which writes refresh, post and repaint counts to the extension host log; and Remote's four commands (turn on, turn off, connect, disconnect), which Squadron's own Remote switch and its settings do for everyone else."
+        },
+        "squadron.remote.allowlist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "application",
+          "markdownDescription": "The messenger accounts Remote answers — on Slack, your member id (`U…`), read with `#squadron.remote.space#`, or a whole `T…:U…` for someone in another workspace. Anyone not listed is ignored, and an account the messenger cannot use is shown in Remote's setup and left out. With none usable Remote stays off. The first usable entry is where Remote opens conversations. Machine-wide rather than per-workspace, so a checked-in `.vscode/settings.json` cannot add a driver."
+        },
+        "squadron.remote.space": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "markdownDescription": "The messenger's own space your allowed accounts belong to — on Slack, the workspace id (`T…`). Remote's setup check fills it in while it is empty and never overwrites it. Machine-wide for the allowlist's reason."
+        },
+        "squadron.orchestrators.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "markdownDescription": "Orchestration, in Agents on the bottom hub. Let sessions act on each other: every `squadron-*` verb that writes (send, answer, spawn, end, rename, warm, wait, step, attach, fetch-file) refuses while this is off; `squadron-list` and `squadron-models` still work. Machine-wide rather than per-workspace, so a checked-in `.vscode/settings.json` cannot turn it on. Note this is an opt-in, not a boundary: anything able to write to `~/.squadron/requests/` can already message a session. Turning this on also installs the `squadron` CLI skill and the `squadron-workflow-builder` authoring skill, including its references, under `skills/` in each installed CLI's own directory — `~/.claude`, `~/.codex`, `~/.grok` — so a session of any brand knows the verbs exist; a file already there that this extension did not write is never overwritten, and turning the setting back off leaves the file in place."
+        },
+        "squadron.skipPermissions.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "markdownDescription": "Start sessions opened from Squadron with `--dangerously-skip-permissions`, so they never ask before editing files, running commands or reaching the network. Machine-wide rather than per-workspace, so a checked-in `.vscode/settings.json` cannot turn it on. This applies to a spawn a running session asks for too, whose task text was written elsewhere. Existing sessions are unaffected."
+        },
+        "squadron.efforts": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "scope": "application",
+          "markdownDescription": "Effort for sessions **the panel starts or resumes**, per model: each key is a model id as `squadron.model` stores it, each value that model's own spelling of an effort, e.g. `{ \"claude-opus-5-5\": \"medium\" }`. The panel offers only values verified for a model, and a model with no entry here starts at its native default, or lets the CLI decide when none is known. Sessions an agent starts with `squadron-spawn` do not take this value."
+        },
+        "squadron.model": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "markdownDescription": "Model new sessions opened from Squadron start on, passed as `--model`. Leave empty to let the CLI decide — the panel never guesses which model that resolves to. Not an enum: the list the panel offers is whatever the installed CLI answers, and any model id it accepts may be typed here. An id the CLI does not know is refused at the next start, and that session's card carries the error. A session already running keeps the model it is on.\n\nThis is where a start *begins*, not where it ends: a draft's own model pill opens on this value, and changing it there changes that one start and leaves this alone."
+        },
+        "squadron.contextWindow": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null,
+          "scope": "application",
+          "markdownDescription": "Context window new sessions start in, in tokens — the second half of what `squadron.model` names. Leave unset to let the CLI decide, which is what every session did before this setting existed.\n\nWhy a session states a window at all: `200000` is the only figure that can be *pinned*. A model with a native 1M window is held to 200K by a flag the panel passes at launch, and that flag wins. `1000000` can only be **asked for** — whether it is granted is the account's answer, and a plan without the entitlement is silently held to 200K with no error. A card that asked for 1M and was held says so rather than drawing a percentage of a window it never got.\n\nNot every model has every window. A pair the panel has no record of starts the session with no window named at all, exactly as an unrecognised model id does."
+        },
+        "squadron.sound.level": {
+          "type": "string",
+          "enum": [
+            "off",
+            "quiet",
+            "normal",
+            "loud"
+          ],
+          "enumDescriptions": [
+            "No cues.",
+            "Two fifths of normal — audible in a quiet room, ignorable anywhere else.",
+            "What the cues have always sounded at.",
+            "About two and a half times normal, for a room with something else going on in it."
+          ],
+          "default": "normal",
+          "scope": "application",
+          "markdownDescription": "Sound a short cue in the panel when a session finishes replying, and a double knock when one blocks on a question or a permission prompt, at this loudness. One scale over both, so the double knock stays the louder of the two whatever is picked. Machine-wide, and only while a panel is open — the cue is synthesised in the webview, so nothing is heard with the panel closed. At most one cue per poll, whatever the number of sessions that crossed.\n\nThe panel's gear offers the same four levels, and sounds the cue as one is picked, so it can be set by ear."
+        },
+        "squadron.warmCache.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "markdownDescription": "**Experimental.** Keep idle sessions' prompt caches warm for the warm window after real activity. This is the default for conversations without an explicit warming choice; a saved choice survives resumes. Warming spends tokens, and times each ping off the cache lifetime set below."
+        },
+        "squadron.warmCache.ttlMinutes.claude": {
+          "type": "integer",
+          "default": 60,
+          "minimum": 2,
+          "maximum": 180,
+          "scope": "application",
+          "markdownDescription": "How long a Claude session's prompt cache lives, in minutes. The default is the 1-hour cache the CLI reported; on 5-minute caches, set 5 and lower `#squadron.warmCache.bufferMinutes#`."
+        },
+        "squadron.warmCache.ttlMinutes.codex": {
+          "type": "integer",
+          "default": 35,
+          "minimum": 2,
+          "maximum": 180,
+          "scope": "application",
+          "markdownDescription": "How long a Codex session's prompt cache lives, in minutes. Reuse held after 35 minutes idle and was gone by 41.5."
+        },
+        "squadron.warmCache.ttlMinutes.grok": {
+          "type": "integer",
+          "default": 10,
+          "minimum": 2,
+          "maximum": 180,
+          "scope": "application",
+          "markdownDescription": "How long a Grok session's prompt cache lives, in minutes. Reuse held after 11 minutes idle and was gone by 13."
+        },
+        "squadron.warmCache.bufferMinutes": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 30,
+          "scope": "application",
+          "markdownDescription": "How many minutes before a cache would expire its ping is sent. At or above a brand's cache lifetime, that brand is not kept warm."
+        },
+        "squadron.warmCache.windowMinutes": {
+          "type": "integer",
+          "default": 120,
+          "minimum": 10,
+          "maximum": 480,
+          "scope": "application",
+          "markdownDescription": "How many minutes after a session's last real turn its cache is kept warm. Shortening it stops pings for a window already past it; it never switches a session's warming off."
+        },
+        "squadron.cafe.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "Keep this machine awake while a session is genuinely working. macOS only — it holds a `caffeinate` idle-sleep assertion, so the screen still goes dark. Going idle releases nothing: each lease is ten minutes and wears off on its own. A session counts as working until it has sent nothing for an hour, whether or not a command is still running. The hold also stops if the battery falls below 20% while unplugged. Whatever happens to this extension, the machine sleeps within ten minutes. Turning this off releases the hold. While this window holds Remote it also holds with nothing working, unless `#squadron.cafe.remote#` is off, and while a session has Warm on, unless `#squadron.cafe.warm#` is off."
+        },
+        "squadron.cafe.remote": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "While this window holds Remote, keep this machine awake with no session working, so a message from your phone is not missed while it sleeps. Needs `#squadron.cafe.enabled#`; the battery floor still applies. Turning this off lets the machine sleep between sessions, and releases a hold Remote alone was keeping."
+        },
+        "squadron.cafe.warm": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "While a session has Warm on, keep this machine awake with no session working, so its pings are not missed while it sleeps. Needs `#squadron.cafe.enabled#`; the battery floor still applies. Turning this off lets the machine sleep between pings, and releases a hold Warm alone was keeping."
+        },
+        "squadron.checkpoints.execution.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "markdownDescription": "**Experimental.** Attribute inferred file writes to tool execution when complete captures are available. New sessions receive scoped hooks; turn captures remain the fallback. Turning this off disables capture in this window's running sessions. Codex hooks require its native trust review."
+        },
+        "squadron.devServers.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "markdownDescription": "**Experimental.** Show a chip per branch above each repo's cards, saying which dev server that branch is running and on which port, and open a picker to start or stop one. Machine-wide, and off by default while the behaviour settles — attribution of a listener to a branch is still wrong often enough that the chips mislead. Turning it off also stops the worktree, port and process-table readings the board gathers for those chips, and refuses to start a server or signal a listener while it stays off. A server this window already started keeps running and keeps being watched: its terminal is still open, and stopping it there is the way back."
+        },
+        "squadron.mascot.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "markdownDescription": "**Experimental.** A small pixel chick on the board. It sits on the workflow bar, flies to the card where something happens — a dialog, a finished turn, a new session — and stays still between events. Off by default while its cost is measured; turning it off removes it from the panel entirely."
+        },
+        "squadron.claudePath": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "markdownDescription": "Path to the `claude` executable Squadron starts sessions with. Leave empty to look in `~/.local/bin` and then on the extension host's `PATH` — which is the environment the IDE was launched with, and may not be the one your shell has. A path set here that does not exist is refused rather than searched past."
+        },
+        "squadron.grokPath": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "markdownDescription": "Path to the `grok` executable Squadron starts sessions with. Leave empty to look in `~/.grok/bin` and then on the extension host's `PATH`. A path set here that does not exist is refused rather than searched past."
+        },
+        "squadron.codexPath": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "markdownDescription": "Path to the `codex` executable Squadron starts app-server sessions with. Leave empty to look in `~/.local/bin` and then on the extension host's `PATH`. A path set here that does not exist is refused rather than searched past."
+        },
+        "squadron.theme": {
+          "type": "string",
+          "enum": [
+            "follow",
+            "ink",
+            "lift",
+            "paper",
+            "neon",
+            "polaroid",
+            "mario",
+            "nightcity",
+            "arasaka",
+            "malachite"
+          ],
+          "enumDescriptions": [
+            "Use the colours of whatever theme the IDE is on.",
+            "Near-black canvas with a raised card, so the grid reads as objects rather than paragraphs.",
+            "The host's greys, with the card lifted far enough above the canvas to be seen.",
+            "A light canvas with accents re-picked for a white background.",
+            "Near-black with mint and cyan accents.",
+            "Warm cream film-pack canvas with a red shutter accent.",
+            "Navy kart body with red focus and yellow waiting.",
+            "Cyberpunk Night City — black chassis, yellow focus, cyan tech.",
+            "Cyberpunk Arasaka — warm black with corporate red focus.",
+            "Emerald card on a deeper green ground, with cream type and a moss focus ring."
+          ],
+          "default": "follow",
+          "markdownDescription": "Squadron's colours when a folder has not chosen its own. `follow` tracks the IDE theme; the presets replace Squadron's own palette only. A choice in the panel is kept for the folder that window opened."
+        },
+        "squadron.run.detect": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Offer a dev server for a directory whose `package.json` has exactly one obvious script (`dev`, `start`, `serve` or `storybook`). Two candidates offer nothing — name the command in `squadron.run.commands` instead."
+        },
+        "squadron.run.commands": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Commands a directory can start, keyed by absolute path: `{ \"/path/to/repo\": [{ \"id\": \"api\", \"label\": \"API\", \"command\": \"cargo run -- --port ${port}\" }] }`. `${port}` is replaced with the port picked in the panel; add `\"portless\": true` for something that takes none. Anything set here replaces detection for that directory."
+        },
+        "squadron.linear.team": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Initial Linear team key (e.g. `ENG`). Used only until you choose a board in Tickets; the selected board is remembered separately."
+        },
+        "squadron.linear.assignee": {
+          "type": "string",
+          "enum": [
+            "me",
+            "any"
+          ],
+          "default": "me",
+          "deprecationMessage": "Choose an assignee in Tickets. New boards start with Anyone (All).",
+          "markdownDescription": "Legacy assignee default. Tickets now starts each board with Anyone (All); use its assignee picker to narrow the view."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "node scripts/esbuild.mjs --package",
+    "compile": "tsc -b . && tsc -p src/webview && node scripts/esbuild.mjs",
+    "dev:host": "node scripts/verify.mjs dev:host && node out/test/smoke/dev_host.js",
+    "dev:host:close": "node out/test/smoke/dev_host.js --close",
+    "watch": "tsc -b -w .",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node scripts/verify.mjs test",
+    "test:smoke": "node scripts/verify.mjs test:smoke",
+    "test:smoke:one": "node scripts/verify.mjs test:smoke:one",
+    "test:smoke:cleanup": "node scripts/verify.mjs test:smoke:cleanup",
+    "test:smoke:slow": "node scripts/verify.mjs test:smoke:slow",
+    "check": "node scripts/verify.mjs check",
+    "mutate": "node scripts/mutate.mjs",
+    "package": "npm run check && npx --yes @vscode/vsce package --no-dependencies --allow-missing-repository --baseImagesUrl https://raw.githubusercontent.com/peterfangtw/squadron-media/main",
+    "release": "node scripts/release.mjs",
+    "integrate": "node scripts/integrate.mjs",
+    "deploy": "node scripts/deploy.mjs",
+    "snapshot": "node scripts/snapshot.mjs",
+    "icons": "node scripts/icons.mjs",
+    "mascot": "node scripts/mascot.mjs",
+    "models:claude": "npm run compile && node scripts/models.mjs claude",
+    "models:grok": "npm run compile && node scripts/models.mjs grok",
+    "publish": "node scripts/publish.mjs",
+    "prepublishOnly": "node -e \"console.error('this is an extension, not an npm package — use npm run publish'); process.exit(1)\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@stryker-mutator/core": "10.0.0",
+    "@types/jsdom": "^28.0.3",
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.95.0",
+    "@types/ws": "8.18.2",
+    "esbuild": "0.28.1",
+    "eslint": "^9.39.5",
+    "jsdom": "^27.0.1",
+    "playwright-core": "^1.61.1",
+    "prettier": "^3.9.6",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.65.0"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.30.5",
+    "@tiptap/extension-blockquote": "3.30.5",
+    "@tiptap/extension-bold": "3.30.5",
+    "@tiptap/extension-code": "3.30.5",
+    "@tiptap/extension-code-block": "3.30.5",
+    "@tiptap/extension-document": "3.30.5",
+    "@tiptap/extension-hard-break": "3.30.5",
+    "@tiptap/extension-italic": "3.30.5",
+    "@tiptap/extension-list": "3.30.5",
+    "@tiptap/extension-paragraph": "3.30.5",
+    "@tiptap/extension-strike": "3.30.5",
+    "@tiptap/extension-text": "3.30.5",
+    "@tiptap/extensions": "3.30.5",
+    "@tiptap/pm": "3.30.5",
+    "dompurify": "3.4.17",
+    "jsonc-parser": "3.3.1",
+    "morphdom": "2.7.8",
+    "tiptap-markdown": "0.9.0",
+    "ws": "8.21.1"
+  },
+  "overrides": {
+    "qs": "6.16.1"
+  }
+}

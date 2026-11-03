@@ -1,0 +1,42 @@
+#!/bin/sh
+# A new linked worktree belongs at `<repo>/.worktrees/<name>` — see `.gitignore`
+# for why. This says so at the moment one lands anywhere else.
+#
+# `post-checkout` is the only hook `git worktree add` fires; git has no
+# `pre-worktree-add`. Observed: it runs with the new worktree as its working
+# directory, and a non-zero exit does *not* roll the worktree back — it is
+# already registered by the time this runs. So this reports and hands over the
+# command to fix it. It cannot refuse.
+#
+# Enabled per clone: `git config core.hooksPath .githooks`.
+set -e
+
+# Git passes the null sha as the previous HEAD for a checkout that had no
+# previous — `worktree add` and `clone`. The `.git` test tells those two apart:
+# a linked worktree gets a one-line pointer file, a clone gets a directory.
+[ "$1" = "0000000000000000000000000000000000000000" ] || exit 0
+[ -f .git ] || exit 0
+
+here=$(pwd -P)
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+# Git for Windows prints drive paths; pwd prints MSYS paths. Resolve both
+# directories through the shell so containment compares physical paths alike.
+root=$(CDPATH= cd -- "$(dirname "$common")" && pwd -P)
+want="$root/.worktrees"
+
+case "$here" in
+"$want"/*) exit 0 ;;
+esac
+
+cat >&2 <<EOF
+
+  This worktree is outside $want/
+
+      $here
+
+  It exists and is registered — git ran this hook after the fact. Move it:
+
+      git -C "$root" worktree move "$here" ".worktrees/$(basename "$here")"
+
+EOF
+exit 1

@@ -1,0 +1,439 @@
+{
+  "initialize": {
+    "userAgent": "agentsview-c0-probe/0.151.0 (Mac OS 15.6.0; arm64) vscode/1.107.0 (agentsview-c0-probe; 0)",
+    "codexHome": "<codex-home>",
+    "platformFamily": "unix",
+    "platformOs": "macos"
+  },
+  "account": {
+    "account": {
+      "type": "chatgpt",
+      "email": "<redacted-email>",
+      "planType": "<redacted-plan>"
+    },
+    "requiresOpenaiAuth": true
+  },
+  "rateLimits": {
+    "rateLimits": {
+      "limitId": "codex",
+      "limitName": null,
+      "primary": {
+        "usedPercent": 0,
+        "windowDurationMins": 10080,
+        "resetsAt": 0
+      },
+      "secondary": null,
+      "credits": {
+        "hasCredits": false,
+        "unlimited": false,
+        "balance": "<redacted-balance>"
+      },
+      "individualLimit": null,
+      "spendControlReached": false,
+      "planType": "<redacted-plan>",
+      "rateLimitReachedType": null
+    },
+    "rateLimitsByLimitId": {
+      "codex_bengalfox": {
+        "limitId": "<limit-1>",
+        "limitName": "GPT-5.3-Codex-Spark",
+        "primary": {
+          "usedPercent": 0,
+          "windowDurationMins": 300,
+          "resetsAt": 0
+        },
+        "secondary": {
+          "usedPercent": 0,
+          "windowDurationMins": 10080,
+          "resetsAt": 0
+        },
+        "credits": null,
+        "individualLimit": null,
+        "spendControlReached": null,
+        "planType": "<redacted-plan>",
+        "rateLimitReachedType": null
+      },
+      "codex": {
+        "limitId": "codex",
+        "limitName": null,
+        "primary": {
+          "usedPercent": 0,
+          "windowDurationMins": 10080,
+          "resetsAt": 0
+        },
+        "secondary": null,
+        "credits": {
+          "hasCredits": false,
+          "unlimited": false,
+          "balance": "<redacted-balance>"
+        },
+        "individualLimit": null,
+        "spendControlReached": false,
+        "planType": "<redacted-plan>",
+        "rateLimitReachedType": null
+      }
+    },
+    "rateLimitResetCredits": {
+      "availableCount": 0,
+      "credits": []
+    }
+  },
+  "usage": {
+    "summary": {
+      "lifetimeTokens": 0,
+      "peakDailyTokens": 0,
+      "longestRunningTurnSec": null,
+      "currentStreakDays": 0,
+      "longestStreakDays": 0
+    },
+    "dailyUsageBuckets": [],
+    "threadUsage": null
+  },
+  "models": {
+    "data": [
+      {
+        "id": "<id-1>",
+        "model": "gpt-5.6-sol",
+        "upgrade": null,
+        "upgradeInfo": null,
+        "availabilityNux": null,
+        "displayName": "GPT-5.6-Sol",
+        "description": "Latest frontier agentic coding model.",
+        "modelSpecialty": null,
+        "hidden": false,
+        "supportedReasoningEfforts": [
+          {
+            "reasoningEffort": "low",
+            "description": "Fast responses with lighter reasoning"
+          },
+          {
+            "reasoningEffort": "medium",
+            "description": "Balances speed and reasoning depth for everyday tasks"
+          },
+          {
+            "reasoningEffort": "high",
+            "description": "Greater reasoning depth for complex problems"
+          },
+          {
+            "reasoningEffort": "xhigh",
+            "description": "Extra high reasoning depth for complex problems"
+          },
+          {
+            "reasoningEffort": "max",
+            "description": "Maximum reasoning depth for the hardest problems"
+          },
+          {
+            "reasoningEffort": "ultra",
+            "description": "Maximum reasoning with automatic task delegation"
+          }
+        ],
+        "defaultReasoningEffort": "low",
+        "inputModalities": ["text", "image"],
+        "supportsPersonality": false,
+        "multiAgentVersion": "v2",
+        "additionalSpeedTiers": ["fast"],
+        "serviceTiers": [
+          {
+            "id": "priority",
+            "name": "Fast",
+            "description": "1.5x speed, increased usage"
+          }
+        ],
+        "defaultServiceTier": null,
+        "isDefault": true
+      },
+      {
+        "id": "<id-2>",
+        "model": "gpt-5.6-terra",
+        "upgrade": null,
+        "upgradeInfo": null,
+        "availabilityNux": null,
+        "displayName": "GPT-5.6-Terra",
+        "description": "Balanced agentic coding model for everyday work.",
+        "modelSpecialty": null,
+        "hidden": false,
+        "supportedReasoningEfforts": [
+          {
+            "reasoningEffort": "low",
+            "description": "Fast responses with lighter reasoning"
+          },
+          {
+            "reasoningEffort": "medium",
+            "description": "Balances speed and reasoning depth for everyday tasks"
+          },
+          {
+            "reasoningEffort": "high",
+            "description": "Greater reasoning depth for complex problems"
+          },
+          {
+            "reasoningEffort": "xhigh",
+            "description": "Extra high reasoning depth for complex problems"
+          },
+          {
+            "reasoningEffort": "max",
+            "description": "Maximum reasoning depth for the hardest problems"
+          },
+          {
+            "reasoningEffort": "ultra",
+            "description": "Maximum reasoning with automatic task delegation"
+          }
+        ],
+        "defaultReasoningEffort": "medium",
+        "inputModalities": ["text", "image"],
+        "supportsPersonality": false,
+        "multiAgentVersion": "v2",
+        "additionalSpeedTiers": ["fast"],
+        "serviceTiers": [
+          {
+            "id": "priority",
+            "name": "Fast",
+            "description": "1.5x speed, increased usage"
+          }
+        ],
+        "defaultServiceTier": null,
+        "isDefault": false
+      }
+    ],
+    "nextCursor": "2"
+  },
+  "collaborationModes": {
+    "data": [
+      {
+        "name": "Plan",
+        "mode": "plan",
+        "model": null,
+        "reasoning_effort": "medium"
+      },
+      {
+        "name": "Default",
+        "mode": "default",
+        "model": null,
+        "reasoning_effort": null
+      }
+    ]
+  },
+  "messages": [
+    {
+      "id": 2,
+      "result": {
+        "account": {
+          "type": "chatgpt",
+          "email": "<redacted-email>",
+          "planType": "<redacted-plan>"
+        },
+        "requiresOpenaiAuth": true
+      }
+    },
+    {
+      "id": 3,
+      "result": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": false,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        },
+        "rateLimitsByLimitId": {
+          "codex_bengalfox": {
+            "limitId": "<limit-1>",
+            "limitName": "GPT-5.3-Codex-Spark",
+            "primary": {
+              "usedPercent": 0,
+              "windowDurationMins": 300,
+              "resetsAt": 0
+            },
+            "secondary": {
+              "usedPercent": 0,
+              "windowDurationMins": 10080,
+              "resetsAt": 0
+            },
+            "credits": null,
+            "individualLimit": null,
+            "spendControlReached": null,
+            "planType": "<redacted-plan>",
+            "rateLimitReachedType": null
+          },
+          "codex": {
+            "limitId": "codex",
+            "limitName": null,
+            "primary": {
+              "usedPercent": 0,
+              "windowDurationMins": 10080,
+              "resetsAt": 0
+            },
+            "secondary": null,
+            "credits": {
+              "hasCredits": false,
+              "unlimited": false,
+              "balance": "<redacted-balance>"
+            },
+            "individualLimit": null,
+            "spendControlReached": false,
+            "planType": "<redacted-plan>",
+            "rateLimitReachedType": null
+          }
+        },
+        "rateLimitResetCredits": {
+          "availableCount": 0,
+          "credits": []
+        }
+      }
+    },
+    {
+      "id": 4,
+      "result": {
+        "summary": {
+          "lifetimeTokens": 0,
+          "peakDailyTokens": 0,
+          "longestRunningTurnSec": null,
+          "currentStreakDays": 0,
+          "longestStreakDays": 0
+        },
+        "dailyUsageBuckets": [],
+        "threadUsage": null
+      }
+    },
+    {
+      "id": 5,
+      "result": {
+        "data": [
+          {
+            "id": "<id-1>",
+            "model": "gpt-5.6-sol",
+            "upgrade": null,
+            "upgradeInfo": null,
+            "availabilityNux": null,
+            "displayName": "GPT-5.6-Sol",
+            "description": "Latest frontier agentic coding model.",
+            "modelSpecialty": null,
+            "hidden": false,
+            "supportedReasoningEfforts": [
+              {
+                "reasoningEffort": "low",
+                "description": "Fast responses with lighter reasoning"
+              },
+              {
+                "reasoningEffort": "medium",
+                "description": "Balances speed and reasoning depth for everyday tasks"
+              },
+              {
+                "reasoningEffort": "high",
+                "description": "Greater reasoning depth for complex problems"
+              },
+              {
+                "reasoningEffort": "xhigh",
+                "description": "Extra high reasoning depth for complex problems"
+              },
+              {
+                "reasoningEffort": "max",
+                "description": "Maximum reasoning depth for the hardest problems"
+              },
+              {
+                "reasoningEffort": "ultra",
+                "description": "Maximum reasoning with automatic task delegation"
+              }
+            ],
+            "defaultReasoningEffort": "low",
+            "inputModalities": ["text", "image"],
+            "supportsPersonality": false,
+            "multiAgentVersion": "v2",
+            "additionalSpeedTiers": ["fast"],
+            "serviceTiers": [
+              {
+                "id": "priority",
+                "name": "Fast",
+                "description": "1.5x speed, increased usage"
+              }
+            ],
+            "defaultServiceTier": null,
+            "isDefault": true
+          },
+          {
+            "id": "<id-2>",
+            "model": "gpt-5.6-terra",
+            "upgrade": null,
+            "upgradeInfo": null,
+            "availabilityNux": null,
+            "displayName": "GPT-5.6-Terra",
+            "description": "Balanced agentic coding model for everyday work.",
+            "modelSpecialty": null,
+            "hidden": false,
+            "supportedReasoningEfforts": [
+              {
+                "reasoningEffort": "low",
+                "description": "Fast responses with lighter reasoning"
+              },
+              {
+                "reasoningEffort": "medium",
+                "description": "Balances speed and reasoning depth for everyday tasks"
+              },
+              {
+                "reasoningEffort": "high",
+                "description": "Greater reasoning depth for complex problems"
+              },
+              {
+                "reasoningEffort": "xhigh",
+                "description": "Extra high reasoning depth for complex problems"
+              },
+              {
+                "reasoningEffort": "max",
+                "description": "Maximum reasoning depth for the hardest problems"
+              },
+              {
+                "reasoningEffort": "ultra",
+                "description": "Maximum reasoning with automatic task delegation"
+              }
+            ],
+            "defaultReasoningEffort": "medium",
+            "inputModalities": ["text", "image"],
+            "supportsPersonality": false,
+            "multiAgentVersion": "v2",
+            "additionalSpeedTiers": ["fast"],
+            "serviceTiers": [
+              {
+                "id": "priority",
+                "name": "Fast",
+                "description": "1.5x speed, increased usage"
+              }
+            ],
+            "defaultServiceTier": null,
+            "isDefault": false
+          }
+        ],
+        "nextCursor": "2"
+      }
+    },
+    {
+      "id": 6,
+      "result": {
+        "data": [
+          {
+            "name": "Plan",
+            "mode": "plan",
+            "model": null,
+            "reasoning_effort": "medium"
+          },
+          {
+            "name": "Default",
+            "mode": "default",
+            "model": null,
+            "reasoning_effort": null
+          }
+        ]
+      }
+    }
+  ]
+}

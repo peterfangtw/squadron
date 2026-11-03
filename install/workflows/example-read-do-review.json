@@ -1,0 +1,42 @@
+{
+  "id": "example-read-do-review",
+  "label": "Example: Read, Do, Review",
+  "description": "Start here: a single workflow lane whose Peer review step asks the agent to spawn and coordinate fresh review sessions. Attach this workflow to a task message. Enable session spawning in Squadron settings to use the review step. Edit, duplicate, or delete this example freely.",
+  "steps": [
+    {
+      "id": "read-task",
+      "label": "Read task",
+      "prompt": "Read the task in the user's message and the repository instructions in ${cwd}. Read the relevant files before deciding what to change. Establish acceptance criteria, scope, and the starting commit and any pre-existing changes so later reviewers can distinguish this task's diff. If the task is missing or a critical requirement is unclear, ask the user before proceeding."
+    },
+    {
+      "id": "plan-task",
+      "label": "Plan task",
+      "needs": ["read-task"],
+      "prompt": "Decide how much planning the task needs. A small, clear change needs a short plan; a large feature or uncertain implementation needs a written plan in the repository's usual location. Use relevant planning skills if available, without depending on them. Identify the checks that will demonstrate acceptance. Resolve important unknowns with the user, and honor any request to review the plan before implementation."
+    },
+    {
+      "id": "do-task",
+      "label": "Do task",
+      "needs": ["plan-task"],
+      "prompt": "Implement the task following the settled plan and repository instructions. Prefer the simplest complete change. Write a failing test first where practical, then implement to green; include UI scenarios or smoke coverage where the project requires them. Preserve unrelated changes. Record which files changed and which checks passed or could not run. Update the plan if the implementation reveals a necessary deviation."
+    },
+    {
+      "id": "peer-review",
+      "label": "Peer review",
+      "needs": ["do-task"],
+      "prompt": "Spawn a fresh Squadron session to review the changes with squadron-spawn --cwd-path pointing at this repository, a short --name, and a concrete --prompt. For a small change, one reviewer covers correctness and simplicity; for a complex change, spawn two with distinct scopes. Omit --brand and --model so reviewers inherit your model. Give each reviewer the task, acceptance criteria, starting commit, pre-existing changes, actual plan/file paths, and what a useful review must report. Ask them to review without editing and leave findings in their final response. Keep every returned pid. Run squadron-wait --pids with those pids, then end your turn until the completion message arrives. On wake, read their transcripts using the paths from squadron-list; do not treat idle alone as a successful review. Finish this step only when every review has reported or you have resolved a missing/refused review with the user. Run each squadron-* verb in the form the squadron skill's Running a verb section gives for your shell."
+    },
+    {
+      "id": "align-and-apply",
+      "label": "Align and apply review",
+      "needs": ["peer-review"],
+      "prompt": "Evaluate the reviewers' findings against the actual code and acceptance criteria. Read their transcripts before sending follow-up questions. Use squadron-send --pid with a reviewer's pid and --text to discuss findings when necessary. Apply the findings supported by evidence; you may challenge a finding that is mistaken. Ask the user about unresolved disagreements or scope changes. Rerun affected checks and record the resulting changes and evidence. Run each squadron-* verb in the form the squadron skill's Running a verb section gives for your shell."
+    },
+    {
+      "id": "verify-and-finish",
+      "label": "Verify and finish",
+      "needs": ["align-and-apply"],
+      "prompt": "Run the repository's documented checks and compare the final result with the task's acceptance criteria. Report what changed, the checks performed, and any remaining limitations. End only your own completed review sessions using squadron-end --pid for the pids you kept. A busy session must finish before it can be ended. Do not commit, deploy, publish, create a branch, or create a worktree unless the user requested it. Run each squadron-* verb in the form the squadron skill's Running a verb section gives for your shell."
+    }
+  ]
+}

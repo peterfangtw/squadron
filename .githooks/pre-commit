@@ -1,0 +1,21 @@
+#!/bin/sh
+# Format and lint the staged files only — seconds, where the whole gate is
+# minutes. The whole gate runs for local PR integration and release candidates.
+#
+# Check, never fix: the checkout is shared, and a fixer rewrites the
+# working-tree file — another session's unstaged hunks in it included — while
+# the blob being committed stays as it was. Both tools read the working-tree
+# copy, so a partly staged file is judged with its unstaged hunks.
+#
+# Enabled per clone: `git config core.hooksPath .githooks`.
+# Bypass a known-bad one with `git commit --no-verify`.
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -n "$staged" ] || exit 0
+
+echo "$staged" | tr '\n' '\0' | xargs -0 npx prettier --check --ignore-unknown
+
+lintable=$(echo "$staged" | grep -E '\.(ts|mts|cts|js|mjs|cjs)$' || true)
+[ -n "$lintable" ] || exit 0
+echo "$lintable" | tr '\n' '\0' | xargs -0 npx eslint --max-warnings 0 --no-warn-ignored

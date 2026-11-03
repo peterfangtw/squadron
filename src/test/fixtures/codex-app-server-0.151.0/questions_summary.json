@@ -1,0 +1,63 @@
+{
+  "version": "0.151.0",
+  "capturedAt": "2026-09-03",
+  "reachability": [
+    {
+      "experimentalApi": true,
+      "defaultModeFeature": false,
+      "emitted": false,
+      "parserAccepted": false,
+      "final": ["REACH_DONE"]
+    },
+    {
+      "experimentalApi": true,
+      "defaultModeFeature": true,
+      "emitted": true,
+      "isBlocking": false,
+      "parserAccepted": false,
+      "final": ["REACH_DONE"]
+    },
+    {
+      "experimentalApi": false,
+      "defaultModeFeature": false,
+      "emitted": false,
+      "parserAccepted": false,
+      "final": ["REACH_DONE"]
+    },
+    {
+      "experimentalApi": false,
+      "defaultModeFeature": true,
+      "emitted": true,
+      "isBlocking": false,
+      "parserAccepted": false,
+      "final": ["REACH_DONE"]
+    }
+  ],
+  "answers": {
+    "note": {
+      "final": ["{\"selected\":\"Alpha\",\"note\":\"NOTE_NONCE_7A92\"}"]
+    },
+    "other_tui": {
+      "final": ["{\"selected\":\"None of the above\",\"note\":\"OTHER_TUI_NONCE_4C31\"}"]
+    },
+    "other_test_client": {
+      "final": ["{\"selected\":\"Other\",\"note\":\"OTHER_CLIENT_NONCE_8D16\"}"]
+    },
+    "other_current": {
+      "final": ["{\"selected\":\"Other\",\"note\":\"OTHER_BARE_NONCE_5E47\"}"]
+    },
+    "unknown_key": {
+      "final": ["{\"selected\":\"Alpha\",\"note\":null}"]
+    },
+    "multi_value_wire": {
+      "final": ["{\"selected\":[\"MULTI_NONCE_A_2B64\",\"MULTI_NONCE_B_9C05\"],\"note\":null}"]
+    }
+  },
+  "steer": {
+    "final": ["A steered nonce arrived: `STEER_NONCE_6D28`."]
+  },
+  "interrupt": {
+    "resolved": true,
+    "status": "interrupted"
+  }
+}

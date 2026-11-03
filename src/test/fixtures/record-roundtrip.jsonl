@@ -1,0 +1,5 @@
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"what is it"}]},"uuid":"u-1","timestamp":"2026-08-19T12:00:00.000Z"}
+{"type":"assistant","message":{"role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"this"}]},"uuid":"a-1","timestamp":"2026-08-19T12:00:01.000Z"}
+{"type":"user","isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"<command-message>rename</command-message>\n<command-name>/rename</command-name>"}]},"uuid":"c-1","timestamp":"2026-08-19T12:00:02.000Z"}
+{"type":"system","subtype":"local_command","content":"<local-command-stdout>Session renamed to: probe</local-command-stdout>","timestamp":"2026-08-19T12:00:03.000Z"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]},"uuid":"b-1","timestamp":"2026-08-19T12:00:04.000Z"}

@@ -1,0 +1,943 @@
+{
+  "date": "2026-10-05",
+  "recorderDelayMs": 50,
+  "controlGroups": [
+    "all",
+    "write",
+    "never"
+  ],
+  "cases": [
+    {
+      "brand": "claude",
+      "version": "2.1.289",
+      "model": "claude-sonnet-5-5",
+      "effort": "low",
+      "case": "native-tools",
+      "source": "launch scoped settings",
+      "writerMatcher": "^(Bash|Write|Edit|MultiEdit|NotebookEdit)$",
+      "counts": [
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Edit",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Read",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "ToolSearch",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Write",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUseFailure",
+          "name": "Bash",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "count": 2
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Edit",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Read",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "ToolSearch",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Write",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Edit",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Write",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PostToolUseFailure",
+          "name": "Bash",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "count": 2
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Edit",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Write",
+          "count": 1
+        }
+      ],
+      "neverToolInvocations": 0,
+      "hooks": [
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Read",
+          "enter": 7309,
+          "exit": 7360,
+          "call": "call-1"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Read",
+          "enter": 7439,
+          "exit": 7490,
+          "call": "call-1"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "ToolSearch",
+          "enter": 7657,
+          "exit": 7708,
+          "call": "call-2"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "ToolSearch",
+          "enter": 7779,
+          "exit": 7831,
+          "call": "call-2"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Write",
+          "enter": 10333,
+          "exit": 10384,
+          "call": "call-3"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Write",
+          "enter": 10339,
+          "exit": 10390,
+          "call": "call-3"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Write",
+          "enter": 10480,
+          "exit": 10531,
+          "call": "call-3"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Write",
+          "enter": 10483,
+          "exit": 10534,
+          "call": "call-3"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Edit",
+          "enter": 12197,
+          "exit": 12248,
+          "call": "call-7"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Edit",
+          "enter": 12197,
+          "exit": 12248,
+          "call": "call-7"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Edit",
+          "enter": 12344,
+          "exit": 12394,
+          "call": "call-7"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Edit",
+          "enter": 12346,
+          "exit": 12397,
+          "call": "call-7"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 12513,
+          "exit": 12564,
+          "call": "call-8"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 12518,
+          "exit": 12570,
+          "call": "call-8"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 13090,
+          "exit": 13141,
+          "call": "call-8"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 13090,
+          "exit": 13141,
+          "call": "call-8"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 14681,
+          "exit": 14733,
+          "call": "call-9"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 14681,
+          "exit": 14733,
+          "call": "call-9"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUseFailure",
+          "name": "Bash",
+          "enter": 14822,
+          "exit": 14874,
+          "call": "call-9"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUseFailure",
+          "name": "Bash",
+          "enter": 14822,
+          "exit": 14874,
+          "call": "call-9"
+        }
+      ],
+      "lastRecorderExitBeforeFinalFrame": true,
+      "note": "Only installed emitted names; MultiEdit/NotebookEdit/Glob/Grep and legacy Grok edit spellings were not emitted in this run."
+    },
+    {
+      "brand": "grok",
+      "version": "1.0.46",
+      "model": "grok-4.7",
+      "effort": "low",
+      "case": "native-tools",
+      "source": "native plugin with compat.claude/hooks=false and compat.cursor/hooks=false",
+      "writerMatcher": "^(run_terminal_command|write|edit|edit_file|apply_patch|search_replace)$",
+      "counts": [
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "grep",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "list_dir",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "read_file",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "run_terminal_command",
+          "count": 2
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "search_replace",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "write",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "grep",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "list_dir",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "read_file",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "run_terminal_command",
+          "count": 2
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "search_replace",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "write",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "run_terminal_command",
+          "count": 2
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "search_replace",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "write",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "run_terminal_command",
+          "count": 2
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "search_replace",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "write",
+          "count": 1
+        }
+      ],
+      "neverToolInvocations": 0,
+      "hooks": [
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "read_file",
+          "enter": 8234,
+          "exit": 8286,
+          "call": "call-1"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "grep",
+          "enter": 8372,
+          "exit": 8425,
+          "call": "call-2"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "list_dir",
+          "enter": 8502,
+          "exit": 8556,
+          "call": "call-3"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "read_file",
+          "enter": 8659,
+          "exit": 8710,
+          "call": "call-1"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "list_dir",
+          "enter": 8783,
+          "exit": 8835,
+          "call": "call-3"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "grep",
+          "enter": 8929,
+          "exit": 8981,
+          "call": "call-2"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "write",
+          "enter": 10987,
+          "exit": 11039,
+          "call": "call-4"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "write",
+          "enter": 11145,
+          "exit": 11198,
+          "call": "call-4"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "write",
+          "enter": 11280,
+          "exit": 11333,
+          "call": "call-4"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "write",
+          "enter": 11428,
+          "exit": 11481,
+          "call": "call-4"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "search_replace",
+          "enter": 12977,
+          "exit": 13036,
+          "call": "call-5"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "search_replace",
+          "enter": 13126,
+          "exit": 13179,
+          "call": "call-5"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "search_replace",
+          "enter": 13262,
+          "exit": 13313,
+          "call": "call-5"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "search_replace",
+          "enter": 13385,
+          "exit": 13437,
+          "call": "call-5"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "run_terminal_command",
+          "enter": 15693,
+          "exit": 15746,
+          "call": "call-6"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "run_terminal_command",
+          "enter": 15926,
+          "exit": 15978,
+          "call": "call-6"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "run_terminal_command",
+          "enter": 16541,
+          "exit": 16592,
+          "call": "call-6"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "run_terminal_command",
+          "enter": 16813,
+          "exit": 16864,
+          "call": "call-6"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "run_terminal_command",
+          "enter": 18900,
+          "exit": 18953,
+          "call": "call-7"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "run_terminal_command",
+          "enter": 19039,
+          "exit": 19092,
+          "call": "call-7"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "run_terminal_command",
+          "enter": 19394,
+          "exit": 19447,
+          "call": "call-7"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "run_terminal_command",
+          "enter": 19520,
+          "exit": 19572,
+          "call": "call-7"
+        }
+      ],
+      "lastRecorderExitBeforeFinalFrame": true,
+      "note": "Native plugin, no Claude/Cursor compatibility; observed search_replace included after first retake."
+    },
+    {
+      "brand": "codex",
+      "version": "0.160.0",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "case": "native-tools",
+      "source": "session flags TOML, reviewed using native TUI",
+      "writerMatcher": "^(Bash|apply_patch)$",
+      "counts": [
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "count": 2
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "apply_patch",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "count": 2
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "apply_patch",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "count": 2
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "apply_patch",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "count": 2
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "apply_patch",
+          "count": 1
+        }
+      ],
+      "neverToolInvocations": 0,
+      "hooks": [
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 10756,
+          "exit": 10813,
+          "call": "call-1"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 10764,
+          "exit": 10816,
+          "call": "call-1"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 10975,
+          "exit": 11027,
+          "call": "call-1"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 10988,
+          "exit": 11040,
+          "call": "call-1"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "apply_patch",
+          "enter": 14450,
+          "exit": 14502,
+          "call": "call-2"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "apply_patch",
+          "enter": 14463,
+          "exit": 14515,
+          "call": "call-2"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "apply_patch",
+          "enter": 14612,
+          "exit": 14663,
+          "call": "call-2"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "apply_patch",
+          "enter": 14616,
+          "exit": 14666,
+          "call": "call-2"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 19899,
+          "exit": 19952,
+          "call": "call-3"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 19902,
+          "exit": 19952,
+          "call": "call-3"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 20087,
+          "exit": 20139,
+          "call": "call-3"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 20092,
+          "exit": 20145,
+          "call": "call-3"
+        }
+      ],
+      "lastRecorderExitBeforeFinalFrame": true,
+      "note": "Shell reads still emit Bash; update_plan emitted no native hooks."
+    },
+    {
+      "brand": "codex",
+      "version": "0.160.0",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "case": "delegation",
+      "source": "session flags TOML, reviewed using native TUI",
+      "writerMatcher": "^(Bash|apply_patch)$",
+      "counts": [
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "count": 2
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "collaborationinterrupt_agent",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "collaborationspawn_agent",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "collaborationwait_agent",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "count": 2
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "collaborationinterrupt_agent",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "collaborationspawn_agent",
+          "count": 1
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "collaborationwait_agent",
+          "count": 1
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "count": 2
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "count": 2
+        }
+      ],
+      "neverToolInvocations": 0,
+      "hooks": [
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 5320,
+          "exit": 5372,
+          "call": "call-1"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 5321,
+          "exit": 5372,
+          "call": "call-1"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 5496,
+          "exit": 5549,
+          "call": "call-1"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 5499,
+          "exit": 5551,
+          "call": "call-1"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "collaborationspawn_agent",
+          "enter": 8625,
+          "exit": 8676,
+          "call": "call-2"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "collaborationspawn_agent",
+          "enter": 8766,
+          "exit": 8817,
+          "call": "call-2"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "collaborationwait_agent",
+          "enter": 11504,
+          "exit": 11554,
+          "call": "call-3"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 12945,
+          "exit": 12997,
+          "call": "call-4"
+        },
+        {
+          "label": "write",
+          "event": "PreToolUse",
+          "name": "Bash",
+          "enter": 12950,
+          "exit": 13000,
+          "call": "call-4"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 13077,
+          "exit": 13128,
+          "call": "call-4"
+        },
+        {
+          "label": "write",
+          "event": "PostToolUse",
+          "name": "Bash",
+          "enter": 13077,
+          "exit": 13128,
+          "call": "call-4"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "collaborationwait_agent",
+          "enter": 14972,
+          "exit": 15023,
+          "call": "call-3"
+        },
+        {
+          "label": "all",
+          "event": "PreToolUse",
+          "name": "collaborationinterrupt_agent",
+          "enter": 17223,
+          "exit": 17273,
+          "call": "call-5"
+        },
+        {
+          "label": "all",
+          "event": "PostToolUse",
+          "name": "collaborationinterrupt_agent",
+          "enter": 17303,
+          "exit": 17353,
+          "call": "call-5"
+        }
+      ],
+      "lastRecorderExitBeforeFinalFrame": true,
+      "note": "Shell reads still emit Bash; update_plan emitted no native hooks."
+    }
+  ]
+}

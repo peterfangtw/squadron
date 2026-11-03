@@ -1,0 +1,50 @@
+#!/bin/sh
+# `main` moves only to a commit `staging` already carries — the pre-push rule,
+# enforced here when the ref moves rather than when it leaves the machine.
+# Promotion (`git merge --ff-only staging` on `main`) passes; a merge, commit,
+# reset or rebase that puts anything on `main` first is refused, and so is a
+# delete. Local staging requires verified integration/release proof or remote
+# catch-up; the shared policy reader never fetches or takes a lock here.
+#
+# This is the one hook every ref update runs: a fast-forward merge fires no
+# `pre-merge-commit`, and `commit`, `reset`, `update-ref` and `fetch .
+# x:main` fire nothing else. It cannot tell a merge from a commit, so it judges
+# where `main` ends up, not how. Exiting non-zero in the `prepared` state
+# aborts the whole transaction, other refs in it included.
+#
+# `origin/staging` counts as well as the local branch, so pulling a `main`
+# another clone promoted works before the local `staging` catches up.
+#
+# Enabled per clone: `git config core.hooksPath .githooks`.
+# Bypass a known-bad one with `git -c core.hooksPath=/dev/null <command>`.
+[ "$1" = prepared ] || exit 0
+
+# `git pack-refs` (and so `gc`, which runs it after a commit) removes the loose
+# file as `<old> -> 0` once `packed-refs` already holds `<old> main`: `main`
+# stays where it was. Every real delete measured on 2.39 — `branch -D`,
+# `update-ref -d` with and without an old value — either sends `0 -> 0` first
+# or finds no such line. Refusing the prune failed every gc on this checkout.
+packed="$(git rev-parse --git-common-dir)/packed-refs"
+
+# git feeds `<old sha> <new sha> <ref>` per ref on stdin.
+while read -r old new ref; do
+  case "$ref" in refs/heads/main|refs/heads/staging) ;; *) continue ;; esac
+  case $new in *[!0]*) ;; *)
+    case $old in *[!0]*)
+      grep -qx "$old $ref" "$packed" 2>/dev/null && continue ;;
+    esac ;;
+  esac
+  if [ "$ref" = refs/heads/staging ]; then
+    if [ "$(git rev-parse --verify "$ref" 2>/dev/null)" = "$new" ]; then
+      continue
+    fi
+    node "$(dirname "$0")/../scripts/integration.mjs" ref "$old" "$new" || exit 1
+    continue
+  fi
+  for staging in refs/heads/staging refs/remotes/origin/staging; do
+    git merge-base --is-ancestor "$new" "$staging" 2>/dev/null && continue 2
+  done
+  echo "reference-transaction: refusing to move main to $new — it is not on staging." >&2
+  echo "                       Land it on staging, then fast-forward main to staging." >&2
+  exit 1
+done

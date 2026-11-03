@@ -1,0 +1,106 @@
+[
+  {
+    "arm": "config-file",
+    "experimentalApi": false,
+    "configFileFeature": true,
+    "threadStartOverride": false,
+    "emitted": true,
+    "isBlocking": false,
+    "autoResolutionMs": null,
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 0,
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-1>",
+        "itemId": "<item-1>",
+        "questions": [
+          {
+            "id": "config",
+            "header": "Config",
+            "question": "Choose one",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Select Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Select Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": false,
+        "autoResolutionMs": null
+      }
+    },
+    "final": ["CONFIG_DONE"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-1>",
+        "turn": {
+          "id": "<turn-1>",
+          "items": [
+            {
+              "type": "agentMessage",
+              "id": "<id-1>",
+              "text": "CONFIG_DONE",
+              "phase": "final_answer",
+              "memoryCitation": null,
+              "delivery": null,
+              "questions": null
+            }
+          ],
+          "itemsView": "summary",
+          "status": "completed",
+          "error": null,
+          "startedAt": 0,
+          "completedAt": 0,
+          "durationMs": 0
+        }
+      },
+      "emittedAtMs": 0
+    },
+    "parserAcceptedBeforeFix": false
+  },
+  {
+    "arm": "config-file",
+    "experimentalApi": false,
+    "configFileFeature": false,
+    "threadStartOverride": false,
+    "emitted": false,
+    "final": ["CONFIG_DONE"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-2>",
+        "turn": {
+          "id": "<id-3>",
+          "items": [
+            {
+              "type": "agentMessage",
+              "id": "<id-4>",
+              "text": "CONFIG_DONE",
+              "phase": "final_answer",
+              "memoryCitation": null,
+              "delivery": null,
+              "questions": null
+            }
+          ],
+          "itemsView": "summary",
+          "status": "completed",
+          "error": null,
+          "startedAt": 0,
+          "completedAt": 0,
+          "durationMs": 0
+        }
+      },
+      "emittedAtMs": 0
+    },
+    "parserAcceptedBeforeFix": false
+  }
+]

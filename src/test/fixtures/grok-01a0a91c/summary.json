@@ -1,0 +1,23 @@
+{
+  "info": {
+    "id": "01a0a91c-c28a-70d0-9033-c83a6e171033",
+    "cwd": "/tmp/av-grok-probe"
+  },
+  "agent_id": "<agent_id>",
+  "attempt_id": "<attempt_id>",
+  "session_summary": "Ping-pong then list working directory files",
+  "created_at": "2026-09-16T07:27:09.464448Z",
+  "updated_at": "2026-09-16T07:27:40.707271Z",
+  "num_messages": 33,
+  "num_chat_messages": 19,
+  "current_model_id": "grok-4.6",
+  "next_trace_turn": 3,
+  "chat_format_version": 1,
+  "request_id": "<request_id>",
+  "grok_home": "<path>/.grok",
+  "last_active_at": "2026-09-16T07:27:40.707271Z",
+  "generated_title": "Ping-pong then list working directory files",
+  "agent_name": "grok-build-plan",
+  "sandbox_profile": "off",
+  "reasoning_effort": "high"
+}

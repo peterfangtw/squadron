@@ -1,0 +1,327 @@
+{
+  "before": {
+    "waiting": {
+      "status": "waiting",
+      "pending": [
+        {
+          "requestId": "n:0",
+          "toolName": "a tool",
+          "ask": true,
+          "questions": [
+            {
+              "question": "Choose Alpha or Beta",
+              "header": "Product interrupt",
+              "multiSelect": false,
+              "canOther": true,
+              "options": [
+                {
+                  "label": "Alpha (Recommended)",
+                  "description": "Choose Alpha."
+                },
+                {
+                  "label": "Beta",
+                  "description": "Choose Beta."
+                }
+              ]
+            }
+          ],
+          "canNote": false,
+          "canReply": false
+        }
+      ]
+    },
+    "interrupt": {
+      "ok": true
+    },
+    "settled": {
+      "status": "idle",
+      "pending": []
+    },
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 0,
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-1>",
+        "itemId": "<item-1>",
+        "questions": [
+          {
+            "id": "<id-1>",
+            "header": "Product interrupt",
+            "question": "Choose Alpha or Beta",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Choose Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Choose Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": true,
+        "autoResolutionMs": null
+      }
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-2>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"Product interrupt\",\"id\":\"product_choice\",\"options\":[{\"description\":\"Choose Alpha.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Choose Beta.\",\"label\":\"Beta\"}],\"question\":\"Choose Alpha or Beta\"}]}",
+        "call_id": "<item-1>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-1>",
+          "create_time": 1788446028.127936
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-3>",
+        "call_id": "<item-1>",
+        "output": "aborted by user after 0.1s",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-1>",
+          "create_time": 1788446030.237793
+        }
+      }
+    },
+    "outbound": [
+      {
+        "method": "turn/interrupt",
+        "id": 4,
+        "params": {
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>"
+        }
+      },
+      {
+        "id": 0,
+        "error": {
+          "code": -32800,
+          "message": "Cancelled"
+        }
+      }
+    ],
+    "inbound": [
+      {
+        "method": "item/tool/requestUserInput",
+        "id": 0,
+        "params": {
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
+          "itemId": "<item-1>",
+          "questions": [
+            {
+              "id": "<id-1>",
+              "header": "Product interrupt",
+              "question": "Choose Alpha or Beta",
+              "isOther": true,
+              "isSecret": false,
+              "options": [
+                {
+                  "label": "Alpha (Recommended)",
+                  "description": "Choose Alpha."
+                },
+                {
+                  "label": "Beta",
+                  "description": "Choose Beta."
+                }
+              ]
+            }
+          ],
+          "isBlocking": true,
+          "autoResolutionMs": null
+        }
+      },
+      {
+        "method": "serverRequest/resolved",
+        "params": {
+          "threadId": "<thread-1>",
+          "requestId": 0
+        },
+        "emittedAtMs": 0
+      },
+      {
+        "method": "turn/completed",
+        "params": {
+          "threadId": "<thread-1>",
+          "turn": {
+            "id": "<turn-1>",
+            "items": [],
+            "itemsView": "notLoaded",
+            "status": "interrupted",
+            "error": null,
+            "startedAt": 0,
+            "completedAt": 0,
+            "durationMs": 0
+          }
+        },
+        "emittedAtMs": 0
+      }
+    ]
+  },
+  "after": {
+    "waiting": {
+      "status": "waiting",
+      "pending": [
+        {
+          "requestId": "n:0",
+          "toolName": "a tool",
+          "ask": true,
+          "questions": [
+            {
+              "question": "Choose Alpha or Beta",
+              "header": "Product interrupt",
+              "multiSelect": false,
+              "canOther": true,
+              "options": [
+                {
+                  "label": "Alpha (Recommended)",
+                  "description": "Choose the Alpha option."
+                },
+                {
+                  "label": "Beta",
+                  "description": "Choose the Beta option."
+                }
+              ]
+            }
+          ],
+          "canNote": false,
+          "canReply": false
+        }
+      ]
+    },
+    "interrupt": {
+      "ok": true
+    },
+    "settled": {
+      "status": "idle",
+      "pending": []
+    },
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 0,
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-1>",
+        "itemId": "<item-1>",
+        "questions": [
+          {
+            "id": "<id-1>",
+            "header": "Product interrupt",
+            "question": "Choose Alpha or Beta",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Choose the Alpha option."
+              },
+              {
+                "label": "Beta",
+                "description": "Choose the Beta option."
+              }
+            ]
+          }
+        ],
+        "isBlocking": true,
+        "autoResolutionMs": null
+      }
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-2>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"Product interrupt\",\"id\":\"product_choice\",\"options\":[{\"description\":\"Choose the Alpha option.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Choose the Beta option.\",\"label\":\"Beta\"}],\"question\":\"Choose Alpha or Beta\"}]}",
+        "call_id": "<item-1>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-1>",
+          "create_time": 1788446132.114234
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-3>",
+        "call_id": "<item-1>",
+        "output": "aborted by user after 0.1s",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-1>",
+          "create_time": 1788446134.416102
+        }
+      }
+    },
+    "outbound": [
+      {
+        "method": "turn/interrupt",
+        "id": 4,
+        "params": {
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>"
+        }
+      }
+    ],
+    "inbound": [
+      {
+        "method": "item/tool/requestUserInput",
+        "id": 0,
+        "params": {
+          "threadId": "<thread-1>",
+          "turnId": "<turn-1>",
+          "itemId": "<item-1>",
+          "questions": [
+            {
+              "id": "<id-1>",
+              "header": "Product interrupt",
+              "question": "Choose Alpha or Beta",
+              "isOther": true,
+              "isSecret": false,
+              "options": [
+                {
+                  "label": "Alpha (Recommended)",
+                  "description": "Choose the Alpha option."
+                },
+                {
+                  "label": "Beta",
+                  "description": "Choose the Beta option."
+                }
+              ]
+            }
+          ],
+          "isBlocking": true,
+          "autoResolutionMs": null
+        }
+      },
+      {
+        "method": "turn/completed",
+        "params": {
+          "threadId": "<thread-1>",
+          "turn": {
+            "id": "<turn-1>",
+            "items": [],
+            "itemsView": "notLoaded",
+            "status": "interrupted",
+            "error": null,
+            "startedAt": 0,
+            "completedAt": 0,
+            "durationMs": 0
+          }
+        },
+        "emittedAtMs": 0
+      },
+      {
+        "method": "serverRequest/resolved",
+        "params": {
+          "threadId": "<thread-1>",
+          "requestId": 0
+        },
+        "emittedAtMs": 0
+      }
+    ]
+  }
+}

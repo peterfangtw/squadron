@@ -1,0 +1,11 @@
+docs/
+.github/workflows/
+
+# This audit reads docs/design_tokens and docs/mockups; the private gate still runs it.
+src/test/session/brand_marks.test.ts
+
+# This check reads the private workflow excluded above.
+src/test/tooling/snapshot_workflow.test.ts
+
+# Optional maintenance audits used in this private checkout.
+scripts/local/

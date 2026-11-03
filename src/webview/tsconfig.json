@@ -1,0 +1,24 @@
+{
+  // The panel's browser half. Typechecked here — against the DOM, as real ES
+  // modules — and emitted by `esbuild.mjs`, which bundles `main.ts`'s import
+  // graph into the one bare IIFE `document.ts` inlines into the webview HTML.
+  //
+  // `noEmit`: esbuild owns the emit, tsc is the typecheck gate. `incremental`
+  // is inherited on and switched off so a check leaves no buildinfo behind.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  // Order-free: module evaluation order now comes from `main.ts`'s imports,
+  // not from a hand-maintained list. `protocol.d.ts` rides along ambiently.
+  "include": ["*.ts", "*.d.ts"],
+  // Restated empty, and required: the root excludes `src/webview` to keep this
+  // half out of the node compilation, and an inherited `exclude` would filter
+  // this project's own `include` down to nothing — which typechecks clean.
+  "exclude": []
+}

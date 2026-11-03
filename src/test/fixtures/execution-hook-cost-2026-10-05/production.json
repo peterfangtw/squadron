@@ -1,0 +1,453 @@
+{
+  "date": "2026-10-05",
+  "cases": [
+    {
+      "brand": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "low",
+      "case": "filtered4",
+      "source": "execution",
+      "windows": [
+        [
+          "native-filtered4.txt"
+        ],
+        [
+          "native-filtered4.txt"
+        ],
+        [],
+        []
+      ],
+      "floor": [
+        "editor-gap-filtered4.txt",
+        "native-filtered4.txt"
+      ],
+      "callCount": 4,
+      "edges": [
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-2",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-2",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-3",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-3",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-4",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-4",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        }
+      ],
+      "taskCompletions": 0,
+      "runtimeEnded": true,
+      "remainingIndexes": []
+    },
+    {
+      "brand": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "low",
+      "case": "child2",
+      "source": "execution",
+      "windows": [
+        [
+          "child-filtered2.txt"
+        ]
+      ],
+      "floor": [
+        "child-filtered2.txt",
+        "editor-gap-child2.txt"
+      ],
+      "callCount": 2,
+      "edges": [
+        {
+          "actor": "child-1",
+          "call": "call-1",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "child-1",
+          "call": "call-1",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        }
+      ],
+      "taskCompletions": 0,
+      "runtimeEnded": true,
+      "remainingIndexes": []
+    },
+    {
+      "brand": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "low",
+      "case": "background",
+      "source": "turn",
+      "windows": [
+        [
+          "editor-gap-background.txt"
+        ]
+      ],
+      "floor": [
+        "editor-gap-background.txt"
+      ],
+      "callCount": 1,
+      "edges": [
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "after",
+          "snapshot": true,
+          "pending": true
+        }
+      ],
+      "taskCompletions": 1,
+      "runtimeEnded": true,
+      "remainingIndexes": []
+    },
+    {
+      "brand": "grok",
+      "model": "grok-4.7",
+      "effort": "low",
+      "case": "filtered",
+      "source": "execution",
+      "windows": [
+        [
+          "native-filtered.txt"
+        ],
+        [
+          "native-filtered.txt"
+        ],
+        [],
+        []
+      ],
+      "floor": [
+        "editor-gap-filtered.txt",
+        "native-filtered.txt"
+      ],
+      "callCount": 5,
+      "edges": [
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-2",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-2",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-3",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-3",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-4",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-4",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        }
+      ],
+      "taskCompletions": 0,
+      "runtimeEnded": true,
+      "remainingIndexes": []
+    },
+    {
+      "brand": "grok",
+      "model": "grok-4.7",
+      "effort": "low",
+      "case": "child",
+      "source": "execution",
+      "windows": [
+        [
+          "child-filtered.txt"
+        ]
+      ],
+      "floor": [
+        "child-filtered.txt",
+        "editor-gap-child.txt"
+      ],
+      "callCount": 2,
+      "edges": [
+        {
+          "actor": "child-1",
+          "call": "call-1",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "child-1",
+          "call": "call-1",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        }
+      ],
+      "taskCompletions": 0,
+      "runtimeEnded": true,
+      "remainingIndexes": []
+    },
+    {
+      "brand": "grok",
+      "model": "grok-4.7",
+      "effort": "low",
+      "case": "background",
+      "source": "turn",
+      "windows": [
+        [
+          "background-filtered.txt",
+          "editor-gap-background.txt"
+        ]
+      ],
+      "floor": [
+        "background-filtered.txt",
+        "editor-gap-background.txt"
+      ],
+      "callCount": 1,
+      "edges": [
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "after",
+          "snapshot": true,
+          "pending": true
+        }
+      ],
+      "taskCompletions": 1,
+      "runtimeEnded": true,
+      "remainingIndexes": []
+    },
+    {
+      "brand": "codex",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "case": "filtered",
+      "source": "execution",
+      "windows": [
+        [],
+        [
+          "native-filtered.txt"
+        ],
+        []
+      ],
+      "floor": [
+        "editor-gap-filtered.txt",
+        "native-filtered.txt"
+      ],
+      "callCount": 3,
+      "edges": [
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-2",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-2",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-3",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-3",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        }
+      ],
+      "taskCompletions": 0,
+      "runtimeEnded": true,
+      "remainingIndexes": []
+    },
+    {
+      "brand": "codex",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "case": "child",
+      "source": "execution",
+      "windows": [
+        [
+          "child-filtered.txt"
+        ]
+      ],
+      "floor": [
+        "child-filtered.txt",
+        "editor-gap-child.txt"
+      ],
+      "callCount": 4,
+      "edges": [
+        {
+          "actor": "child-1",
+          "call": "call-1",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "child-1",
+          "call": "call-1",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        }
+      ],
+      "taskCompletions": 0,
+      "runtimeEnded": true,
+      "remainingIndexes": []
+    },
+    {
+      "brand": "codex",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "case": "background",
+      "source": "execution",
+      "windows": [
+        [
+          "background-filtered.txt"
+        ]
+      ],
+      "floor": [
+        "background-filtered.txt",
+        "editor-gap-background.txt"
+      ],
+      "callCount": 1,
+      "edges": [
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "before",
+          "snapshot": true,
+          "pending": false
+        },
+        {
+          "actor": "root",
+          "call": "call-1",
+          "edge": "after",
+          "snapshot": true,
+          "pending": false
+        }
+      ],
+      "taskCompletions": 0,
+      "runtimeEnded": true,
+      "remainingIndexes": []
+    }
+  ]
+}

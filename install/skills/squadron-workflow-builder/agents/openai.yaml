@@ -1,0 +1,5 @@
+interface:
+  display_name: 'Squadron Workflow Builder'
+  short_description: 'Build Squadron workflows and session handoffs'
+policy:
+  allow_implicit_invocation: true

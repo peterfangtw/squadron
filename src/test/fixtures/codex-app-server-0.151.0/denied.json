@@ -1,0 +1,448 @@
+{
+  "turnId": "<turn-5>",
+  "completed": {
+    "method": "turn/completed",
+    "params": {
+      "threadId": "<thread-1>",
+      "turn": {
+        "id": "<turn-5>",
+        "items": [
+          {
+            "type": "agentMessage",
+            "id": "<message-5>",
+            "text": "C0_DENIED",
+            "phase": "final_answer",
+            "memoryCitation": null,
+            "delivery": null
+          }
+        ],
+        "itemsView": "summary",
+        "status": "completed",
+        "error": null,
+        "startedAt": 0,
+        "completedAt": 0,
+        "durationMs": 5272
+      }
+    },
+    "emittedAtMs": 0
+  },
+  "messages": [
+    {
+      "id": 14,
+      "result": {
+        "turn": {
+          "id": "<turn-5>",
+          "items": [],
+          "itemsView": "notLoaded",
+          "status": "inProgress",
+          "error": null,
+          "startedAt": null,
+          "completedAt": null,
+          "durationMs": null
+        }
+      }
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "active",
+          "activeFlags": []
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "turn/started",
+      "params": {
+        "threadId": "<thread-1>",
+        "turn": {
+          "id": "<turn-5>",
+          "items": [],
+          "itemsView": "notLoaded",
+          "status": "inProgress",
+          "error": null,
+          "startedAt": 0,
+          "completedAt": null,
+          "durationMs": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<id-7>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "Use apply_patch now to create c0-denied.txt containing `denied` and a newline. Do not skip the tool call. The host will deny it; after the denial, do not retry and reply exactly C0_DENIED.",
+              "text_elements": []
+            }
+          ]
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<id-7>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "Use apply_patch now to create c0-denied.txt containing `denied` and a newline. Do not skip the tool call. The host will deny it; after the denial, do not retry and reply exactly C0_DENIED.",
+              "text_elements": []
+            }
+          ]
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-16>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "id": "<item-16>",
+          "summary": [],
+          "content": []
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "fileChange",
+          "id": "<item-17>",
+          "changes": [
+            {
+              "path": "<cwd>/c0-denied.txt",
+              "kind": {
+                "type": "add"
+              },
+              "diff": "denied\n"
+            }
+          ],
+          "status": "inProgress"
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "active",
+          "activeFlags": ["waitingOnApproval"]
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/fileChange/requestApproval",
+      "id": 2,
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "itemId": "<item-17>",
+        "startedAtMs": 0,
+        "reason": null,
+        "grantRoot": null
+      }
+    },
+    {
+      "method": "serverRequest/resolved",
+      "params": {
+        "threadId": "<thread-1>",
+        "requestId": 2
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "active",
+          "activeFlags": []
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "fileChange",
+          "id": "<item-17>",
+          "changes": [
+            {
+              "path": "<cwd>/c0-denied.txt",
+              "kind": {
+                "type": "add"
+              },
+              "diff": "denied\n"
+            }
+          ],
+          "status": "declined"
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 210320,
+            "inputTokens": 208660,
+            "cachedInputTokens": 173056,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1660,
+            "reasoningOutputTokens": 708
+          },
+          "last": {
+            "totalTokens": 18932,
+            "inputTokens": 18874,
+            "cachedInputTokens": 11008,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 58,
+            "reasoningOutputTokens": 8
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "<message-5>",
+          "text": "",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "startedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "itemId": "<message-5>",
+        "delta": "C"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "itemId": "<message-5>",
+        "delta": "0"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "itemId": "<message-5>",
+        "delta": "_DEN"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "itemId": "<message-5>",
+        "delta": "IED"
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "<message-5>",
+          "text": "C0_DENIED",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null
+        },
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "completedAtMs": 0
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<thread-1>",
+        "turnId": "<turn-5>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 229290,
+            "inputTokens": 227622,
+            "cachedInputTokens": 191232,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1668,
+            "reasoningOutputTokens": 708
+          },
+          "last": {
+            "totalTokens": 18970,
+            "inputTokens": 18962,
+            "cachedInputTokens": 18176,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 8,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 258400
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "params": {
+        "rateLimits": {
+          "limitId": "codex",
+          "limitName": null,
+          "primary": {
+            "usedPercent": 0,
+            "windowDurationMins": 10080,
+            "resetsAt": 0
+          },
+          "secondary": null,
+          "credits": {
+            "hasCredits": false,
+            "unlimited": false,
+            "balance": "<redacted-balance>"
+          },
+          "individualLimit": null,
+          "spendControlReached": null,
+          "planType": "<redacted-plan>",
+          "rateLimitReachedType": null
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "<thread-1>",
+        "status": {
+          "type": "idle"
+        }
+      },
+      "emittedAtMs": 0
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-1>",
+        "turn": {
+          "id": "<turn-5>",
+          "items": [
+            {
+              "type": "agentMessage",
+              "id": "<message-5>",
+              "text": "C0_DENIED",
+              "phase": "final_answer",
+              "memoryCitation": null,
+              "delivery": null
+            }
+          ],
+          "itemsView": "summary",
+          "status": "completed",
+          "error": null,
+          "startedAt": 0,
+          "completedAt": 0,
+          "durationMs": 5272
+        }
+      },
+      "emittedAtMs": 0
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+{
+  "cwd": "<cwd>",
+  "codexHome": "<codex-home>",
+  "threadId": "<thread-1>",
+  "requestMethods": [
+    "item/commandExecution/requestApproval",
+    "item/fileChange/requestApproval",
+    "item/fileChange/requestApproval",
+    "item/tool/requestUserInput"
+  ],
+  "firstExit": {
+    "stream": "process",
+    "event": "close",
+    "code": null,
+    "signal": "SIGTERM"
+  },
+  "secondExit": {
+    "stream": "process",
+    "event": "close",
+    "code": null,
+    "signal": "SIGTERM"
+  },
+  "authExit": {
+    "stream": "process",
+    "event": "close",
+    "code": null,
+    "signal": "SIGTERM"
+  },
+  "scenarios": {
+    "metadata": {
+      "methods": []
+    },
+    "start": {
+      "methods": []
+    },
+    "text": {
+      "methods": [
+        "thread/started",
+        "mcpServer/startupStatus/updated",
+        "thread/status/changed",
+        "turn/started",
+        "item/started",
+        "item/completed",
+        "item/agentMessage/delta",
+        "thread/tokenUsage/updated",
+        "account/rateLimits/updated",
+        "turn/completed"
+      ]
+    },
+    "image": {
+      "methods": [
+        "thread/status/changed",
+        "turn/started",
+        "item/started",
+        "item/completed",
+        "thread/tokenUsage/updated",
+        "account/rateLimits/updated",
+        "item/agentMessage/delta",
+        "turn/completed"
+      ]
+    },
+    "settings": {
+      "methods": ["thread/name/updated", "thread/settings/updated"]
+    },
+    "file": {
+      "methods": [
+        "mcpServer/startupStatus/updated",
+        "thread/settings/updated",
+        "thread/status/changed",
+        "turn/started",
+        "item/started",
+        "item/completed",
+        "item/commandExecution/requestApproval",
+        "serverRequest/resolved",
+        "thread/tokenUsage/updated",
+        "account/rateLimits/updated",
+        "item/agentMessage/delta",
+        "turn/completed"
+      ]
+    },
+    "patch": {
+      "methods": [
+        "thread/status/changed",
+        "turn/started",
+        "item/started",
+        "item/completed",
+        "item/fileChange/requestApproval",
+        "serverRequest/resolved",
+        "turn/diff/updated",
+        "thread/tokenUsage/updated",
+        "account/rateLimits/updated",
+        "item/agentMessage/delta",
+        "turn/completed"
+      ]
+    },
+    "denied": {
+      "methods": [
+        "thread/status/changed",
+        "turn/started",
+        "item/started",
+        "item/completed",
+        "item/fileChange/requestApproval",
+        "serverRequest/resolved",
+        "thread/tokenUsage/updated",
+        "account/rateLimits/updated",
+        "item/agentMessage/delta",
+        "turn/completed"
+      ]
+    },
+    "question": {
+      "methods": [
+        "thread/settings/updated",
+        "thread/status/changed",
+        "turn/started",
+        "item/started",
+        "item/completed",
+        "item/tool/requestUserInput",
+        "serverRequest/resolved",
+        "thread/tokenUsage/updated",
+        "account/rateLimits/updated",
+        "item/agentMessage/delta",
+        "turn/completed"
+      ]
+    },
+    "interrupt": {
+      "methods": [
+        "mcpServer/startupStatus/updated",
+        "thread/settings/updated",
+        "thread/status/changed",
+        "turn/started",
+        "item/started",
+        "item/completed",
+        "item/agentMessage/delta",
+        "thread/tokenUsage/updated",
+        "account/rateLimits/updated",
+        "turn/completed"
+      ]
+    },
+    "resume": {
+      "methods": [
+        "mcpServer/startupStatus/updated",
+        "thread/status/changed",
+        "thread/goal/cleared",
+        "deprecationNotice",
+        "turn/started",
+        "item/started",
+        "item/completed",
+        "item/agentMessage/delta",
+        "thread/tokenUsage/updated",
+        "account/rateLimits/updated",
+        "turn/completed"
+      ]
+    },
+    "auth": {
+      "methods": ["remoteControl/status/changed"]
+    }
+  }
+}

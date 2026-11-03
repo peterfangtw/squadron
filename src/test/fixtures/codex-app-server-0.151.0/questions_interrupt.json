@@ -1,0 +1,51 @@
+{
+  "request": {
+    "method": "item/tool/requestUserInput",
+    "id": 0,
+    "params": {
+      "threadId": "<thread-7>",
+      "turnId": "<turn-8>",
+      "itemId": "<item-10>",
+      "questions": [
+        {
+          "id": "<id-86>",
+          "header": "Interrupt",
+          "question": "Choose Alpha or Beta",
+          "isOther": true,
+          "isSecret": false,
+          "options": [
+            {
+              "label": "Alpha (Recommended)",
+              "description": "Choose Alpha."
+            },
+            {
+              "label": "Beta",
+              "description": "Choose Beta."
+            }
+          ]
+        }
+      ],
+      "isBlocking": true,
+      "autoResolutionMs": null
+    }
+  },
+  "interrupted": {},
+  "resolved": {
+    "method": "serverRequest/resolved",
+    "params": {
+      "threadId": "<thread-7>",
+      "requestId": 0
+    },
+    "emittedAtMs": 0
+  },
+  "completed": {
+    "method": "turn/completed",
+    "params": {
+      "threadId": "<thread-7>",
+      "turn": {
+        "id": "<turn-8>",
+        "status": "interrupted"
+      }
+    }
+  }
+}

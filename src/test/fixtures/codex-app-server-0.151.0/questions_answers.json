@@ -1,0 +1,554 @@
+{
+  "note": {
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 0,
+      "params": {
+        "threadId": "<thread-5>",
+        "turnId": "<turn-1>",
+        "itemId": "<item-3>",
+        "questions": [
+          {
+            "id": "choice",
+            "header": "note",
+            "question": "Choose Alpha or Beta",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Select Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Select Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": true,
+        "autoResolutionMs": null
+      }
+    },
+    "parser": {
+      "kind": "waiting",
+      "requestId": "n:0",
+      "open": true,
+      "ask": true,
+      "questions": [
+        {
+          "question": "Choose Alpha or Beta",
+          "header": "note",
+          "multiSelect": false,
+          "canOther": true,
+          "options": [
+            {
+              "label": "Alpha (Recommended)",
+              "description": "Select Alpha."
+            },
+            {
+              "label": "Beta",
+              "description": "Select Beta."
+            }
+          ]
+        }
+      ],
+      "canNote": false,
+      "canReply": false
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-37>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"note\",\"id\":\"choice\",\"options\":[{\"description\":\"Select Alpha.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Select Beta.\",\"label\":\"Beta\"}],\"question\":\"Choose Alpha or Beta\"}]}",
+        "call_id": "<item-3>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-1>",
+          "create_time": 1788445726.366203
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-38>",
+        "call_id": "<item-3>",
+        "output": "{\"answers\":{\"choice\":{\"answers\":[\"Alpha (Recommended)\",\"user_note: NOTE_NONCE_7A92\"]}}}",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-1>",
+          "create_time": 1788445730.571256
+        }
+      }
+    },
+    "final": ["{\"selected\":\"Alpha\",\"note\":\"NOTE_NONCE_7A92\"}"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-5>",
+        "turn": {
+          "id": "<turn-1>",
+          "status": "completed"
+        }
+      }
+    }
+  },
+  "other_tui": {
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 1,
+      "params": {
+        "threadId": "<thread-5>",
+        "turnId": "<turn-2>",
+        "itemId": "<item-4>",
+        "questions": [
+          {
+            "id": "choice",
+            "header": "other_tui",
+            "question": "Choose Alpha or Beta",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Select Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Select Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": true,
+        "autoResolutionMs": null
+      }
+    },
+    "parser": {
+      "kind": "waiting",
+      "requestId": "n:1",
+      "open": true,
+      "ask": true,
+      "questions": [
+        {
+          "question": "Choose Alpha or Beta",
+          "header": "other_tui",
+          "multiSelect": false,
+          "canOther": true,
+          "options": [
+            {
+              "label": "Alpha (Recommended)",
+              "description": "Select Alpha."
+            },
+            {
+              "label": "Beta",
+              "description": "Select Beta."
+            }
+          ]
+        }
+      ],
+      "canNote": false,
+      "canReply": false
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-45>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"other_tui\",\"id\":\"choice\",\"options\":[{\"description\":\"Select Alpha.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Select Beta.\",\"label\":\"Beta\"}],\"question\":\"Choose Alpha or Beta\"}]}",
+        "call_id": "<item-4>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-2>",
+          "create_time": 1788445745.747317
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-46>",
+        "call_id": "<item-4>",
+        "output": "{\"answers\":{\"choice\":{\"answers\":[\"None of the above\",\"user_note: OTHER_TUI_NONCE_4C31\"]}}}",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-2>",
+          "create_time": 1788445749.200582
+        }
+      }
+    },
+    "final": ["{\"selected\":\"None of the above\",\"note\":\"OTHER_TUI_NONCE_4C31\"}"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-5>",
+        "turn": {
+          "id": "<turn-2>",
+          "status": "completed"
+        }
+      }
+    }
+  },
+  "other_test_client": {
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 2,
+      "params": {
+        "threadId": "<thread-5>",
+        "turnId": "<turn-3>",
+        "itemId": "<item-5>",
+        "questions": [
+          {
+            "id": "choice",
+            "header": "other_test_client",
+            "question": "Choose Alpha or Beta",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Select Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Select Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": true,
+        "autoResolutionMs": null
+      }
+    },
+    "parser": {
+      "kind": "waiting",
+      "requestId": "n:2",
+      "open": true,
+      "ask": true,
+      "questions": [
+        {
+          "question": "Choose Alpha or Beta",
+          "header": "other_test_client",
+          "multiSelect": false,
+          "canOther": true,
+          "options": [
+            {
+              "label": "Alpha (Recommended)",
+              "description": "Select Alpha."
+            },
+            {
+              "label": "Beta",
+              "description": "Select Beta."
+            }
+          ]
+        }
+      ],
+      "canNote": false,
+      "canReply": false
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-50>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"other_test_client\",\"id\":\"choice\",\"options\":[{\"description\":\"Select Alpha.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Select Beta.\",\"label\":\"Beta\"}],\"question\":\"Choose Alpha or Beta\"}]}",
+        "call_id": "<item-5>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-3>",
+          "create_time": 1788445761.914556
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-51>",
+        "call_id": "<item-5>",
+        "output": "{\"answers\":{\"choice\":{\"answers\":[\"user_note: OTHER_CLIENT_NONCE_8D16\"]}}}",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-3>",
+          "create_time": 1788445764.883916
+        }
+      }
+    },
+    "final": ["{\"selected\":\"Other\",\"note\":\"OTHER_CLIENT_NONCE_8D16\"}"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-5>",
+        "turn": {
+          "id": "<turn-3>",
+          "status": "completed"
+        }
+      }
+    }
+  },
+  "other_current": {
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 3,
+      "params": {
+        "threadId": "<thread-5>",
+        "turnId": "<turn-4>",
+        "itemId": "<item-6>",
+        "questions": [
+          {
+            "id": "choice",
+            "header": "other_current",
+            "question": "Choose Alpha or Beta",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Select Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Select Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": true,
+        "autoResolutionMs": null
+      }
+    },
+    "parser": {
+      "kind": "waiting",
+      "requestId": "n:3",
+      "open": true,
+      "ask": true,
+      "questions": [
+        {
+          "question": "Choose Alpha or Beta",
+          "header": "other_current",
+          "multiSelect": false,
+          "canOther": true,
+          "options": [
+            {
+              "label": "Alpha (Recommended)",
+              "description": "Select Alpha."
+            },
+            {
+              "label": "Beta",
+              "description": "Select Beta."
+            }
+          ]
+        }
+      ],
+      "canNote": false,
+      "canReply": false
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-56>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"other_current\",\"id\":\"choice\",\"options\":[{\"description\":\"Select Alpha.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Select Beta.\",\"label\":\"Beta\"}],\"question\":\"Choose Alpha or Beta\"}]}",
+        "call_id": "<item-6>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-4>",
+          "create_time": 1788445779.806937
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-57>",
+        "call_id": "<item-6>",
+        "output": "{\"answers\":{\"choice\":{\"answers\":[\"OTHER_BARE_NONCE_5E47\"]}}}",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-4>",
+          "create_time": 1788445784.405117
+        }
+      }
+    },
+    "final": ["{\"selected\":\"Other\",\"note\":\"OTHER_BARE_NONCE_5E47\"}"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-5>",
+        "turn": {
+          "id": "<turn-4>",
+          "status": "completed"
+        }
+      }
+    }
+  },
+  "unknown_key": {
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 4,
+      "params": {
+        "threadId": "<thread-5>",
+        "turnId": "<turn-5>",
+        "itemId": "<item-7>",
+        "questions": [
+          {
+            "id": "choice",
+            "header": "unknown_key",
+            "question": "Choose Alpha or Beta",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Select Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Select Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": true,
+        "autoResolutionMs": null
+      }
+    },
+    "parser": {
+      "kind": "waiting",
+      "requestId": "n:4",
+      "open": true,
+      "ask": true,
+      "questions": [
+        {
+          "question": "Choose Alpha or Beta",
+          "header": "unknown_key",
+          "multiSelect": false,
+          "canOther": true,
+          "options": [
+            {
+              "label": "Alpha (Recommended)",
+              "description": "Select Alpha."
+            },
+            {
+              "label": "Beta",
+              "description": "Select Beta."
+            }
+          ]
+        }
+      ],
+      "canNote": false,
+      "canReply": false
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-62>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"unknown_key\",\"id\":\"choice\",\"options\":[{\"description\":\"Select Alpha.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Select Beta.\",\"label\":\"Beta\"}],\"question\":\"Choose Alpha or Beta\"}]}",
+        "call_id": "<item-7>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-5>",
+          "create_time": 1788445798.708377
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-63>",
+        "call_id": "<item-7>",
+        "output": "{\"answers\":{\"choice\":{\"answers\":[\"Alpha (Recommended)\"]}}}",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-5>",
+          "create_time": 1788445800.608088
+        }
+      }
+    },
+    "final": ["{\"selected\":\"Alpha\",\"note\":null}"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-5>",
+        "turn": {
+          "id": "<turn-5>",
+          "status": "completed"
+        }
+      }
+    }
+  },
+  "multi_value_wire": {
+    "request": {
+      "method": "item/tool/requestUserInput",
+      "id": 5,
+      "params": {
+        "threadId": "<thread-5>",
+        "turnId": "<turn-6>",
+        "itemId": "<item-8>",
+        "questions": [
+          {
+            "id": "choice",
+            "header": "multi_value_wire",
+            "question": "Choose Alpha or Beta",
+            "isOther": true,
+            "isSecret": false,
+            "options": [
+              {
+                "label": "Alpha (Recommended)",
+                "description": "Select Alpha."
+              },
+              {
+                "label": "Beta",
+                "description": "Select Beta."
+              }
+            ]
+          }
+        ],
+        "isBlocking": true,
+        "autoResolutionMs": null
+      }
+    },
+    "parser": {
+      "kind": "waiting",
+      "requestId": "n:5",
+      "open": true,
+      "ask": true,
+      "questions": [
+        {
+          "question": "Choose Alpha or Beta",
+          "header": "multi_value_wire",
+          "multiSelect": false,
+          "canOther": true,
+          "options": [
+            {
+              "label": "Alpha (Recommended)",
+              "description": "Select Alpha."
+            },
+            {
+              "label": "Beta",
+              "description": "Select Beta."
+            }
+          ]
+        }
+      ],
+      "canNote": false,
+      "canReply": false
+    },
+    "evidence": {
+      "call": {
+        "type": "function_call",
+        "id": "<id-68>",
+        "name": "request_user_input",
+        "arguments": "{\"questions\":[{\"header\":\"multi_value_wire\",\"id\":\"choice\",\"options\":[{\"description\":\"Select Alpha.\",\"label\":\"Alpha (Recommended)\"},{\"description\":\"Select Beta.\",\"label\":\"Beta\"}],\"question\":\"Choose Alpha or Beta\"}]}",
+        "call_id": "<item-8>",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-6>",
+          "create_time": 1788445813.7089
+        }
+      },
+      "output": {
+        "type": "function_call_output",
+        "id": "<id-69>",
+        "call_id": "<item-8>",
+        "output": "{\"answers\":{\"choice\":{\"answers\":[\"MULTI_NONCE_A_2B64\",\"MULTI_NONCE_B_9C05\"]}}}",
+        "internal_chat_message_metadata_passthrough": {
+          "turn_id": "<turn-6>",
+          "create_time": 1788445815.613817
+        }
+      }
+    },
+    "final": ["{\"selected\":[\"MULTI_NONCE_A_2B64\",\"MULTI_NONCE_B_9C05\"],\"note\":null}"],
+    "completed": {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<thread-5>",
+        "turn": {
+          "id": "<turn-6>",
+          "status": "completed"
+        }
+      }
+    }
+  }
+}
