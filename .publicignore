@@ -9,3 +9,6 @@ src/test/tooling/snapshot_workflow.test.ts
 
 # Optional maintenance audits used in this private checkout.
 scripts/local/
+
+# These tests exercise the private maintenance scripts above.
+src/test/tooling/local_metrics.test.ts

@@ -9,7 +9,7 @@ const ENV = Object.fromEntries(
     ([key]) => !key.startsWith('GIT_') || key === 'GIT_SSH_COMMAND'
   )
 );
-const TARGET = process.env.SNAPSHOT_TARGET ?? 'git@github.com:peterfangtw/squadron-public.git';
+const TARGET = process.env.SNAPSHOT_TARGET ?? 'git@github.com:peterfangtw/squadron.git';
 const RELEASE_TAG = /^v\d{4}\.\d{1,2}\.\d+$/;
 
 function publish() {
@@ -56,6 +56,17 @@ function publish() {
     if (excluded.length)
       git(['update-index', '--force-remove', '-z', '--stdin'], ROOT, sourceEnv, excluded);
     const tree = git(['write-tree'], ROOT, sourceEnv);
+
+    const files = path.join(scratch, 'files');
+    fs.mkdirSync(files);
+    // A tree archive has no source commit or private tag annotation to carry over.
+    const archive = child.execFileSync('git', ['archive', tree], {
+      cwd: ROOT,
+      env: ENV,
+      maxBuffer: 64 * 1024 * 1024
+    });
+    child.execFileSync('tar', ['-xf', '-', '-C', files], { input: archive, env: ENV });
+    verifyPrivacy(files);
 
     const destination = path.join(scratch, 'public.git');
     git(['clone', '--quiet', '--bare', '--no-local', TARGET, destination]);
@@ -110,15 +121,6 @@ function publish() {
       return;
     }
 
-    const files = path.join(scratch, 'files');
-    fs.mkdirSync(files);
-    // A tree archive has no source commit or private tag annotation to carry over.
-    const archive = child.execFileSync('git', ['archive', tree], {
-      cwd: ROOT,
-      env: ENV,
-      maxBuffer: 64 * 1024 * 1024
-    });
-    child.execFileSync('tar', ['-xf', '-', '-C', files], { input: archive, env: ENV });
     const destinationEnv = {
       ...ENV,
       GIT_DIR: destination,
@@ -151,6 +153,68 @@ function publish() {
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }
+}
+
+function verifyPrivacy(directory) {
+  let names;
+  try {
+    names = fs
+      .readFileSync(path.join(ROOT, 'scripts/local/private_names.txt'), 'utf8')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'));
+    if (!names.length) throw new Error();
+    names = names.map((name) => new RegExp(name, 'i'));
+  } catch {
+    throw new Error('privacy check requires a readable, nonempty, valid private denylist');
+  }
+  if (fs.existsSync(path.join(directory, 'scripts/local'))) {
+    throw new Error('privacy check requires scripts/local to be excluded');
+  }
+  const placeholders = new Set([
+    'me',
+    'x',
+    'someone',
+    'u',
+    'reader',
+    'maya',
+    'Test Person',
+    'workdir'
+  ]);
+  const ACCOUNT = String.raw`[A-Za-z0-9][^\\/\s'"\`<>{}$…*%]*`;
+
+  const HOMES = [
+    String.raw`\\?/Users\\?/(${ACCOUNT})`,
+    String.raw`(?<![\w.])\\?/home\\?/(${ACCOUNT})`,
+    String.raw`[A-Za-z]:\\{1,4}Users\\{1,4}(${ACCOUNT}(?: Person)?)`,
+    String.raw`%2F(?:Users|home)%2F(${ACCOUNT})`,
+    String.raw`-Users-([A-Za-z0-9._]+)-`,
+    String.raw`(?<![\w-])-home-([A-Za-z0-9._]+)-`
+  ].map((source) => new RegExp(source, 'g'));
+
+  const ACCOUNT_TMP = /\/var\/folders\/[\w+]{2}\/[\w+]{20,}/;
+  const inspect = (text) => {
+    if (
+      names.some((name) => name.test(text)) ||
+      ACCOUNT_TMP.test(text) ||
+      HOMES.some((shape) => [...text.matchAll(shape)].some((match) => !placeholders.has(match[1])))
+    ) {
+      // Diagnostics must not repeat the private content into an Actions log.
+      throw new Error(
+        'privacy check found private names or personal paths in the filtered snapshot'
+      );
+    }
+  };
+  const walk = (relative) => {
+    for (const entry of fs.readdirSync(path.join(directory, relative), { withFileTypes: true })) {
+      const file = path.join(relative, entry.name);
+      inspect(file);
+      const full = path.join(directory, file);
+      if (entry.isDirectory()) walk(file);
+      else inspect(entry.isSymbolicLink() ? fs.readlinkSync(full) : fs.readFileSync(full, 'utf8'));
+    }
+  };
+  walk('');
 }
 
 function provedTree(ref) {

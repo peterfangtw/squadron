@@ -1,6 +1,5 @@
 // Bakes the mascot's frames into src/ui/mascot_frames.ts from the approved
-// design source. The chick stays editable as shapes in docs/mockups/lib/
-// chick.mjs; the bundle carries only the grid each shape list rasterizes to,
+// design source. The chick stays editable as shapes in scripts/assets/mascot/chick.mjs; the bundle carries only the grid each shape list rasterizes to,
 // as run-length tone strings, so the webview paints it without the shape code.
 //
 //   node scripts/mascot.mjs           write the file
@@ -11,9 +10,9 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as prettier from 'prettier';
-import { frames } from '../docs/mockups/lib/chick.mjs';
+import { frames } from './assets/mascot/chick.mjs';
 
-const SOURCE = 'docs/mockups/lib/chick.mjs';
+const SOURCE = 'scripts/assets/mascot/chick.mjs';
 const OUTPUT = 'src/ui/mascot_frames.ts';
 
 // pixel.mjs's tone letters, in its header's order. '.' is an empty cell.

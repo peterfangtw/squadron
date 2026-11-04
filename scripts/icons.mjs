@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const ICON_SOURCE = 'docs/mockups/squadron-wordmark/eclipse.svg';
-const WORDMARK_SOURCE = 'docs/mockups/squadron-wordmark/wordmark-michroma-semibold.svg';
+const ICON_SOURCE = 'scripts/assets/marks/eclipse.svg';
+const WORDMARK_SOURCE = 'scripts/assets/marks/wordmark-michroma-semibold.svg';
 
 const eclipse = readFileSync(ICON_SOURCE, 'utf8').trim();
 const wordmark = readFileSync(WORDMARK_SOURCE, 'utf8').trim();

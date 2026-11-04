@@ -435,8 +435,9 @@ describe('a background task ending, as 1.0.50 says it live', () => {
   it('replays the capture into the end on its call, then the trigger, ahead of the wake', async () => {
     const file = path.join(
       repoRoot(),
-      'docs',
-      'reference',
+      'src',
+      'test',
+      'fixtures',
       'cli_state',
       'grok',
       'background_cmd_2026_10_13',
@@ -575,8 +576,9 @@ describe('a subagent ending, and the command it handed over, as 1.0.52 says it',
   const capture = (name: string) =>
     path.join(
       repoRoot(),
-      'docs',
-      'reference',
+      'src',
+      'test',
+      'fixtures',
       'cli_state',
       'grok',
       'subagent_cmd_2026_10_14',

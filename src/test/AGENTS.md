@@ -45,7 +45,10 @@ reaches it is missed. A build input (`package.json`, lockfile, `tsconfig*`,
 
 The root holds shared machinery only: `helpers.ts`, `home.ts`, `harness.ts`,
 `mascot_busy.ts`, helpers imported by three or more folders, `fixtures/`,
-`smoke/` and `live_session/`. One folder holds one concern. A basename keeps
+`smoke/` and `live_session/`. Recordings consumed by tests belong in
+`fixtures/cli_state/`, with their CLI version, observation date and sanitization
+recorded beside them. Build inputs live in `scripts/assets/`, not `docs/`.
+One folder holds one concern. A basename keeps
 its prefix, so it stays unique across the tree. A single-file test goes in
 the folder of the contract it asserts. There is no leftovers folder. A
 helper used by one or two folders lives with its main user.

@@ -641,7 +641,7 @@ describe('lineForFrame, which task ends start a turn', () => {
   // fires for every task the CLI tracks, and only the `task_started` before it
   // says whose task it was and whether it was backgrounded.
   const capture = (...name: string[]) =>
-    path.join(repoRoot(), 'docs', 'reference', 'cli_state', 'claude', ...name);
+    path.join(repoRoot(), 'src', 'test', 'fixtures', 'cli_state', 'claude', ...name);
 
   /** Every frame through the tee and a ledger, as `OwnedSession.record` runs them. */
   async function replay(file: string): Promise<RecordLine[]> {

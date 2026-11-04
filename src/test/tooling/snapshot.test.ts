@@ -39,6 +39,7 @@ function fixture(t: test.TestContext): { source: string; origin: string; target:
   fs.copyFileSync(path.join(ROOT, '.publicignore'), path.join(source, '.publicignore'));
   fs.mkdirSync(path.join(source, 'scripts/local'));
   fs.writeFileSync(path.join(source, 'scripts/local/comments.mjs'), '// private audit\n');
+  fs.writeFileSync(path.join(source, 'scripts/local/private_names.txt'), 'confidential-example\n');
   fs.writeFileSync(path.join(source, '.gitignore'), 'tracked-ignored.txt\n');
   fs.writeFileSync(path.join(source, 'tracked-ignored.txt'), 'still public\n');
   fs.writeFileSync(path.join(source, 'file.txt'), 'one\n');
@@ -104,6 +105,86 @@ function run(
 }
 
 test.describe('source snapshot publication', { skip: needsFileSymlinks() }, () => {
+  test.it(
+    'blocks private content in the filtered tagged tree before preview or publication',
+    (t) => {
+      for (const [file, content] of [
+        ['file.txt', 'Confidential-Example service'],
+        ['file.txt', '/Users/' + 'private-fixture/src'],
+        ['file.txt', ['C:', 'Users', 'private-fixture', 'src'].join('\\')],
+        ['file.txt', '/var/folders/' + 'ab/abcdefghijklmnopqrstuvwxyz/T/file'],
+        ['confidential-example.txt', 'ordinary content']
+      ] as const) {
+        const { source, target } = fixture(t);
+        fs.writeFileSync(path.join(source, file), content);
+        git(source, 'add', '--all');
+        git(source, 'commit', '--quiet', '-m', 'test: unsafe release');
+        git(source, 'tag', '-d', FIRST);
+        tag(source, FIRST);
+        git(source, 'push', '--quiet', '--force', 'origin', 'HEAD:main', '--tags');
+        for (const args of [[FIRST, '--plan'], [FIRST]]) {
+          const refused = run(source, target, ...args);
+          assert.equal(refused.code, 1, refused.out);
+          assert.match(refused.err, /privacy/);
+          assert.doesNotMatch(refused.err, /private-fixture|confidential-example/i);
+          assert.equal(git(target, 'for-each-ref', '--format=%(refname)'), '');
+        }
+      }
+    }
+  );
+
+  test.it('requires a nonempty private denylist even when retrying a published snapshot', (t) => {
+    const { source, target } = fixture(t);
+    assert.equal(run(source, target, FIRST).code, 0);
+    const before = git(target, 'show-ref');
+    const names = path.join(source, 'scripts/local/private_names.txt');
+    for (const content of ['', '# comments only\n', '[']) {
+      fs.writeFileSync(names, content);
+      const refused = run(source, target, FIRST);
+      assert.equal(refused.code, 1);
+      assert.match(refused.err, /privacy/);
+      assert.equal(git(target, 'show-ref'), before);
+    }
+    fs.rmSync(names);
+    assert.equal(run(source, target, FIRST).code, 1);
+    assert.equal(git(target, 'show-ref'), before);
+  });
+
+  test.it('accepts a root snapshot created by a destination-only history cleanup', (t) => {
+    const { source, target } = fixture(t);
+    assert.equal(run(source, target, FIRST).code, 0);
+    second(source);
+    assert.equal(run(source, target, SECOND).code, 0);
+    const tree = git(target, 'rev-parse', 'main^{tree}');
+    const root = child
+      .execFileSync('git', ['commit-tree', tree], {
+        cwd: target,
+        env: {
+          ...CLEAN,
+          GIT_AUTHOR_NAME: 'snapshot',
+          GIT_AUTHOR_EMAIL: 'snapshot@example.com',
+          GIT_COMMITTER_NAME: 'snapshot',
+          GIT_COMMITTER_EMAIL: 'snapshot@example.com'
+        },
+        input: `chore: snapshot ${SECOND}\n`,
+        encoding: 'utf8'
+      })
+      .trim();
+    git(target, 'update-ref', 'refs/heads/main', root);
+    git(target, 'update-ref', `refs/tags/${SECOND}`, root);
+    git(target, 'update-ref', '-d', `refs/tags/${FIRST}`);
+    assert.equal(run(source, target, SECOND).code, 0);
+    assert.equal(run(source, target, FIRST).code, 1);
+    assert.equal(git(target, 'rev-list', '--count', '--all'), '1');
+    fs.writeFileSync(path.join(source, 'file.txt'), 'three\n');
+    git(source, 'add', '--all');
+    git(source, 'commit', '--quiet', '-m', 'test: later release');
+    tag(source, 'v2026.40.11');
+    git(source, 'push', '--quiet', 'origin', 'HEAD:main', '--tags');
+    assert.equal(run(source, target, '--latest').code, 0);
+    assert.equal(git(target, 'rev-parse', 'main^'), root);
+  });
+
   test.it('preserves annotated release proof when checking out a tag event by commit', (t) => {
     const { source, target } = fixture(t);
     const annotation = git(source, 'rev-parse', `refs/tags/${FIRST}`);

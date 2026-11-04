@@ -325,8 +325,9 @@ describe('CodexTee, a command that outlives its turn', () => {
   async function replay(): Promise<{ byMethod: [string, RecordLine[]][]; lines: RecordLine[] }> {
     const file = path.join(
       repoRoot(),
-      'docs',
-      'reference',
+      'src',
+      'test',
+      'fixtures',
       'cli_state',
       'codex',
       'background_cmd_2026_10_13',

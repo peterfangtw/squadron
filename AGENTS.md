@@ -268,7 +268,7 @@ Reload the IDE window after a deploy, or the extension host keeps running old
 code.
 
 Versioning, rollback, every gate and `npm run snapshot` (export to
-`squadron-public`): `docs/workflows/release.md`.
+`squadron`): `docs/workflows/release.md`.
 
 ## Workflows
 

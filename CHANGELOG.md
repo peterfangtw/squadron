@@ -9,6 +9,10 @@ scalability", only when that benefit is supported; omit implementation details.
 Do not add a release note for edits to this guidance.
 -->
 
+## 0.6.10
+
+- Windows packages now include the verified helpers needed for private-file access and console sign-in on Windows x64 with .NET Framework 4.8.1 or later.
+
 ## 0.6.9
 
 - **Reload every window after updating.** A window still running the old version reports Orchestration as off, so commands its sessions run that act on other sessions are refused until it reloads.

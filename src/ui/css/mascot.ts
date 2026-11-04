@@ -21,7 +21,7 @@ export const css = /* css */ `
 
   /* The tones, one probe each: the webview reads each probe's computed colour
      and paints the frames with it, so every preset repaints the chick. Copied
-     from docs/mockups/lib/pixel.mjs's toneCss; the letters are its tones. */
+     from scripts/assets/mascot/pixel.mjs's toneCss; the letters are its tones. */
   #mascot .tones { display: none; }
   /* A porcelain body on every preset: --av-fg drew it near-black on the light
      ones. The accent goes on the wings, bulb and belly light instead. */
