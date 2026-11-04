@@ -9,6 +9,10 @@ scalability", only when that benefit is supported; omit implementation details.
 Do not add a release note for edits to this guidance.
 -->
 
+## 0.6.11
+
+- Maintenance release.
+
 ## 0.6.10
 
 - Windows packages now include the verified helpers needed for private-file access and console sign-in on Windows x64 with .NET Framework 4.8.1 or later.

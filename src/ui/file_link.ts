@@ -58,6 +58,7 @@ export function fileLink(href: string, cwd: string): FileLink | undefined {
     else if (/^\/[a-z]:\//i.test(raw)) raw = raw.slice(1);
     else if (/^\/[a-z]:/i.test(raw)) return;
   } else if (href.startsWith('//')) return;
+  if (/^\/[a-z]:(?:[\\/]|%5c|%2f)/i.test(raw)) raw = raw.slice(1);
   let decoded: string;
   try {
     decoded = decodeURIComponent(raw);

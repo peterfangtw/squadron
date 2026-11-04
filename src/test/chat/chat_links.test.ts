@@ -7,6 +7,8 @@ describe('a link in a turn', () => {
     const cases = [
       ['c:\\Repo Mixed\\notes%20draft.md:12:3', 'c:\\Repo Mixed\\notes draft.md'],
       ['D:/Repo/notes.md#L12C3', 'D:/Repo/notes.md'],
+      ['/C:/Repo Mixed/notes draft.md:12:3', 'C:/Repo Mixed/notes draft.md'],
+      ['/d:/Repo/notes%20draft.md#L12C3', 'd:/Repo/notes draft.md'],
       ['c:%5CRepo%20Mixed%5Cnotes.md:12:3', 'c:\\Repo Mixed\\notes.md'],
       ['\\\\server\\share\\notes.md:12:3', '\\\\server\\share\\notes.md'],
       ['file://server/share/notes%20draft.md#L12C3', '\\\\server\\share\\notes draft.md'],

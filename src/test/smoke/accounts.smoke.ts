@@ -865,7 +865,7 @@ section('accounts auth surfaces, in the real IDE', () => {
   step('shows a Log in CTA on an owned pipe thread when signed out', async () => {
     await clearOnboarding();
     // New opens a draft; the send is what spawns.
-    await startFromDraft('accounts smoke first turn');
+    await startFromDraft('accounts smoke first turn', 'Opus');
     // Prefer a card that is not the shared fixture when both exist.
     const owned = panel()
       .locator('#cards .card[data-pid]')
