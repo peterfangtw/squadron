@@ -67,22 +67,7 @@ async function names(dir: string): Promise<string[]> {
 /** Strict admission reads intentionally differ from best-effort graph readers. */
 export async function reserveStartup(id: string): Promise<Reservation> {
   if (!/^[a-zA-Z0-9_-]{1,160}$/.test(id)) throw new Error('Invalid startup identity.');
-  await fs.mkdir(STARTUPS_DIR, { recursive: true });
-  const table = await ownerClaim.native();
-  const startedAt = table.starts.get(process.pid);
-  if (startedAt === undefined) throw new Error('The admission owner could not be identified.');
-  const me: ownerClaim.NewOwner = {
-    pid: process.pid,
-    startedAt,
-    startSource: table.startSource,
-    generation: randomUUID()
-  };
-  const release = await ownerClaim.acquire(
-    path.join(STARTUPS_DIR, 'admission.lock'),
-    me,
-    'Another window is admitting a session. Wait for it to finish and check the original attempt.',
-    table
-  );
+  const { me, release } = await admission();
   try {
     await refuseOlderWindows();
     const records = await reconciledReceipts();
@@ -111,10 +96,31 @@ export async function reserveStartup(id: string): Promise<Reservation> {
       phase: 'reserved'
     };
     const file = path.join(STARTUPS_DIR, `${id}.json`);
-    return await createReservation(file, initial);
+    return await createReservation(file, initial, me);
   } finally {
     await release();
   }
+}
+
+async function admission(me?: ownerClaim.NewOwner): Promise<{
+  me: ownerClaim.NewOwner;
+  release: () => Promise<void>;
+}> {
+  await fs.mkdir(STARTUPS_DIR, { recursive: true });
+  const table = me ? undefined : await ownerClaim.native();
+  if (!me) {
+    const startedAt = table?.starts.get(process.pid);
+    if (startedAt === undefined || !table)
+      throw new Error('The admission owner could not be identified.');
+    me = { pid: process.pid, startedAt, startSource: table.startSource, generation: randomUUID() };
+  }
+  const release = await ownerClaim.acquire(
+    path.join(STARTUPS_DIR, 'admission.lock'),
+    me,
+    'Another window is admitting a session. Wait for it to finish and check the original attempt.',
+    table
+  );
+  return { me, release };
 }
 
 async function refuseOlderWindows(): Promise<void> {
@@ -191,7 +197,11 @@ async function fleetSpawns(
   return spawns;
 }
 
-async function createReservation(file: string, initial: Receipt): Promise<Reservation> {
+async function createReservation(
+  file: string,
+  initial: Receipt,
+  me: ownerClaim.NewOwner
+): Promise<Reservation> {
   let record = initial;
   const persist = async (next: Receipt): Promise<void> => {
     if (!(await files.writeAtomicJson(file, next)))
@@ -204,9 +214,16 @@ async function createReservation(file: string, initial: Receipt): Promise<Reserv
     const next = chain.then(() =>
       record.phase === 'settled'
         ? undefined
-        : (() => {
+        : (async () => {
             const next = change(record);
-            return next === record ? undefined : persist(next);
+            if (next === record) return;
+            // Windows readers deny replacement; phase updates share the admission reader's lock.
+            const { release } = await admission(me);
+            try {
+              await persist(next);
+            } finally {
+              await release();
+            }
           })()
     );
     chain = next.catch(() => undefined);
@@ -245,6 +262,21 @@ async function createReservation(file: string, initial: Receipt): Promise<Reserv
 
 /** Active or uncertain capacity is never expired by age. Called by existing pruning. */
 export async function pruneStartupRecords(now = Date.now()): Promise<void> {
+  if (!(await names(STARTUPS_DIR)).length) return;
+  let release: () => Promise<void>;
+  try {
+    ({ release } = await admission());
+  } catch {
+    return;
+  }
+  try {
+    await pruneReceipts(now);
+  } finally {
+    await release();
+  }
+}
+
+async function pruneReceipts(now: number): Promise<void> {
   for (const name of await names(STARTUPS_DIR)) {
     const file = path.join(STARTUPS_DIR, name);
     if (name.endsWith('.tmp')) {

@@ -1,5 +1,6 @@
 import { ticketPriority, ticketState, ticketSourceView } from '../ticket_fixtures';
 import * as assert from 'node:assert/strict';
+import * as path from 'node:path';
 import { describe, it } from 'node:test';
 import { Session } from '../../core/model';
 import { ReadWorkflow, WorkflowEdit } from '../../core/workflows/workflows';
@@ -91,6 +92,58 @@ const base = (over: Partial<StateInputs> = {}): StateInputs => ({
 });
 
 describe('default launch directory', () => {
+  it('offers a scratch draft and New slot with no IDE folder', (t) => {
+    const scratchRoot = path.resolve('/home/me/.squadron/scratch');
+    const message = buildState({ ...base(), scratchRoot });
+    assert.equal(message.defaultCwd, scratchRoot);
+    assert.deepEqual(
+      message.groups.map((g) => g.cwd),
+      [scratchRoot]
+    );
+    const p = openPanel(t);
+    p.push(message);
+    assert.equal(
+      p.window.document.querySelector<HTMLElement>('.half[data-act="open"]')?.dataset.cwd,
+      scratchRoot
+    );
+    assert.ok(p.window.document.querySelector('#chat.start'));
+  });
+
+  it('folds scratch children without changing their real cwd or workspace precedence', () => {
+    const scratchRoot = path.resolve('/home/me/.squadron/scratch');
+    const first = path.join(scratchRoot, 'first');
+    const second = path.join(scratchRoot, 'second');
+    const inputs = {
+      ...base({
+        sessions: [
+          session({ cwd: first }),
+          session({ pid: 200, cwd: second, worktree: true, repoRoot: second })
+        ]
+      }),
+      scratchRoot
+    };
+    const message = buildState(inputs);
+    assert.deepEqual(
+      message.groups.map((g) => g.cwd),
+      [scratchRoot]
+    );
+    assert.deepEqual(
+      message.groups[0]?.sessions.map((s) => s.fullCwd),
+      [first, second]
+    );
+    const workspace = path.resolve('/work/app');
+    const opened = buildState({ ...inputs, workspaceFolder: workspace });
+    assert.equal(opened.defaultCwd, workspace);
+    assert.deepEqual(
+      opened.groups.map((g) => g.cwd),
+      [workspace, scratchRoot]
+    );
+    assert.deepEqual(
+      buildState({ ...base({ workspaceFolder: workspace }), scratchRoot }).groups.map((g) => g.cwd),
+      [workspace]
+    );
+  });
+
   it('uses the main folder rather than an alphabetically earlier session folder', () => {
     const message = buildState(
       base({ workspaceFolder: '/work/z-app', sessions: [session({ cwd: '/work/a-other' })] })
@@ -586,6 +639,21 @@ describe('the webview announces a fresh document', () => {
 });
 
 describe('buildState carries the machine skills', () => {
+  it('projects the opened worktree catalog separately from its parent board group', () => {
+    const message = buildState(
+      base({
+        workspaceFolder: '/work/tree',
+        folderRoots: new Map([['/work/tree', '/work/app']]),
+        skills: new Map([
+          ['/work/app', { claude: ['parent-only'] }],
+          ['/work/tree', { claude: ['worktree-only'] }]
+        ])
+      })
+    );
+    assert.deepEqual(message.defaultSkillsByBrand, { claude: ['worktree-only'] });
+    assert.deepEqual(message.groups[0]?.skillsByBrand, { claude: ['parent-only'] });
+  });
+
   it('states the window discovery union without sessions', () => {
     const message = buildState(
       base({

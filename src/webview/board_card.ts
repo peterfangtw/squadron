@@ -214,6 +214,7 @@ export function card(s: CardView): HTMLElement {
   };
   modelBit(specs, s);
   if (s.effort) bit('s-effort', s.effort, 's-sep-effort');
+  mode(specs, s);
   // A separate idle-time row costs every card a line. The group and tooltip carry cwd.
   specs.append(since(s));
   node.append(specs);
@@ -273,7 +274,6 @@ export function footer(s: CardView): HTMLElement {
       (s.worktree ? 'worktree · ' : '') + (s.detached ? 'detached at ' : 'branch ') + s.branch;
     foot.append(br);
   }
-  mode(foot, s);
   const value =
     s.contextPct !== undefined
       ? Math.round(s.contextPct) + '%'
@@ -324,34 +324,15 @@ export function findCard(pid: number): { card: CardView; group: GroupView } | un
   return undefined;
 }
 
-/**
- * The permission mode, after the branch when the card has one.
- *
- * Read-only, and no control: what would flip it is a burst of shift+tabs, and
- * the transcript this reading comes from confirms a change minutes late — a
- * button whose effect the panel cannot see landing is a button that lies. The
- * terminal is where the mode is changed, and the tooltip says so.
- *
- * Appended by `footer` in both its exits, because a card with no branch still
- * has a mode worth stating — it then sits at the start of the strip, and the
- * reading stays at the right.
- */
-export function mode(foot: HTMLElement, s: CardView): HTMLElement {
-  if (!s.mode) return foot;
+/** The transcript can state permission mode later than a change takes effect. */
+export function mode(specs: HTMLElement, s: CardView): HTMLElement {
+  if (!s.mode) return specs;
+  if (specs.childElementCount) specs.append(el('span', 'sep s-sep-mode', '·'));
   const node = el('span', 'mode' + (s.mode.bypass ? ' bypass' : ''));
   node.append(el('span', 'g', s.mode.holds ? '⏸' : '⏵⏵'), el('span', null, s.mode.label));
-  // The reading's age is the honest part: the CLI states the mode on its own
-  // schedule, so this can be a minute or two behind the transcript it is read
-  // from.
-  //
-  // It used to add "change it in its terminal with shift+tab", which was the one
-  // explanation of that in the panel. It went with row 53: every card is a
-  // session on a pipe, and a pipe has no TUI to press shift+tab in — so the
-  // sentence was about to become advice that is false on every card rather than
-  // on some. Nothing replaces it, because nothing here can change the mode.
   node.dataset.tip = `permission mode: ${s.mode.label} · as its transcript last stated it.`;
-  foot.append(node);
-  return foot;
+  specs.append(node);
+  return specs;
 }
 
 /**

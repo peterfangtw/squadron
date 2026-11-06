@@ -52,6 +52,8 @@ export interface MentionTarget {
 
 type Attachment = {
   sources: () => MentionSources;
+  opened: () => void;
+  skillsChanged: (skills: readonly string[]) => void;
   /**
    * Called with the run (or the pill being replaced) already cut from the text
    * and the caret where it began. Stores and inserts the mention, syncs the
@@ -68,8 +70,10 @@ const attachments = new WeakMap<HTMLElement, { target: MentionTarget; attachment
 
 let menu: HTMLElement | null = null;
 
-/** Whose text the open menu is filtering. Null when it is shut. */
+/** Whose text the menu is filtering, including a run with no matching rows. */
 let owner: MentionTarget | null = null;
+let run: { box: MentionTarget; at: number } | null = null;
+let drawnRows: mentionText.Row[] = [];
 
 /**
  * Where a run the reader dismissed with Escape starts, while they are still on
@@ -168,6 +172,24 @@ export function closeMentionMenu(): void {
   pending = null;
   // A list that went away and came back is a new choice, even at the same `@`.
   listKey = null;
+  run = null;
+  drawnRows = [];
+}
+
+export function refreshMentionSources(): void {
+  for (const node of document.querySelectorAll<HTMLElement>('[data-mentions]')) {
+    const attachment = attachments.get(node)?.attachment;
+    if (attachment) attachment.skillsChanged(attachment.sources().skills ?? []);
+  }
+  const box = run?.box ?? menuOwner();
+  if (!box) return;
+  if (!box.node.isConnected) {
+    closeMentionMenu();
+    return;
+  }
+  const attachment = attachments.get(box.node)?.attachment;
+  if (!attachment) return;
+  sync(box, false, attachment.sources());
 }
 
 /** The pending pill is still where it was written, followed by a letter query. */
@@ -231,15 +253,24 @@ function place(box: MentionTarget, node: HTMLElement): void {
  * from the `input` event, the only one that sees a paste, an IME commit and a
  * plain keystroke alike. The `@` keydown calls it too, so the menu opens on the press.
  */
-function sync(box: MentionTarget): void {
+function sync(box: MentionTarget, opening = true, sources?: MentionSources): void {
   const attachment = attachments.get(box.node)?.attachment;
   if (!attachment) return;
-  const now = listFor(box, attachment.sources());
+  const current = sources ?? attachment.sources();
+  const spot = pending?.box === box ? null : spotIn(box);
+  if (spot && !(dismissed?.box === box && dismissed.at === spot.at)) {
+    if (opening && (run?.box !== box || run.at !== spot.at)) {
+      run = { box, at: spot.at };
+      attachment.skillsChanged(current.skills ?? []);
+      attachment.opened();
+    }
+  }
+  const now = listFor(box, current);
   if (!now) {
     if (owner === box || owner === null) closeMentionMenu();
     return;
   }
-  draw(box, now.key, now.lines, now.squares);
+  draw(box, now.key, now.lines, now.squares, !opening);
 }
 
 /**
@@ -279,15 +310,36 @@ function listFor(
 }
 
 /** Paint `lines` as the open menu for `box`, or shut it when there is no row. */
-function draw(box: MentionTarget, key: string, lines: mentionText.Line[], squares = true): void {
+function draw(
+  box: MentionTarget,
+  key: string,
+  lines: mentionText.Line[],
+  squares = true,
+  preserve = false
+): void {
+  const selected = preserve && owner === box ? drawnRows[row] : undefined;
+  const nextRows = lines.filter((line): line is mentionText.Row => 'act' in line);
   if (!lines.some((line) => 'act' in line)) {
-    if (owner === box || owner === null) closeMentionMenu();
+    if (pending?.box === box) {
+      closeMentionMenu();
+      return;
+    }
+    if (owner === box || owner === null) {
+      if (menu) menu.hidden = true;
+      owner = box;
+      drawnRows = [];
+    }
     return;
   }
   if (listKey !== key || owner !== box) {
     listKey = key;
     row = 0;
   }
+  if (selected) {
+    const retained = mentionText.rowFor(lines, selected.act);
+    if (retained) row = nextRows.indexOf(retained);
+  }
+  drawnRows = nextRows;
   const node = ensureMenu();
   node.textContent = '';
   for (const line of lines) {
@@ -379,6 +431,11 @@ function pick(box: MentionTarget, line: mentionText.Row): void {
  */
 export function attachMentions(box: MentionTarget, attachment: Attachment): void {
   attachments.set(box.node, { target: box, attachment });
+  box.node.dataset.mentions = '';
+  box.node.addEventListener('blur', () => {
+    if (run?.box === box || owner === box) closeMentionMenu();
+  });
+  box.node.addEventListener('focus', () => sync(box));
   box.onChange((change) => {
     // Typing on a dismissed run reopens it.
     if (change === 'edit') dismissed = null;
@@ -414,8 +471,8 @@ document.addEventListener(
     // `stopPropagation` means nothing downstream can recover it.
     const plain = !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey;
     if (
-      menuOwner() === box &&
-      (e.key === 'Enter' || e.key === 'Escape' || arrow) &&
+      ((menuOwner() === box && (e.key === 'Enter' || e.key === 'Escape' || arrow)) ||
+        (run?.box === box && e.key === 'Escape')) &&
       plain &&
       !imeKey(e)
     ) {

@@ -1,7 +1,7 @@
 /**
  * "Some session state changed on disk" — said once, for whoever is listening.
  *
- * Three roots watched, two rates, and the sort between them; nothing here knows
+ * State stores watched separately from user scratch, with two rates; nothing here knows
  * what a subscriber does with the news. A watcher is not a painting concern,
  * and `src/AGENTS.md` asks `panel.ts` to be delivery and wiring.
  *
@@ -11,6 +11,7 @@
  */
 import * as vscode from 'vscode';
 import { SESSIONS_DIR, STATE_DIR } from '../core/paths';
+import { StateDirectoryWatches } from '../core/state_watch';
 import { livePid } from '../core/published';
 import { ownedSession } from './sessions';
 
@@ -59,6 +60,7 @@ export type StateChange = 'watch' | 'live';
  *  the first, permanently, since nothing would arrive to start them again. */
 const listeners = new Set<{ fn: (change: StateChange) => void }>();
 let watchers: vscode.Disposable[] = [];
+let stateDirectories: StateDirectoryWatches | undefined;
 let watchTimer: NodeJS.Timeout | undefined;
 let liveTimer: NodeJS.Timeout | undefined;
 
@@ -92,7 +94,7 @@ function announce(change: StateChange): void {
 }
 
 /**
- * Two roots: sessions/ keyed by pid, STATE_DIR for stores. A burst of writes (a
+ * Session files and state stores. A burst of writes (a
  * turn appends many) rides one announcement.
  *
  * Not `DUMP_DIR`: nothing reads it (`core/paths.ts`), and a busy writer
@@ -115,8 +117,7 @@ function start(): void {
       announce('live');
     }, LIVE_MS);
   };
-  // `**/*.json` cannot exclude a subdirectory, so `live/` is sorted here
-  // instead: one watcher, two rates, and one source dropped outright.
+  // Live records have a separate rate; our own publications never announce.
   const sort = (uri: vscode.Uri) => {
     const pid = livePid(uri.fsPath);
     if (pid === undefined) {
@@ -135,20 +136,41 @@ function start(): void {
     }
     nudgeLive();
   };
-  for (const dir of [SESSIONS_DIR, STATE_DIR]) {
+  const watch = (dir: string, pattern: string): vscode.FileSystemWatcher => {
     const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(vscode.Uri.file(dir), '**/*.json')
+      new vscode.RelativePattern(vscode.Uri.file(dir), pattern)
     );
-    watchers.push(
-      watcher,
-      watcher.onDidCreate(sort),
-      watcher.onDidChange(sort),
-      watcher.onDidDelete(sort)
-    );
-  }
+    watcher.onDidCreate(sort);
+    watcher.onDidChange(sort);
+    watcher.onDidDelete(sort);
+    return watcher;
+  };
+  watchers.push(watch(SESSIONS_DIR, '**/*.json'));
+
+  const directories = new StateDirectoryWatches(STATE_DIR, {
+    watch: (directory) => watch(directory, '**/*.json'),
+    changed: nudge
+  });
+  stateDirectories = directories;
+  const top = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(vscode.Uri.file(STATE_DIR), '*')
+  );
+  const rootChange = (uri: vscode.Uri): void => {
+    if (uri.fsPath.endsWith('.json')) sort(uri);
+    void directories.notice(uri.fsPath);
+  };
+  top.onDidCreate(rootChange);
+  top.onDidDelete(rootChange);
+  top.onDidChange((uri) => {
+    if (uri.fsPath.endsWith('.json')) sort(uri);
+  });
+  watchers.push(top);
+  void directories.start();
 }
 
 function stop(): void {
+  stateDirectories?.dispose();
+  stateDirectories = undefined;
   clearTimeout(watchTimer);
   clearTimeout(liveTimer);
   watchTimer = undefined;

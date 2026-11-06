@@ -143,7 +143,13 @@ type BoundRecord = ChatRecord & { identity: SessionIdentity };
 
 type ComposerState = Pick<
   StateMessage,
-  'groups' | 'models' | 'model' | 'contextWindow' | 'efforts'
+  | 'groups'
+  | 'models'
+  | 'model'
+  | 'contextWindow'
+  | 'efforts'
+  | 'defaultCwd'
+  | 'defaultSkillsByBrand'
 >;
 
 type PendingOpen = {
@@ -407,12 +413,15 @@ export class ChatState {
     if (!record) return undefined;
     if (identity.kind === 'draft') {
       const group = state.groups.find((candidate) => candidate.cwd === identity.cwd);
+      const skills =
+        (identity.cwd === state.defaultCwd ? state.defaultSkillsByBrand : undefined) ??
+        group?.skillsByBrand;
       if (!record.sending) resolveDraftPick(record, state);
       const pick = record.pick;
       return {
         identity,
         cwd: identity.cwd,
-        skills: group?.skillsByBrand?.[pick?.brand ?? DEFAULT_BRAND],
+        skills: skills?.[pick?.brand ?? DEFAULT_BRAND],
         models: state.models,
         bound: false,
         starting: record.sending,

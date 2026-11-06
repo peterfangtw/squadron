@@ -5,6 +5,10 @@
 <p align="center">
   <a href="https://open-vsx.org/extension/peterfangtw/squadron"><img alt="Version" src="https://img.shields.io/open-vsx/v/peterfangtw/squadron?style=flat-square&label=Version"></a>
   <a href="https://open-vsx.org/extension/peterfangtw/squadron"><img alt="Downloads" src="https://img.shields.io/open-vsx/dt/peterfangtw/squadron?style=flat-square&label=Downloads"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/peterfangtw/squadron"><img alt="GitHub: Source" src="https://img.shields.io/badge/GitHub-Source-181717?style=flat-square&logo=github&logoColor=white"></a>
   <a href="https://open-vsx.org/extension/peterfangtw/squadron"><img alt="Open VSX: Install" src="https://img.shields.io/badge/Open%20VSX-Install-764ABC?style=flat-square&logo=eclipse&logoColor=white"></a>
   <a href="https://marketplace.visualstudio.com/items?itemName=peterfangtw.squadron"><img alt="VS Marketplace: Install" src="https://img.shields.io/badge/VS%20Marketplace-Install-007ACC?style=flat-square"></a>
 </p>

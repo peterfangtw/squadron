@@ -87,6 +87,87 @@ const row = (p: Panel, at: number): HTMLElement | undefined =>
   [...(menu(p)?.querySelectorAll<HTMLElement>('.mnrow') ?? [])][at];
 
 describe('skill pills', () => {
+  it('uses the automatic worktree draft catalog independently of its parent board group', (t) => {
+    const p = openPanel(t);
+    p.push(
+      stateMessage(
+        [groupView({ cwd: '/repo', sessions: [], skillsByBrand: { claude: ['parent-only'] } })],
+        {
+          defaultCwd: '/repo/worktree',
+          defaultSkillsByBrand: { claude: ['worktree-only'] }
+        }
+      )
+    );
+    type(p, '@skill:');
+    assert.deepEqual(rows(p), ['worktree-only']);
+  });
+
+  it('requests discovery once per mention opening, including an unmatched query', (t) => {
+    const p = openThread(t, threadView({ skills: [] }));
+    type(p, '@game');
+    const requests = () => p.posted.filter((message) => message.type === 'refreshSkills');
+    assert.equal(requests().length, 1);
+    type(p, '@game-studio');
+    assert.equal(requests().length, 1);
+    p.push(stateMessage([groupView()], { thread: threadView({ skills: ['game-studio'] }) }));
+    assert.deepEqual(rows(p), ['game-studio']);
+    assert.equal(composerValue(p), '@game-studio');
+    assert.equal(requests().length, 1);
+    escape(p);
+    p.push(
+      stateMessage([groupView()], { thread: threadView({ skills: ['game-studio', 'game-tools'] }) })
+    );
+    assert.equal(menu(p), null);
+    type(p, '');
+    at(p);
+    assert.equal(requests().length, 2);
+  });
+
+  it('keeps the highlighted action through refreshed rows and clamps when it disappears', (t) => {
+    const p = openThread(t, threadView({ skills: ['dataviz', 'ponytail'] }));
+    at(p);
+    arrow(p, 'ArrowDown');
+    p.push(
+      stateMessage([groupView()], {
+        thread: threadView({ skills: ['aaa', 'dataviz', 'ponytail'] })
+      })
+    );
+    assert.deepEqual(highlit(p), ['ponytail']);
+    p.push(stateMessage([groupView()], { thread: threadView({ skills: ['aaa', 'dataviz'] }) }));
+    assert.deepEqual(highlit(p), ['dataviz']);
+    assert.equal(composerValue(p), '@');
+    enter(p);
+    assert.equal(composerValue(p), 'the dataviz skill ');
+  });
+
+  it('keeps an unmatched query dismissed when a refresh arrives after Escape', (t) => {
+    const p = openThread(t, threadView({ skills: [] }));
+    type(p, '@game');
+    escape(p);
+    p.push(stateMessage([groupView()], { thread: threadView({ skills: ['game-studio'] }) }));
+    assert.equal(menu(p), null);
+    assert.equal(composerValue(p), '@game');
+  });
+
+  it('updates an unmatched draft query from a state push without replacing its box', (t) => {
+    const p = openPanel(t);
+    p.push(
+      stateMessage([groupView({ cwd: '/repo', sessions: [], skillsByBrand: { claude: [] } })])
+    );
+    newDraft(p, '/repo');
+    type(p, '@game');
+    const box = composerTarget(p);
+    p.push(
+      stateMessage([
+        groupView({ cwd: '/repo', sessions: [], skillsByBrand: { claude: ['game-studio'] } })
+      ])
+    );
+    assert.equal(composerTarget(p), box);
+    assert.deepEqual(rows(p), ['game-studio']);
+    row(p, 0)?.click();
+    assert.equal(composerPills(p, 'skill')[0]?.textContent, '@game-studio');
+  });
+
   it('opens the directory skill menu in a new-session draft', (t) => {
     const p = openPanel(t);
     p.push(

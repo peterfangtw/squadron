@@ -123,6 +123,8 @@ function writeMention(mention: Mention): string {
 // The affordance's own test: no list, no trigger. The host sends none for a
 // background session, so there is no second rule here.
 attachMentions(prose.selection, {
+  opened: () => vscode.postMessage({ type: 'refreshSkills' }),
+  skillsChanged: (skills) => prose.update({ skills }),
   sources: () => {
     const context = chats.context(ui.state);
     if (!context) return {};

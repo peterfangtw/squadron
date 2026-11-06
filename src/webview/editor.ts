@@ -853,6 +853,8 @@ function openPrompt(id: string, skills: readonly string[]): { host: HTMLElement;
   prose.restore(markdownDoc(original, skills), { history: 'fresh' });
   const openedDoc = prose.snapshot() as ComposeDoc;
   attachMentions(prose.selection, {
+    opened: () => vscode.postMessage({ type: 'refreshSkills' }),
+    skillsChanged: (skills) => prose.update({ skills }),
     sources: () => ({ skills: machineSkills() ?? [], models: ui.state.models }),
     write: (mention) => {
       prose.insertChip(mention.kind, mention.expansion);

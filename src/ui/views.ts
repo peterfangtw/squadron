@@ -1088,14 +1088,20 @@ export function toThread(session: Session, inputs: ThreadInputs): ThreadView {
 }
 
 /** Match host/runs.ts group keys, or a server can have no row and no way to stop. */
-export function groupKey(session: Pick<Session, 'cwd' | 'worktree' | 'repoRoot'>): string {
+export function groupKey(
+  session: Pick<Session, 'cwd' | 'worktree' | 'repoRoot'>,
+  scratchRoot?: string
+): string {
+  if (scratchRoot !== undefined && platform.paths.contains(scratchRoot, session.cwd))
+    return scratchRoot;
   return (session.worktree && session.repoRoot) || session.cwd;
 }
 
 /**
  * Group by cwd: window claims cover only Squadron windows and would bury most
  * sessions in an outside bucket; every session has a cwd.
- * Fold only worktrees into their repo; repoRoot alone would merge sibling apps.
+ * Managed scratch children fold to their root; worktrees fold into their repo.
+ * repoRoot alone would merge sibling apps.
  * Use git's answer, not containment, so external worktrees fold too.
  * folderRoots applies the same fold to this window's folder when it has no session.
  * Seed this window's folder and server repos; other session cwds form their own groups.
@@ -1108,7 +1114,8 @@ export function buildGroups(
   workspaceFolder: string | undefined,
   folderRoots: Map<string, string> = new Map(),
   arrangements: Map<PathKey, Arrangement> = new Map(),
-  servers: ServerContext = NO_SERVERS
+  servers: ServerContext = NO_SERVERS,
+  scratchRoot?: string
 ): GroupView[] {
   // Build lineage over the whole board: families can span groups.
   const lineage = buildLineage(sessions);
@@ -1144,13 +1151,13 @@ export function buildGroups(
   // since left. The heading follows the window, not the file.
   const workspaceRoot =
     workspaceFolder === undefined
-      ? undefined
+      ? scratchRoot
       : (folderRoots.get(workspaceFolder) ?? workspaceFolder);
   if (workspaceRoot !== undefined) {
     join(workspaceRoot);
   }
   for (const session of sessions) {
-    join(groupKey(session)).push(session);
+    join(groupKey(session, scratchRoot)).push(session);
   }
   // Keep a heading for live servers with no cards so they can still be stopped.
   for (const server of servers.running) {

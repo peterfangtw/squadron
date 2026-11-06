@@ -112,7 +112,10 @@ src/
     session_io.ts     send, queue, interrupt, model, rename, thread, images
     session_open.ts   new/resume, copy ref, reveal; pending UI resumes share
                       startup across panel reopenings, with a reply per attempt
-    skills.ts     window-lived folder discovery, shared by drafts, thread and
+                      Folderless panel starts allocate a managed scratch child;
+                      explicit CLI starts keep their requested cwd
+    skills.ts     window-lived folder discovery, refreshed on mention use with
+                  one-minute freshness and shared by drafts, thread and
                   workflow editor; actual cwd selects the deepest opened root,
                   independent of board/worktree grouping. No session-frame source
                   or persisted catalog. Sources: core/{claude,codex,grok}/skills.ts
@@ -154,7 +157,8 @@ src/
                  `orchestration` is what `cli/gate.ts` reads. Reading them is
                  core/coordination/claims.ts
     watch.ts     "some session state changed on disk", said once for whoever is
-                 listening: two roots watched, two rates, and this window's
+                 listening: session files, top-level state and dynamically
+                 watched state directories except user scratch; two rates and this window's
                  own publishes dropped. Started by the first subscriber and
                  stopped by the last, so its lifetime is not the panel's
     usage.ts     extension-lived account usage: adapter and ready owned ports
@@ -214,6 +218,8 @@ src/
                  acknowledgement releases admission; monitor death without one
                  retains unresolved job accounting. Other hosts refuse with terminal guidance.
                  `files/`: complete-file replacement, plain rename on POSIX;
+                 bounded regular-file bytes, with nonblocking FIFO rejection
+                 on POSIX; CLI input owns UTF-8 decoding and its byte limit.
                  Every backend performs one rename and propagates its error;
                  operation owners decide recovery and publication failure.
                  Directory open/sync/finally-close also lives here; Windows
@@ -1144,6 +1150,10 @@ src/
                  name its siblings
     cli_home.ts  whether a CLI's override names one place: absolute, or read as
                  unset. Each brand's `home.ts` applies it to its own variable
+    scratch.ts   canonical managed root, attempt-stable per-session working
+                 directories and enclosing-Git refusal; user files persist
+    state_watch.ts  discovers and maintains recursive watches on direct state
+                 directories, excluding user scratch; host supplies watcher ports
     paths.ts     each CLI's locations, off its `home.ts`, and our own stores beside them —
                  `TRANSCRIPTS_DIR` and the `ATTACHMENTS_DIR` inside it among
                  them, so the two halves of one record sweep together; and

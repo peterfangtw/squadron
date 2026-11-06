@@ -307,7 +307,8 @@ export async function serverContext(
   sessions: Session[],
   claims: WindowClaim[],
   folder: string | undefined,
-  folderRoots: Map<string, string>
+  folderRoots: Map<string, string>,
+  scratchRoot?: string
 ): Promise<ServerContext> {
   // The same keys `buildGroups` groups by — a context keyed differently would
   // attach a repo's trees to no group at all. The first spelling is read.
@@ -317,7 +318,7 @@ export async function serverContext(
     if (!roots.has(key)) roots.set(key, root);
   };
   for (const session of sessions) {
-    add(groupKey(session));
+    add(groupKey(session, scratchRoot));
   }
   // folderRoots holds worktrees only. Fall back to claim.folder so an ordinary
   // checkout gets a section even when no session is running there.
@@ -328,6 +329,8 @@ export async function serverContext(
   }
   if (folder) {
     add(folderRoots.get(folder) ?? folder);
+  } else if (scratchRoot) {
+    add(scratchRoot);
   }
 
   const settings = await runSettings();

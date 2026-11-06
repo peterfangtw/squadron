@@ -28,23 +28,40 @@ type Entries = Partial<Record<BrandId, readonly SkillEntry[]>>;
 
 /** Window-lived folder snapshot. Physical reads are shared; source membership is not. */
 export class SkillDiscovery {
-  private readonly scans = new Map<string, Promise<readonly SkillFile[]>>();
-  private readonly projects = new Map<string, Promise<Entries>>();
-  private readonly global: Promise<Entries>;
+  private scans = new Map<string, Promise<readonly SkillFile[]>>();
+  private projects = new Map<string, Promise<Entries>>();
+  private readonly global: Promise<void>;
   private globals: Entries = {};
   private workspaces = new Map<string, Entries>();
   private generation = 0;
+  private disposed = false;
+  private workspaceRead = Promise.resolve();
+  private refreshing: Promise<void> | undefined;
+  private freshAt = -Infinity;
+  private attemptedAt = -Infinity;
 
   constructor(
     private readonly providers: readonly SkillProvider[],
     private readonly home: string,
-    private readonly env: NodeJS.ProcessEnv
+    private readonly env: NodeJS.ProcessEnv,
+    private readonly changed: () => void = () => {}
   ) {
-    this.global = this.discover().then((entries) => (this.globals = entries));
+    this.global = this.discover().then((entries) => {
+      if (!this.disposed) {
+        this.globals = entries;
+        this.freshAt = performance.now();
+      }
+    });
   }
 
-  async setWorkspaces(roots: readonly string[]): Promise<void> {
+  setWorkspaces(roots: readonly string[]): Promise<void> {
+    if (this.disposed) return Promise.resolve();
     const generation = ++this.generation;
+    this.workspaceRead = this.readWorkspaces(roots, generation);
+    return this.workspaceRead;
+  }
+
+  private async readWorkspaces(roots: readonly string[], generation: number): Promise<void> {
     const directories = await Promise.all(roots.map(canonical));
     const entries = await Promise.all(
       directories.map(async (cwd) => {
@@ -61,8 +78,47 @@ export class SkillDiscovery {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.generation++;
     this.workspaces.clear();
+    this.globals = {};
+    this.scans.clear();
+    this.projects.clear();
+  }
+
+  refresh(): Promise<void> {
+    this.refreshing ??= this.refreshIfStale().finally(() => {
+      this.refreshing = undefined;
+    });
+    return this.refreshing;
+  }
+
+  private async refreshIfStale(): Promise<void> {
+    const generation = this.generation;
+    await Promise.all([this.global, this.workspaceRead]);
+    const now = performance.now();
+    if (
+      this.disposed ||
+      generation !== this.generation ||
+      now - Math.max(this.freshAt, this.attemptedAt) < 60_000
+    )
+      return;
+    this.attemptedAt = now;
+    const scans = new Map<string, Promise<readonly SkillFile[]>>();
+    const projects = new Map(
+      [...this.workspaces.keys()].map((cwd) => [cwd, this.discover(cwd, scans)] as const)
+    );
+    const [globals, workspaces] = await Promise.all([
+      this.discover(undefined, scans),
+      Promise.all([...projects].map(async ([cwd, entries]) => [cwd, await entries] as const))
+    ]);
+    if (this.disposed || generation !== this.generation) return;
+    this.scans = scans;
+    this.projects = projects;
+    this.globals = globals;
+    this.workspaces = new Map(workspaces);
+    this.freshAt = performance.now();
+    this.changed();
   }
 
   async forCwd(cwd: string): Promise<SkillNames> {
@@ -123,7 +179,7 @@ export class SkillDiscovery {
     );
   }
 
-  private async discover(cwd?: string): Promise<Entries> {
+  private async discover(cwd?: string, scans = this.scans): Promise<Entries> {
     return Object.fromEntries(
       await Promise.all(
         this.providers.map(async (provider) => {
@@ -131,10 +187,10 @@ export class SkillDiscovery {
           for (const source of provider.skillSources(this.home, this.env, cwd)) {
             const directory = await canonical(source.directory);
             const key = `${source.format ?? 'skills'}:${directory}`;
-            let pending = this.scans.get(key);
+            let pending = scans.get(key);
             if (!pending) {
               pending = scanSkills(directory, source.format === 'commands');
-              this.scans.set(key, pending);
+              scans.set(key, pending);
             }
             for (const file of await pending) {
               const pathNamed = source.format === 'commands' && source.nameFrom !== 'metadata';

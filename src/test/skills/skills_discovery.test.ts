@@ -35,6 +35,175 @@ function discovery(
 }
 
 describe('folder skill discovery', () => {
+  it(
+    'shares concurrent refreshes and keeps the published catalog readable until completion',
+    { timeout: 10_000 },
+    async (t) => {
+      let now = 0;
+      t.mock.method(performance, 'now', () => now);
+      const base = path.join(home, 'concurrent-refresh');
+      await skill(base, 'before');
+      let published = 0;
+      const catalog = new skills.SkillDiscovery(
+        [{ brand: 'codex', skillSources: () => [{ directory: path.join(base, 'skills') }] }],
+        base,
+        {},
+        () => published++
+      );
+      await catalog.setWorkspaces([]);
+      await skill(base, 'after');
+      let release = (): void => {};
+      let began = (): void => {};
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const reading = new Promise<void>((resolve) => (began = resolve));
+      const readdir = fs.readdir;
+      let reads = 0;
+      t.mock.method(fs, 'readdir', async (...args: Parameters<typeof fs.readdir>) => {
+        reads++;
+        began();
+        await gate;
+        return readdir(...args);
+      });
+      now = 60_000;
+      const first = catalog.refresh();
+      const second = catalog.refresh();
+      await reading;
+      assert.deepEqual(catalog.union(), ['before']);
+      assert.deepEqual((await catalog.forCwd(base)).codex, ['before']);
+      assert.equal(published, 0);
+      release();
+      await Promise.all([first, second]);
+      assert.deepEqual(catalog.union(), ['after', 'before']);
+      assert.equal(published, 1);
+      assert.equal(reads, 1, 'concurrent requests share one source-directory read');
+    }
+  );
+
+  for (const action of ['remove workspace', 'dispose'] as const) {
+    it(`discards a refresh finishing after ${action}`, { timeout: 10_000 }, async (t) => {
+      let now = 0;
+      t.mock.method(performance, 'now', () => now);
+      const base = path.join(home, action.replaceAll(' ', '-'));
+      const repo = path.join(base, 'repo');
+      await skill(path.join(base, '.codex'), 'global');
+      await skill(path.join(repo, '.codex'), 'project');
+      const catalog = discovery(base);
+      await catalog.setWorkspaces([repo]);
+      await skill(path.join(repo, '.codex'), 'added');
+      let release = (): void => {};
+      let began = (): void => {};
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const reading = new Promise<void>((resolve) => (began = resolve));
+      const readdir = fs.readdir;
+      t.mock.method(fs, 'readdir', async (...args: Parameters<typeof fs.readdir>) => {
+        began();
+        await gate;
+        return readdir(...args);
+      });
+      now = 60_000;
+      const refresh = catalog.refresh();
+      await reading;
+      if (action === 'dispose') catalog.dispose();
+      else await catalog.setWorkspaces([]);
+      release();
+      await refresh;
+      assert.deepEqual(catalog.union(), action === 'dispose' ? [] : ['global']);
+    });
+  }
+
+  it('retains published data after a failed refresh and limits retries to once per minute', async (t) => {
+    let now = 0;
+    t.mock.method(performance, 'now', () => now);
+    const base = path.join(home, 'failed-refresh');
+    await skill(base, 'before');
+    let fail = false;
+    let attempts = 0;
+    const catalog = new skills.SkillDiscovery(
+      [
+        {
+          brand: 'codex',
+          skillSources: () => {
+            attempts++;
+            if (fail) throw new Error('source unavailable');
+            return [{ directory: path.join(base, 'skills') }];
+          }
+        }
+      ],
+      base,
+      {}
+    );
+    await catalog.forCwd(base);
+    await skill(base, 'after');
+    fail = true;
+    now = 60_000;
+    await assert.rejects(catalog.refresh(), /source unavailable/);
+    assert.deepEqual(catalog.union(), ['before']);
+    fail = false;
+    now = 119_999;
+    await catalog.refresh();
+    assert.equal(attempts, 2);
+    now = 120_000;
+    await catalog.refresh();
+    assert.deepEqual(catalog.union(), ['after', 'before']);
+  });
+
+  it('does not replace a workspace change that starts while refresh awaits initialization', async (t) => {
+    let now = 0;
+    t.mock.method(performance, 'now', () => now);
+    const base = path.join(home, 'workspace-start-race');
+    const before = path.join(base, 'before');
+    const after = path.join(base, 'after');
+    await skill(path.join(base, '.codex'), 'global');
+    await skill(path.join(before, '.codex'), 'old-project');
+    await skill(path.join(after, '.codex'), 'new-project');
+    const catalog = discovery(base);
+    await catalog.setWorkspaces([before]);
+    let release = (): void => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const readdir = fs.readdir;
+    t.mock.method(fs, 'readdir', async (...args: Parameters<typeof fs.readdir>) => {
+      if (String(args[0]) === path.join(base, '.codex', 'skills')) await gate;
+      return readdir(...args);
+    });
+    now = 60_000;
+    const refresh = catalog.refresh();
+    await catalog.setWorkspaces([after]);
+    release();
+    await refresh;
+    assert.deepEqual((await catalog.forCwd(before)).codex, ['global']);
+    assert.deepEqual((await catalog.forCwd(after)).codex, ['global', 'new-project']);
+  });
+
+  it('refreshes global, project and linked metadata only on demand after one minute', async (t) => {
+    let now = 0;
+    t.mock.method(performance, 'now', () => now);
+    const base = path.join(home, 'refresh');
+    const repo = path.join(base, 'repo');
+    const external = path.join(base, 'external');
+    await skill(path.join(base, '.codex'), 'removed');
+    await skill(path.join(repo, '.codex'), 'project', 'before');
+    await skill(external, 'linked', 'linked-before');
+    await linkDir(
+      path.join(external, 'skills', 'linked'),
+      path.join(base, '.codex', 'skills', 'link')
+    );
+    const catalog = discovery(base);
+    await catalog.setWorkspaces([repo]);
+    assert.deepEqual((await catalog.forCwd(repo)).codex, ['before', 'linked-before', 'removed']);
+    await fs.unlink(path.join(base, '.codex', 'skills', 'removed', 'SKILL.md'));
+    await skill(path.join(base, '.codex'), 'added');
+    await skill(path.join(repo, '.codex'), 'project', 'after');
+    await skill(external, 'linked', 'linked-after');
+    now = 59_999;
+    await catalog.refresh();
+    assert.deepEqual((await catalog.forCwd(repo)).codex, ['before', 'linked-before', 'removed']);
+    now = 60_000;
+    assert.deepEqual((await catalog.forCwd(repo)).codex, ['before', 'linked-before', 'removed']);
+    await Promise.all([catalog.refresh(), catalog.refresh()]);
+    assert.deepEqual((await catalog.forCwd(repo)).codex, ['added', 'after', 'linked-after']);
+    assert.deepEqual(catalog.union(), ['added', 'after', 'linked-after']);
+  });
+
   it('keeps Windows case-distinct and cross-root cwds outside project skills', async (t) => {
     const source = path.join(home, 'lexical-source');
     await skill(source, 'project-only');
@@ -253,7 +422,7 @@ describe('folder skill discovery', () => {
     await skill(root, 'added-later');
     assert.ok(
       !(await catalog.forCwd(base)).claude?.includes('added-later'),
-      'reads use the startup snapshot'
+      'reads retain the published snapshot until a refresh is requested'
     );
   });
 });

@@ -1,7 +1,10 @@
 import type { Effects, Files } from './index';
+import * as fs from 'node:fs';
+import * as regular from './regular';
 
 export function files(effects: Effects): Files {
   return {
+    readRegular: (file, maxBytes) => regular.readRegular(file, maxBytes, fs.constants.O_RDONLY),
     async syncDirectory(directory): Promise<void> {
       const handle = await effects.open(directory, 'r');
       try {

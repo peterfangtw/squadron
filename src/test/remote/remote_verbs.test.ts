@@ -636,7 +636,8 @@ describe('remoteVerbs end', () => {
     return { pid: proc.pid, startedAt: table.starts.get(proc.pid) ?? 0, proc };
   }
 
-  const alive = async (pid: number) => (await scan.scanProcesses(true)).starts.has(pid);
+  const alive = async ({ pid, startedAt }: { pid: number; startedAt: number }) =>
+    (await scan.scanProcesses(true)).starts.get(pid) === startedAt;
 
   it('ends here in memory and there by close, together, and is ok when all ended', async () => {
     const { here, there } = live;
@@ -663,11 +664,11 @@ describe('remoteVerbs end', () => {
       [orphan.pid]
     );
     // SIGTERM is enough for `sleep`; the reap is a backstop.
-    for (let i = 0; i < 50 && (await alive(orphan.pid)); i++) {
+    for (let i = 0; i < 50 && (await alive(orphan)); i++) {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
-    assert.equal(await alive(orphan.pid), false);
-    assert.equal(await alive(moved.pid), true);
+    assert.equal(await alive(orphan), false);
+    assert.equal(await alive(moved), true);
   });
 
   it('keeps a deliberate refusal terminal while completing the other members', async () => {
@@ -680,7 +681,7 @@ describe('remoteVerbs end', () => {
     assert.equal(ended.ok, false);
     assert.equal(claimed.signalled.length, 0);
     assert.deepEqual(claimed.here.ended, [[24, T0 + 24]]);
-    assert.equal(await alive(refused.pid), true);
+    assert.equal(await alive(refused), true);
   });
 
   it('falls back to the signal for an unanswered close', async () => {

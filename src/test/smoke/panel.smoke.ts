@@ -241,6 +241,43 @@ section('the panel arriving, in the real IDE', () => {
     assert.ok(await panel().locator('#dock').isVisible(), 'discovery closed the shell');
   });
 
+  step('refreshes installed skills on mention use after one minute without reloading', async () => {
+    const file = path.join(homeDir(), '.claude', 'skills', 'refresh-marker', 'SKILL.md');
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(
+      file,
+      '---\nname: newly-installed-marker\ndescription: Refresh fixture\n---\n'
+    );
+    try {
+      // Production freshness runs in the extension host; browser clock overrides cannot expire it.
+      await new Promise((resolve) => setTimeout(resolve, 61_000));
+      await openDraft();
+      await pickDraftModel('Opus');
+      await clearComposer();
+      const box = composer();
+      await box.pressSequentially('@skill:newly-installed-marker');
+      const menu = panel().locator('#mentionmenu:not([hidden])');
+      await menu.locator('.mnrow', { hasText: 'newly-installed-marker' }).waitFor();
+      assert.equal(await box.innerText(), '@skill:newly-installed-marker');
+      assert.ok(await box.evaluate((node) => node.ownerDocument.activeElement === node));
+      const run = process.env['SQUADRON_RUN'];
+      if (run)
+        await panel()
+          .locator('#dock')
+          .screenshot({ path: path.join(run, 'skill-refresh.png') });
+      await fs.writeFile(file, '---\nname: renamed-marker\ndescription: Refresh fixture\n---\n');
+      await clearComposer();
+      await box.pressSequentially('@skill:renamed-marker');
+      assert.equal(await menu.locator('.mnrow', { hasText: 'renamed-marker' }).count(), 0);
+      await clearComposer();
+      await box.pressSequentially('@skill:newly-installed-marker');
+      await menu.locator('.mnrow', { hasText: 'newly-installed-marker' }).waitFor();
+      await clearComposer();
+    } finally {
+      await fs.unlink(file);
+    }
+  });
+
   /**
    * The fixture card, and the act that makes one.
    *

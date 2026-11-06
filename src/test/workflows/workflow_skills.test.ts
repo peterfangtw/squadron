@@ -143,6 +143,38 @@ const saved = (prompt: string) => ({
 const REF = '@squadron[4821][/home/u/.claude/projects/p/abc.jsonl]';
 
 describe('shared workflow prompt controls', () => {
+  it('updates skill recognition after a refresh arrives with the mention menu dismissed', (t) => {
+    const p = openPanel(t);
+    openNew(p);
+    const field = promptField(p);
+    typeInto(p, field, '@game');
+    proseKey(p, field, 'Escape');
+    p.push(stateMessage(board(), { workflows: [], skills: ['game-studio'] }));
+    assert.equal(menu(p), null);
+    assert.equal(promptField(p), field);
+    typeInto(p, field, 'the game-studio skill ');
+    assert.deepEqual(pills(p), ['@game-studio']);
+    typeInto(p, field, 'the ponytail skill ');
+    assert.deepEqual(pills(p), []);
+  });
+
+  it('refreshes an unmatched workflow query without rebuilding its prompt', (t) => {
+    const p = openPanel(t);
+    openNew(p);
+    const field = promptField(p);
+    typeInto(p, field, '@game');
+    assert.equal(p.posted.filter((message) => message.type === 'refreshSkills').length, 1);
+    p.push(stateMessage(board(), { workflows: [], skills: [...SKILLS, 'game-studio'] }));
+    assert.equal(promptField(p), field);
+    assert.deepEqual(
+      menuRows(p).map((node) => node.querySelector('.nm')?.textContent),
+      ['game-studio']
+    );
+    menuRows(p)[0]?.click();
+    assert.equal(value(field), 'the game-studio skill ');
+    assert.deepEqual(pills(p), ['@game-studio']);
+  });
+
   it('offers models and skills without sessions, and saves a model with effort', (t) => {
     const p = openPanel(t);
     openNew(p, { models: [modelView()] });

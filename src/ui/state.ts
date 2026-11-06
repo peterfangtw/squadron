@@ -65,6 +65,8 @@ export function commitOwnedBoard(
 export type StateInputs = {
   sessions: readonly Session[];
   workspaceFolder: string | undefined;
+  /** Canonical managed launch root, independent of IDE workspace identity. */
+  scratchRoot?: string;
   folderRoots: ReadonlyMap<string, string>;
   arrangements: ReadonlyMap<PathKey, Arrangement>;
   thread: ThreadView | undefined;
@@ -271,7 +273,8 @@ export function buildState(inputs: StateInputs): StateMessage {
     inputs.workspaceFolder,
     new Map(inputs.folderRoots),
     new Map(inputs.arrangements),
-    inputs.servers
+    inputs.servers,
+    inputs.scratchRoot
   );
   const byPid = new Map(inputs.sessions.map((s) => [s.pid, s]));
   const policy = inputs.warmPolicy ?? DEFAULT_WARM_POLICY;
@@ -290,7 +293,10 @@ export function buildState(inputs: StateInputs): StateMessage {
   return {
     type: 'state',
     groups,
-    defaultCwd: inputs.workspaceFolder,
+    defaultCwd: inputs.workspaceFolder ?? inputs.scratchRoot,
+    defaultSkillsByBrand: inputs.workspaceFolder
+      ? skillsAt.get(platform.paths.key(inputs.workspaceFolder))
+      : undefined,
     thread: inputs.thread,
     accounts: inputs.accounts,
     usageWindows: inputs.usageWindows,

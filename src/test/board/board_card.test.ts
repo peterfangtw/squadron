@@ -433,7 +433,7 @@ describe('the card list', () => {
     assert.equal(p.window.document.querySelector('.card .cmd'), null);
   });
 
-  it('keeps model and effort in specs and context in the branch strip', (t) => {
+  it('groups permission mode with model and effort, away from branch and context', (t) => {
     const p = openPanel(t);
     p.push(
       stateMessage([
@@ -451,11 +451,12 @@ describe('the card list', () => {
         })
       ])
     );
-    assert.equal(specBits(p), 'opus·high');
+    assert.equal(specBits(p), 'opus·high·⏵⏵bypass');
     const foot = p.window.document.querySelector('.card .foot');
     assert.equal(foot?.querySelector('.br .n')?.textContent, 'staging');
     assert.equal(foot?.querySelector('.strip-reading')?.textContent, '43% / 1M');
-    assert.match(foot?.querySelector('.mode')?.textContent ?? '', /bypass/);
+    assert.equal(foot?.querySelector('.mode'), null);
+    assert.match(p.window.document.querySelector('.specs .mode')?.textContent ?? '', /bypass/);
   });
 
   describe('context readings in the branch strip', () => {
@@ -1178,7 +1179,7 @@ describe('the card list', () => {
     assert.equal(card?.lastElementChild, foot);
   });
 
-  it('states the permission mode at the strip’s other end, with the CLI’s glyph', (t) => {
+  it('states the permission mode with the model specifications', (t) => {
     const p = openPanel(t);
     p.push(
       stateMessage([
@@ -1201,9 +1202,9 @@ describe('the card list', () => {
     const cards = p.window.document.querySelectorAll('.card');
     // ⏵⏵ for a mode that lets work through, ⏸ for the one that holds it — the
     // marks the CLI itself prints under a session.
-    assert.equal(cards[0]?.querySelector('.foot .mode .g')?.textContent, '⏵⏵');
-    assert.match(cards[0]?.querySelector('.foot .mode')?.textContent ?? '', /accept edits/);
-    assert.equal(cards[1]?.querySelector('.foot .mode .g')?.textContent, '⏸');
+    assert.equal(cards[0]?.querySelector('.specs .mode .g')?.textContent, '⏵⏵');
+    assert.match(cards[0]?.querySelector('.specs .mode')?.textContent ?? '', /accept edits/);
+    assert.equal(cards[1]?.querySelector('.specs .mode .g')?.textContent, '⏸');
   });
 
   it('spends colour on bypass alone', (t) => {
@@ -1219,8 +1220,8 @@ describe('the card list', () => {
       ])
     );
     const cards = p.window.document.querySelectorAll('.card');
-    assert.ok(cards[0]?.querySelector('.foot .mode.bypass'), 'bypass not marked');
-    assert.equal(cards[1]?.querySelector('.foot .mode.bypass'), null);
+    assert.ok(cards[0]?.querySelector('.specs .mode.bypass'), 'bypass not marked');
+    assert.equal(cards[1]?.querySelector('.specs .mode.bypass'), null);
   });
 
   it('says nothing about the mode when there is nothing to say', (t) => {
@@ -1229,10 +1230,10 @@ describe('the card list', () => {
     p.push(
       stateMessage([groupView({ sessions: [cardView({ branch: 'main', mode: undefined })] })])
     );
-    assert.equal(p.window.document.querySelector('.card .foot .mode'), null);
+    assert.equal(p.window.document.querySelector('.card .specs .mode'), null);
   });
 
-  it('states the mode on a card with no branch, at the same end', (t) => {
+  it('states the mode beside the model even without a branch', (t) => {
     const p = openPanel(t);
     p.push(
       stateMessage([
@@ -1243,9 +1244,9 @@ describe('the card list', () => {
         })
       ])
     );
-    const foot = p.window.document.querySelector('.card .foot');
-    assert.equal(foot?.querySelector('.br'), null);
-    assert.equal(foot?.querySelector('.mode')?.className, 'mode bypass');
+    const card = p.window.document.querySelector('.card');
+    assert.equal(card?.querySelector('.foot .br'), null);
+    assert.equal(card?.querySelector('.specs .mode')?.className, 'mode bypass');
   });
 
   it('offers the End button only on interactive sessions', (t) => {
@@ -1618,7 +1619,7 @@ describe('ending a card that has children', () => {
 });
 
 /**
- * The footer strip: branch, mode and context; lineage belongs to the family header.
+ * The footer strip: branch and context; lineage belongs to the family header.
  *
  * A card used to carry a `N spawned` count here. What a fan-out is belongs to
  * the container header that names it, and a strip stating the same number a
@@ -1638,7 +1639,7 @@ describe('the footer strip', () => {
     assert.equal(p.window.document.body.textContent?.includes('2 spawned'), false);
   });
 
-  it('holds the branch, mode and context reading', (t) => {
+  it('holds the branch and context reading', (t) => {
     const p = openPanel(t);
     p.push(
       stateMessage([
@@ -1656,11 +1657,11 @@ describe('the footer strip', () => {
     const foot = p.window.document.querySelector('.card .foot');
     assert.deepEqual(
       [...(foot?.children ?? [])].map((n) => n.className),
-      ['br', 'mode', 'strip-reading']
+      ['br', 'strip-reading']
     );
   });
 
-  it('keeps mode and context on a card with no branch', (t) => {
+  it('keeps context on a card with no branch', (t) => {
     const p = openPanel(t);
     p.push(
       stateMessage([
@@ -1678,30 +1679,24 @@ describe('the footer strip', () => {
     const foot = p.window.document.querySelector('.card .foot');
     assert.deepEqual(
       [...(foot?.children ?? [])].map((n) => n.className),
-      ['mode', 'strip-reading']
+      ['strip-reading']
     );
   });
 
   /**
-   * jsdom lays no flex out, so the order above stays green if the word moves
-   * back beside the percentage. The stylesheet is the placement: the reading
-   * is the only auto margin, the branch gives way, and the name can shrink.
+   * jsdom has no flex layout; the browser preview verifies the rendered geometry.
    */
-  it('keeps the mode beside the branch and the reading alone at the right', () => {
+  it('keeps the context reading at the right and lets the branch shrink', () => {
     const clean = boardCss.replace(/\/\*[\s\S]*?\*\//g, '');
     const body = (selector: string): string => {
       const at = clean.indexOf('\n  ' + selector + ' {');
       assert.ok(at !== -1, `no rule ${selector}`);
       return clean.slice(at).split('}')[0] ?? '';
     };
-    const mode = body('.mode');
     const branch = body('.foot .br');
     const name = body('.br .n');
     const reading = body('.strip-reading');
     assert.match(reading, /margin-left:\s*auto/);
-    assert.match(mode, /margin-left:\s*0/);
-    assert.doesNotMatch(mode, /margin-left:\s*auto/);
-    assert.match(mode, /flex:\s*none/);
     // flex: 1 eats the free space, so the word lands on the percentage again.
     assert.match(branch, /flex:\s*0\s+1\s+auto/);
     assert.doesNotMatch(branch, /max-width:/);

@@ -1477,9 +1477,10 @@ type ThreadPatchMessage = ThreadPublication & {
 type StateMessage = {
   type: 'state';
   groups: GroupView[];
-  /** First IDE workspace folder, resolved by the host; absent with no open folder.
+  /** Effective launch directory: first IDE folder, otherwise the managed scratch root.
    * Independent of session directories and the repo roots used to group cards. */
   defaultCwd?: string;
+  defaultSkillsByBrand?: Partial<Record<BrandId, string[]>>;
   /** Combined recovery snapshots may carry the same publication fence. Omission
    * preserves the selected thread; select/close are the explicit clear paths. */
   thread?: ThreadView;
@@ -2361,6 +2362,7 @@ type WebviewMessage =
    * Sent last in `main.ts`, once, after every handler is wired.
    */
   | { type: 'ready' }
+  | { type: 'refreshSkills' }
   | { type: 'select'; pid: number; selection: string }
   | { type: 'threadSync'; pid: number; startedAt: number; selection: string }
   | {

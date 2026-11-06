@@ -76,7 +76,70 @@ function contender(tries = 1, decisionTime = Date.now()): Promise<string> {
   );
 }
 
+async function contenders(): Promise<string[]> {
+  const decisionTime = Date.now();
+  const outcomes = await Promise.allSettled(
+    Array.from({ length: 12 }, () => contender(40, decisionTime))
+  );
+  return outcomes.map((outcome) => {
+    if (outcome.status === 'fulfilled') return outcome.value;
+    throw outcome.reason;
+  });
+}
+
 describe('machine-wide startup admission', () => {
+  it('finishes a receipt read before publishing its next phase', async (t) => {
+    await reset();
+    const id = randomUUID();
+    const slot = await records.reserveStartup(id);
+    const file = path.join(paths.STARTUPS_DIR, `${id}.json`);
+    const lock = path.join(paths.STARTUPS_DIR, 'admission.lock');
+    let opened!: () => void;
+    let unblock!: () => void;
+    const reading = new Promise<void>((resolve) => {
+      opened = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
+    let held = false;
+    const readFile = fs.readFile;
+    t.mock.method(fs, 'readFile', async (...args: Parameters<typeof fs.readFile>) => {
+      const text = await readFile(...args);
+      if (args[0] === file) {
+        held = true;
+        opened();
+        await released;
+        held = false;
+      }
+      return text;
+    });
+    const link = fs.link;
+    t.mock.method(fs, 'link', async (...args: Parameters<typeof fs.link>) => {
+      try {
+        return await link(...args);
+      } finally {
+        if (args[1] === lock && held) unblock();
+      }
+    });
+    const rename = fs.rename;
+    t.mock.method(fs, 'rename', async (...args: Parameters<typeof fs.rename>) => {
+      if (args[1] === file && held) {
+        unblock();
+        throw Object.assign(new Error('receipt reader denies replacement'), { code: 'EPERM' });
+      }
+      return rename(...args);
+    });
+    const admission = records.reserveStartup(randomUUID());
+    await reading;
+    const results = await Promise.allSettled([admission, slot.spawning()]);
+    assert.deepEqual(
+      results.map((result) => result.status),
+      ['fulfilled', 'fulfilled']
+    );
+    assert.equal(JSON.parse(await fs.readFile(file, 'utf8')).phase, 'spawning');
+  });
+
   it('failed and incomplete native reads cannot admit or rewrite durable startup receipts', async (t) => {
     await reset();
     const slot = await records.reserveStartup(randomUUID());
@@ -232,7 +295,6 @@ describe('machine-wide startup admission', () => {
     }
     await records.pruneStartupRecords();
     assert.deepEqual((await fs.readdir(paths.STARTUPS_DIR)).sort(), [
-      'admission.lock',
       'admission.lock.alive.tmp',
       'fresh.json.new.tmp',
       recoveryTemporary,
@@ -594,10 +656,7 @@ describe('machine-wide startup admission', () => {
     await reset();
     // Lock contention is a fair refusal; retried within a bound, every
     // contender ends admitted or refused for the burst limit, never over five.
-    const decisionTime = Date.now();
-    const outcomes = await Promise.all(
-      Array.from({ length: 12 }, () => contender(40, decisionTime))
-    );
+    const outcomes = await contenders();
     assert.equal(outcomes.filter((value) => value === 'admitted').length, 5, outcomes.join('\n'));
     assert.ok(
       outcomes.filter((value) => value !== 'admitted').every((value) => /limit is 5/.test(value)),
@@ -663,10 +722,7 @@ describe('machine-wide startup admission', () => {
         error ? reject(new Error(error.message)) : resolve()
       )
     );
-    const decisionTime = Date.now();
-    const outcomes = await Promise.all(
-      Array.from({ length: 12 }, () => contender(40, decisionTime))
-    );
+    const outcomes = await contenders();
     assert.equal(outcomes.filter((value) => value === 'admitted').length, 5, outcomes.join('\n'));
     await assert.rejects(fs.access(lock), { code: 'ENOENT' });
   });

@@ -269,7 +269,7 @@ let tracker: http.Server;
 /** `HOME` as planted, before any host wrote to it — what `resetHost` restores. */
 let seed: string;
 /** The folder the window is opened on. */
-let workspace: string;
+let workspace: string | undefined;
 /** Every scenario's settings, written at launch and again by every reset. */
 let launchSettings: Record<string, unknown>;
 /** No section has run on this host yet, so there is nothing to reset. */
@@ -1026,7 +1026,7 @@ async function launch(settings: Record<string, unknown>): Promise<void> {
       // wrong lever, being a Linux-only Chromium switch; Electron's
       // `safeStorage` goes to the Keychain on macOS whatever it says.
       '--use-inmemory-secretstorage',
-      workspace
+      ...(workspace === undefined ? [] : [workspace])
     ],
     env: ideEnv({ SQUADRON_SMOKE_IDE: await ide(), SQUADRON_SMOKE_LAUNCH: launchId })
   });
@@ -1321,7 +1321,8 @@ function rememberSection(name: string): void {
 export function section(
   name: string,
   body: () => void,
-  settings?: () => Record<string, unknown>
+  settings?: () => Record<string, unknown>,
+  options: { folderless?: boolean } = {}
 ): void {
   rememberSection(name);
   describe(name, () => {
@@ -1330,7 +1331,9 @@ export function section(
     // next section's would start a second IDE on the same profile. Every await
     // inside is bounded instead.
     before(() =>
-      observation.measure('smoke:reset', () => resetHost(settings?.()), { section: name })
+      observation.measure('smoke:reset', () => resetHost(settings?.(), options.folderless), {
+        section: name
+      })
     );
     // Registered before body(): observed Node 23 after hooks run in this order,
     // so a timeout's capture precedes the scenario's cleanup and the next reset.
@@ -1550,8 +1553,11 @@ async function evidence(
  * a custom-style modal or a wedged drag is alive and still unresettable, and
  * one path for "dead" and "wedged" is simpler than telling them apart.
  */
-async function resetHost(settings?: Record<string, unknown>): Promise<void> {
+async function resetHost(settings?: Record<string, unknown>, folderless = false): Promise<void> {
   const selectedSettings = { ...launchSettings, ...settings };
+  const target = folderless ? undefined : path.join(home, 'project');
+  const workspaceChanged = workspace !== target;
+  workspace = target;
   if (fresh) {
     fresh = false;
     await observation.measure('smoke:launch', () => launch(selectedSettings));
@@ -1560,7 +1566,7 @@ async function resetHost(settings?: Record<string, unknown>): Promise<void> {
   for (const hook of resetHooks) hook();
   const proc = hostProcess;
   const alive = proc && !page.isClosed() && proc.exitCode === null && proc.signalCode === null;
-  if (alive && !dirty) {
+  if (alive && !dirty && !workspaceChanged) {
     const reloading = reload(selectedSettings);
     const outcome = await observation
       .measure('smoke:reload', () => ownership.bounded(reloading, RELOAD_MS, 'host reload'))

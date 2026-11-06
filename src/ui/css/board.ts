@@ -732,32 +732,20 @@ export const css = /* css */ `
         color: var(--av-fg-2); font-family: var(--vscode-editor-font-family); }
   .br .g { flex: none; }
   /* Without a minimum of 0 the name stays as wide as its text and paints over
-     the mode beside it. */
+     the context reading beside it. */
   .br .n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* A worktree reads as weight, not as hue: the card already spends purple on
      the command chip, and one colour with two meanings is a colour with none. */
   .br.wt { color: var(--av-fg); font-weight: 600; }
 
-  /* The permission mode sits with the branch. The reading is the only auto
-     margin, so it keeps the strip's right end alone — the mode used to take
-     one too, and the card read "bypass 30% / 500k". The word does not shrink;
-     a long branch gives way, and the 180px tier hides the mode. Dimmer than
-     the branch by a rank: it is the second thing the strip says, and on most
-     cards it says nothing at all — the default mode prints no node. The glyphs
-     are the CLI's own and want its font; the negative tracking is what stops
-     ⏵⏵ reading as four characters wide. */
   .mode { margin-left: 0; min-width: 0; overflow: hidden; white-space: nowrap; flex: none; display: inline-flex; align-items: baseline; gap: 5px;
           font-size: var(--av-fs-md); color: var(--av-fg-3); }
   .mode > span:last-child { overflow: hidden; text-overflow: ellipsis; }
   .mode .g { font-family: var(--vscode-editor-font-family); letter-spacing: -.08em; }
-  /* One mode is spent a colour, because one mode is the one nobody should learn
-     about from a diff: a session that will not ask before it edits, runs or
-     fetches. The others stay the strip's own grey — plan is *more* restrictive
-     than the default, and colouring it would say the opposite. Orange and not
-     red: nothing is wrong with a bypassing session, it is a standing condition
-     to notice, and red on a strip of running cards reads as failure. The
-     composer states the same fact in the same colour. */
   .mode.bypass { color: var(--av-orange); }
+  .specs .mode { color: var(--av-fg-2); }
+  .specs .mode.bypass { color: var(--av-orange); }
+  .specs .mode .g { display: none; }
 
   /* Card density: hide secondary chrome below two container breakpoints,
      rather than squeezing every element until overflow clips it. Markup is
@@ -765,15 +753,18 @@ export const css = /* css */ `
      lists keyed on the classes card() puts on the specs bits and the foot.
      See docs/mockups/session-card-compact.html. */
 
-  /* Snug ≤ 240px: drop effort. Status word,
-     model, since, footer context, branch, mode and action icons stay. */
+  /* Snug ≤ 240px: drop effort and abbreviate bypass to its glyph. */
   @container card (max-width: 240px) {
     .s-effort, .s-sep-effort { display: none; }
+    .specs .mode.bypass { position: relative; }
+    .specs .mode.bypass .g { display: inline; }
+    .specs .mode.bypass > span:last-child { position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   }
 
   /* Compact ≤ 180px: the model id goes
      (since alone is enough in specs) while its brand mark stays — .s-name, not
-     .s-model, for that reason; mode goes. Context bar stays. All action icons
+     .s-model, for that reason; bypass keeps its glyph. Context bar stays. All action icons
      stay. Foot min-height stays so row strips stay level.
 
      **A width tier takes nothing away from the card's height.** This one clamped
@@ -782,7 +773,7 @@ export const css = /* css */ `
      it: at 165px a line holds about 18 characters, so one line truncates more
      here than one line does at 305px. */
   @container card (max-width: 180px) {
-    .s-name, .mode { display: none; }
+    .s-name, .mode:not(.bypass), .s-sep-mode { display: none; }
     .head { gap: 6px; }
   }
 

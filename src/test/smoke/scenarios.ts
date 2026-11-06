@@ -53,5 +53,6 @@ export const scenarios: readonly string[] = [
   'workflow_repair.smoke',
   'workflow_wait.smoke',
   'wait_deadline.smoke',
-  'workflow_examples.smoke'
+  'workflow_examples.smoke',
+  'folderless.smoke'
 ];

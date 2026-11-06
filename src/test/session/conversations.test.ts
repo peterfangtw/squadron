@@ -2,8 +2,8 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { before, describe, it } from 'node:test';
-import { tempHome } from '../helpers';
+import { after, before, describe, it } from 'node:test';
+import { disposeHome, tempHome } from '../helpers';
 import { withFoldedKeys } from '../folded_keys';
 import { withWin32Paths } from '../win32_paths';
 import * as git from '../../core/git';
@@ -13,11 +13,15 @@ type RecordStore = typeof import('../../core/record');
 
 let conversations: Conversations;
 let record: RecordStore;
+let home: string;
 
 before(async () => {
-  await tempHome();
+  home = await tempHome();
   conversations = await import('../../core/conversations');
   record = await import('../../core/record');
+});
+after(async () => {
+  await disposeHome(home);
 });
 
 async function write(
@@ -63,6 +67,27 @@ async function worktree(main: string, tree: string, name: string): Promise<strin
 }
 
 describe('a family’s conversations', () => {
+  it('resumes non-Git scratch descendants without borrowing unrelated conversations', async () => {
+    const root = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'squadron-scratch-history-'))
+    );
+    const scratch = path.join(root, '.squadron', 'scratch');
+    const first = path.join(scratch, 'first');
+    const second = path.join(scratch, 'second');
+    const unrelated = path.join(root, '.squadron', 'scratch-old', 'neighbour');
+    for (const directory of [first, second, unrelated])
+      await fs.mkdir(directory, { recursive: true });
+    await write('scratch-first', first, 'claude', 'first scratch task', 1000);
+    await write('scratch-second', second, 'codex', 'second scratch task', 2000);
+    await write('scratch-unrelated', unrelated, 'grok', 'other task', 3000);
+    assert.deepEqual(
+      (await listed(scratch)).map((row) => [row.sessionId, row.cwd]),
+      [
+        ['scratch-second', second],
+        ['scratch-first', first]
+      ]
+    );
+  });
   it('keeps Windows case-distinct and cross-root records outside the checkout', async (t) => {
     let root = 'C:\\x\\Foo';
     const cwds = [

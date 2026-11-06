@@ -1,4 +1,5 @@
 import * as ticketDetails from './ticket_details';
+import { refreshMentionSources } from './mentions';
 /**
  * The panel's browser half's entry point: `esbuild.mjs` bundles this module's
  * import graph into the single bare IIFE that `document.ts` inlines into the
@@ -363,6 +364,7 @@ window.addEventListener('message', (e: MessageEvent<PanelMessage>) => {
     record('threadPush');
     renderMention();
     renderActive();
+    refreshMentionSources();
     refreshTip();
     return;
   }
@@ -411,6 +413,7 @@ window.addEventListener('message', (e: MessageEvent<PanelMessage>) => {
   relabelBox();
   if (ui.boardView === 'tickets' && !editing()) renderTickets();
   if (ui.selected || !chats.active()) renderActive();
+  refreshMentionSources();
   // After the paint, not before: an open tip reads its words back off the
   // anchor this push has just rewritten.
   refreshTip();

@@ -3,6 +3,8 @@ import * as vscode from 'vscode';
 import { conversationKey } from '../core/adapter';
 import { sessionBrand } from '../core/brands';
 import * as pages from '../core/conversation_pages';
+import * as scratch from '../core/scratch';
+import * as platform from '../core/platform';
 import type { Conversation } from '../core/conversations';
 import type { LaunchTarget } from '../core/model';
 import { liveRecords, readPublished } from '../core/published';
@@ -77,16 +79,7 @@ export async function openSession(
     return;
   }
 
-  const started = await startOwned({
-    attemptId: draftId,
-    cwd,
-    ...(ask.target === undefined ? {} : { target: ask.target }),
-    placeholder: ask.placeholder
-  }).catch((error: unknown): StartResult => ({
-    ok: false,
-    unsure: true,
-    reason: error instanceof Error ? error.message : 'The session start could not be confirmed.'
-  }));
+  const started = await startPanelSession(ask);
   if (!started.ok) {
     // A draft has a surface of its own to say this on, and host notifications
     // are muted here. Every reason `startOwned` gives before a child exists
@@ -112,6 +105,36 @@ export async function openSession(
   // waiting to become this card.
   if (!panel.disposed) revealSession(panel, started.pid, started.startedAt, draftId);
   nudgeDiscovery(panel);
+}
+
+async function startPanelSession(ask: Parameters<typeof openSession>[1]): Promise<StartResult> {
+  let allocation: scratch.ScratchAllocation | undefined;
+  const attemptId = ask.draftId ?? crypto.randomUUID();
+  try {
+    const root = await scratch.scratchRoot();
+    if (platform.paths.key(ask.cwd) === platform.paths.key(root)) {
+      allocation = await scratch.allocateScratch(root, attemptId);
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      notStarted: true,
+      reason: `The scratch working directory is unavailable: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+  const started = await startOwned({
+    attemptId,
+    cwd: allocation?.cwd ?? ask.cwd,
+    ...(ask.target === undefined ? {} : { target: ask.target }),
+    placeholder: ask.placeholder
+  }).catch((error: unknown): StartResult => ({
+    ok: false,
+    unsure: true,
+    reason: error instanceof Error ? error.message : 'The session start could not be confirmed.'
+  }));
+  if (allocation && !started.ok && started.notStarted)
+    await scratch.discardEmptyScratch(allocation);
+  return started;
 }
 
 export async function reconcileStartup(
@@ -412,6 +435,19 @@ async function resumeConversation(
       STATUS_MS
     );
     return { ok: true, pid: running.pid, startedAt: running.startedAt, brand };
+  }
+
+  try {
+    await scratch.checkScratchResume(await scratch.scratchRoot(), cwd);
+  } catch (error) {
+    return {
+      ok: false,
+      notStarted: true,
+      reason:
+        error instanceof Error
+          ? error.message
+          : 'The scratch conversation directory is unavailable.'
+    };
   }
 
   const started = await startOwned({

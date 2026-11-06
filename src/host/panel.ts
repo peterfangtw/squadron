@@ -98,6 +98,7 @@ import {
 } from './panel_auth';
 
 import { HeldAcks, markSeen, writeAck } from '../core/acks';
+import * as scratch from '../core/scratch';
 import { clearArrangements, readArrangements, writeArrangement } from '../core/arrange';
 import { effectiveTheme, readRepoTheme, writeRepoTheme } from '../core/repo_theme';
 import { cardCompletion } from '../core/claude/checklist';
@@ -613,6 +614,10 @@ export class OverviewPanel {
           this.lastThread = undefined;
           this.syncedThread = undefined;
           void this.refreshThread();
+        } else if (msg.type === 'refreshSkills') {
+          void skills
+            .refreshSkills()
+            .catch((error: unknown) => OverviewPanel.log(`skill discovery: ${String(error)}`));
         } else if (msg.type === 'seen') {
           void this.opened(msg.pid);
         } else if (msg.type === 'send') {
@@ -1609,6 +1614,7 @@ export class OverviewPanel {
       ...claims.flatMap((claim) => (claim.folder ? [claim.folder] : [])),
       ...(folder ? [folder] : [])
     ]);
+    const scratchRoot = await scratch.scratchRoot();
     // Share one index read between the bottom hub, selected strip and edits.
     const indexRead = readWorkflowIndex();
     // Gate the reads too: disabled chips need no worktree, port or process walks.
@@ -1617,7 +1623,7 @@ export class OverviewPanel {
       readArrangements(),
       indexRead,
       readWorkflowOrder(),
-      wanted ? serverContext(this, sessions, claims, folder, folderRoots) : undefined
+      wanted ? serverContext(this, sessions, claims, folder, folderRoots, scratchRoot) : undefined
     ]);
     // Re-read the gate after gathering: lsof can outlive a switch-off refresh
     // and otherwise put its old chips and switch state back.
@@ -1650,9 +1656,11 @@ export class OverviewPanel {
     const repoOf: Record<string, string> = {};
     for (const [dir, root] of folderRoots) repoOf[dir] = root;
     if (folder && ownRoot) repoOf[folder] = ownRoot;
+    if (!folder) repoOf[scratchRoot] = scratchRoot;
     for (const s of sessions) {
       // Do not overwrite a good folderRoots mapping with an absent repoRoot.
-      if (s.repoRoot) repoOf[s.cwd] = s.repoRoot;
+      if (groupKey(s, scratchRoot) === scratchRoot) repoOf[s.cwd] = scratchRoot;
+      else if (s.repoRoot) repoOf[s.cwd] = s.repoRoot;
       else repoOf[s.cwd] ??= s.cwd;
     }
     await refreshMcpIfDue(this, {
@@ -1660,7 +1668,7 @@ export class OverviewPanel {
         ...new Set([
           ...folderRoots.keys(),
           ...folderRoots.values(),
-          ...(folder ? [folder] : []),
+          folder ?? scratchRoot,
           ...sessions.flatMap((s) => (s.repoRoot ? [s.cwd, s.repoRoot] : [s.cwd]))
         ])
       ],
@@ -1679,6 +1687,7 @@ export class OverviewPanel {
     const message = buildState({
       sessions,
       workspaceFolder: folder,
+      scratchRoot,
       folderRoots,
       arrangements,
       thread: undefined,
@@ -1714,8 +1723,9 @@ export class OverviewPanel {
       workflowOrder,
       servers: devServers ? servers : undefined,
       skills: await skills.skillsByDirectory([
-        ...sessions.map(groupKey),
-        ...(folder ? [folderRoots.get(folder) ?? folder] : []),
+        ...sessions.map((session) => groupKey(session, scratchRoot)),
+        ...(folder ? [folder] : []),
+        folder ? (folderRoots.get(folder) ?? folder) : scratchRoot,
         ...(devServers && servers ? servers.trees.keys() : [])
       ]),
       editorSkills: skills.allSkills(),

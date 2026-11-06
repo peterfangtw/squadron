@@ -57,6 +57,17 @@ function refused(result: { ok: boolean; reason?: string }): string {
 }
 
 describe('attachRoots', () => {
+  it('keeps scratch outputs denied and permits a copy into the temp directory', async () => {
+    const state = path.join(base, '.squadron');
+    const scratch = path.join(state, 'scratch', 'session');
+    await fs.mkdir(scratch, { recursive: true });
+    const output = path.join(scratch, 'result.txt');
+    await fs.writeFile(output, 'result');
+    assert.match(refused(await verdict(output, scratch, [state])), /never sent.*temp directory/);
+    const copy = path.join(tmp, 'result.txt');
+    await fs.copyFile(output, copy);
+    assert.equal((await verdict(copy, scratch, [state])).ok, true);
+  });
   it('is the cwd, its working tree and the temp directories, realpathed', async () => {
     const roots = await attach.attachRoots(cwd, { tmp: [tmp] });
     assert.deepEqual([...roots].sort(), [cwd, repo, tmp].sort());

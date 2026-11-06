@@ -116,7 +116,15 @@ export function checkPath(
   const shown = file.given;
   for (const dir of deny) {
     if (within(dir, file.real) !== undefined || within(dir, file.given) !== undefined) {
-      return { ok: false, reason: `${shown} is inside ${dir}, which is never sent` };
+      const outputRoot = deepest(roots, file.real);
+      const advice =
+        outputRoot !== undefined && within(dir, outputRoot) !== undefined
+          ? '; copy an output to the temp directory before attaching it'
+          : '';
+      return {
+        ok: false,
+        reason: `${shown} is inside ${dir}, which is never sent${advice}`
+      };
     }
   }
   const root = deepest(roots, file.real);

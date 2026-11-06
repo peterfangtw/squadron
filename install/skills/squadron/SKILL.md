@@ -145,9 +145,12 @@ need to receive queued replies.
   review round. Avoid using transcript reads to run a continuing conversation
   while both sessions' queued messages accumulate.
 
-Use `--interrupt` for a deliberate change that must reach a running turn now,
-not to clear routine review traffic. `--force` does not bypass a busy turn or
-consume its queue, and still requires the user's permission.
+Use `--interrupt` when the receiver should change what it is doing now, or
+needs your message to unblock progress. Use plain SEND for reports and updates
+that can wait until its turn ends. Choose from the message's purpose and what
+you already know; reading the target's transcript is not a prerequisite.
+`--force` does not bypass a busy turn or consume its queue, and still requires
+the user's permission.
 
 ## list
 
@@ -326,7 +329,8 @@ turn end anyway.
 
 Refusals: off (see above); Remote is off; outside those roots, a hidden path,
 or a denied one (Squadron's own state, `~/Library`) — copy it into your
-working directory; too large, empty, or not a regular file; owned by another
+working directory or the temp directory (use temp when working under Squadron's
+own state); too large, empty, or not a regular file; owned by another
 user; over 10 files per session per minute; "This window does not drive that
 session" — the Remote window needs an update and reload.
 

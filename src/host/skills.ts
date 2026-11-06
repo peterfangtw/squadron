@@ -6,6 +6,7 @@ import { SkillDiscovery, type SkillNames } from '../core/skills';
 import type { Session } from '../core/model';
 
 let discovery: SkillDiscovery | undefined;
+let initialized: Promise<void> = Promise.resolve();
 
 export function startSkillDiscovery(
   installed: Promise<void>,
@@ -25,14 +26,17 @@ export function startSkillDiscovery(
       .catch((error: unknown) => log(`skill discovery: ${String(error)}`));
   };
   const folders = vscode.workspace.onDidChangeWorkspaceFolders(update);
-  void installed
+  initialized = installed
     .catch((error: unknown) => log(`skill install: ${String(error)}`))
     .then(() => {
       if (!active) return;
       current = new SkillDiscovery(
         BRANDS.flatMap((brand) => adapter(brand) ?? []),
         os.homedir(),
-        process.env
+        process.env,
+        () => {
+          if (active && discovery === current) changed();
+        }
       );
       discovery = current;
       update();
@@ -43,6 +47,11 @@ export function startSkillDiscovery(
     current?.dispose();
     if (discovery === current) discovery = undefined;
   });
+}
+
+export async function refreshSkills(): Promise<void> {
+  await initialized;
+  await discovery?.refresh();
 }
 
 export async function skillsForSession(session: Session): Promise<readonly string[]> {

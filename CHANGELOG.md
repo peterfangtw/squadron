@@ -9,6 +9,13 @@ scalability", only when that benefit is supported; omit implementation details.
 Do not add a release note for edits to this guidance.
 -->
 
+## 0.6.13
+
+- Start and resume sessions in an empty editor window without opening a folder.
+- Newly added skills become available when opening the skill picker, without reloading the window.
+- Session permission mode appears beside the model and effort on cards.
+- More reliable session startup on Windows.
+
 ## 0.6.12
 
 - Windows file-save failures return promptly instead of waiting through repeated attempts.

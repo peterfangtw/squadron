@@ -1,4 +1,5 @@
-import * as fs from 'node:fs/promises';
+import * as platform from '../core/platform';
+import * as files from '../core/platform/files';
 
 /**
  * A file an agent wrote for a verb to read: `--answers-file`, `--argv-file`.
@@ -16,27 +17,14 @@ export const INPUT_FILE_MAX_BYTES = 96 * 1024;
  * message says why; the file is closed before it returns.
  */
 export async function readInputText(file: string): Promise<string> {
-  // O_NONBLOCK prevents FIFO open from waiting for a writer before fstat rejects it.
-  const handle = await fs.open(file, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
-  let text: string;
-  try {
-    const stat = await handle.stat();
-    if (!stat.isFile()) throw new Error('must be a regular file');
-    if (stat.size > INPUT_FILE_MAX_BYTES) throw new Error('exceeds 98304 bytes (96 KiB)');
-    const bytes = Buffer.alloc(INPUT_FILE_MAX_BYTES + 1);
-    let length = 0;
-    while (length < bytes.length) {
-      const { bytesRead } = await handle.read(bytes, length, bytes.length - length, null);
-      if (bytesRead === 0) break;
-      length += bytesRead;
-    }
-    if (length > INPUT_FILE_MAX_BYTES) throw new Error('exceeds 98304 bytes (96 KiB)');
-    // Fatal decoding rejects replacement characters from invalid UTF-8; the decoder consumes one BOM.
-    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, length));
-  } finally {
-    await handle.close();
-  }
-  return text;
+  const bytes = await platform.files
+    .readRegular(file, INPUT_FILE_MAX_BYTES)
+    .catch((error: unknown) => {
+      if (error instanceof files.ReadLimitExceeded) throw new Error(`${error.message} (96 KiB)`);
+      throw error;
+    });
+  // Fatal decoding rejects invalid UTF-8; the decoder consumes one initial BOM.
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 }
 
 const ARGV_FILE = '--argv-file';
