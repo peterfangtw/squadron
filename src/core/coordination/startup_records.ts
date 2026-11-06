@@ -155,7 +155,7 @@ async function reconciledReceipts(): Promise<Receipt[]> {
       );
     if (ownerGone && (raw.phase === 'reserved' || boundGone)) {
       const settled: Receipt = { ...raw, phase: 'settled' };
-      if (!(await files.writeAtomicJson(path.join(STARTUPS_DIR, name), settled, 'state')))
+      if (!(await files.writeAtomicJson(path.join(STARTUPS_DIR, name), settled)))
         throw new Error('An abandoned reservation could not be settled.');
       records.push(settled);
     } else records.push(raw);
@@ -194,7 +194,7 @@ async function fleetSpawns(
 async function createReservation(file: string, initial: Receipt): Promise<Reservation> {
   let record = initial;
   const persist = async (next: Receipt): Promise<void> => {
-    if (!(await files.writeAtomicJson(file, next, 'state')))
+    if (!(await files.writeAtomicJson(file, next)))
       throw new Error(`Startup reservation could not be saved: ${file}`);
     record = next;
   };

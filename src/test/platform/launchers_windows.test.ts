@@ -361,7 +361,7 @@ console.error('fixture stderr');process.exitCode=7;});`
         copyFile: (from: string, to: string) => fs.copyFile(from, to),
         chmod: (file: string, mode: number) => fs.chmod(file, mode),
         writeFile: (file: string, text: string) => fs.writeFile(file, text, { flag: 'wx' }),
-        replace: (from: string, to: string) => platform.files.replace(from, to, { kind: 'owned' }),
+        replace: (from: string, to: string) => platform.files.replace(from, to),
         remove: (file: string) => fs.rm(file, { force: true })
       };
       await win32.launchers(effects).install(bin, 'squadron-step', source);

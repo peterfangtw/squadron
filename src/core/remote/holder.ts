@@ -94,7 +94,7 @@ export async function acquireHolder(me: Holder, table: Starts, claims: Claims): 
     // Metadata no reader can judge is never taken over, rewritten or removed.
     if (found.uncertain) return { ok: false, holder: found.holder };
     if (found.holder && isSameHost(found.holder, me)) {
-      if (me.incoming && !(await writeAtomicJson(HOLDER_FILE, me, 'owned'))) return { ok: false };
+      if (me.incoming && !(await writeAtomicJson(HOLDER_FILE, me))) return { ok: false };
       return { ok: true };
     }
     if (found.holder && holding(found.holder)) return { ok: false, holder: found.holder };

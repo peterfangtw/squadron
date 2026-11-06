@@ -1,7 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as platform from './platform';
-import type { Kind } from './platform/files';
 
 /**
  * The filesystem questions more than one reader here asks, kept where none of
@@ -76,7 +75,6 @@ let seq = 0;
 async function writeAtomic(
   file: string,
   body: string | AsyncIterable<string>,
-  kind: Kind,
   current: () => boolean = () => true
 ): Promise<boolean> {
   const tmp = `${file}.${process.pid}.${seq++}.tmp`;
@@ -87,7 +85,7 @@ async function writeAtomic(
       await fs.rm(tmp, { force: true });
       return false;
     }
-    await platform.files.replace(tmp, file, { kind });
+    await platform.files.replace(tmp, file);
     return true;
   } catch {
     await fs.rm(tmp, { force: true }).catch(() => {});
@@ -102,9 +100,9 @@ async function writeAtomic(
  *
  * `JSON.stringify` throws on a cycle. The `try` keeps that a `false`.
  */
-export async function writeAtomicJson(file: string, record: unknown, kind: Kind): Promise<boolean> {
+export async function writeAtomicJson(file: string, record: unknown): Promise<boolean> {
   try {
-    return await writeAtomic(file, JSON.stringify(record), kind);
+    return await writeAtomic(file, JSON.stringify(record));
   } catch {
     return false;
   }
@@ -114,10 +112,9 @@ export async function writeAtomicJson(file: string, record: unknown, kind: Kind)
 export async function writeAtomicText(
   file: string,
   body: string | AsyncIterable<string>,
-  kind: Kind,
   current: () => boolean = () => true
 ): Promise<boolean> {
-  return writeAtomic(file, body, kind, current);
+  return writeAtomic(file, body, current);
 }
 
 /**

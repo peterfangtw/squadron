@@ -514,7 +514,7 @@ export function writeConversation(
         )
       );
     if (prior?.schema === 3 && kept.schema !== 3) return false;
-    if (kept.schema !== 3) return writeAtomicJson(file, kept, 'state');
+    if (kept.schema !== 3) return writeAtomicJson(file, kept);
     if (!isRevision(kept.revision) || kept.revision <= (prior?.revision ?? 0)) return false;
     // Compare inside the existing ordered writer, after all earlier saves have landed.
     const decoded = readConversation(kept);
@@ -595,7 +595,7 @@ async function writeDurableConversation(
       await fs.rm(temporary, { force: true });
       return false;
     }
-    await platform.files.replace(temporary, file, { kind: 'owned' });
+    await platform.files.replace(temporary, file);
     await platform.files.syncDirectory(path.dirname(file));
     return true;
   } catch {
@@ -706,7 +706,7 @@ export async function readHeard(): Promise<Heard | undefined> {
 
 /** Writes the watermark, in order with this store's other writes. */
 export function writeHeard(heard: Heard): Promise<boolean> {
-  return inOrder(() => writeAtomicJson(HEARD_FILE, heard, 'state'));
+  return inOrder(() => writeAtomicJson(HEARD_FILE, heard));
 }
 
 let chain: Promise<unknown> = Promise.resolve();

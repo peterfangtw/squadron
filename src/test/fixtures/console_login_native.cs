@@ -49,11 +49,13 @@ class ConsoleLoginFixture {
     if (args[0] == "normal") { Console.Write("native"); return; }
     handler = delegate(uint kind) { return true; };
     SetConsoleCtrlHandler(handler, true);
+    TcpListener listener = null;
     if (args[0] == "grandchild" || args[0] == "quiet-grandchild") {
-      var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
+      listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
       var self = Process.GetCurrentProcess();
       var root = Process.GetProcessById(int.Parse(args[0] == "quiet-grandchild" ? args[5] : args[2]));
       string receipt = "{\"pid\":" + self.Id + ",\"birth\":\"" + self.StartTime.ToUniversalTime().ToFileTimeUtc() + "\",\"root\":{\"pid\":" + root.Id + ",\"birth\":\"" + root.StartTime.ToUniversalTime().ToFileTimeUtc() + "\"},\"port\":" + ((IPEndPoint)listener.LocalEndpoint).Port + "}";
+      GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
       if (args[0] == "quiet-grandchild") {
         var output = new IntPtr(long.Parse(args[3])); var error = new IntPtr(long.Parse(args[4]));
         uint outputType = GetFileType(output), errorType = GetFileType(error);
@@ -78,6 +80,8 @@ class ConsoleLoginFixture {
       if (args[0] == "drain" || args[0] == "exit-tree") return;
     }
     new ManualResetEvent(false).WaitOne();
+    // Forced GC closed this socket while the process was alive (native control, 2026-11-05).
+    GC.KeepAlive(listener);
   }
 
   static void LaunchQuiet(string image, string name, string receipt) {

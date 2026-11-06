@@ -111,11 +111,7 @@ async function look(
   // record, the next pass would otherwise ask again, every 3 s.
   const stored =
     stamp !== undefined &&
-    (await writeAtomicJson(
-      signInFile(brand, opts.home),
-      { status, stamp } satisfies SignInRecord,
-      'state'
-    ));
+    (await writeAtomicJson(signInFile(brand, opts.home), { status, stamp } satisfies SignInRecord));
   if (stored) failedAt.delete(brand);
   else failedAt.set(brand, opts.now);
   return status;

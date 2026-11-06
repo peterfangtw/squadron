@@ -2,12 +2,17 @@
   "name": "squadron",
   "displayName": "Squadron",
   "description": "Run Claude Code, Codex and Grok in the same UI on your editor, and let them work with each other autonomously.",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "publisher": "peterfangtw",
   "license": "MIT",
   "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/peterfangtw/squadron.git"
+  },
+  "homepage": "https://github.com/peterfangtw/squadron#readme",
   "bugs": {
-    "url": "https://github.com/peterfangtw/squadron-media/issues"
+    "url": "https://github.com/peterfangtw/squadron/issues"
   },
   "engines": {
     "vscode": "^1.95.0"
@@ -380,7 +385,7 @@
     "test:smoke:slow": "node scripts/verify.mjs test:smoke:slow",
     "check": "node scripts/verify.mjs check",
     "mutate": "node scripts/mutate.mjs",
-    "package": "npm run check && npx --yes @vscode/vsce package --no-dependencies --allow-missing-repository --baseImagesUrl https://raw.githubusercontent.com/peterfangtw/squadron-media/main",
+    "package": "npm run check && npx --yes @vscode/vsce package --no-dependencies --baseImagesUrl https://raw.githubusercontent.com/peterfangtw/squadron/main",
     "release": "node scripts/release.mjs",
     "integrate": "node scripts/integrate.mjs",
     "deploy": "node scripts/deploy.mjs",

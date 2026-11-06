@@ -277,7 +277,7 @@ export async function writeHold(record: HoldRecord): Promise<void> {
   } catch {
     return;
   }
-  await writeAtomicJson(holdFile(record.windowId), record, 'beat');
+  await writeAtomicJson(holdFile(record.windowId), record);
 }
 
 export async function clearHold(windowId: string): Promise<void> {

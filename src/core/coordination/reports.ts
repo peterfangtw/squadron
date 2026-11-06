@@ -179,7 +179,7 @@ function reportFile(id: string): string {
  * this must send the message the ordinary way rather than lose it.
  */
 export async function writeReport(record: ParkedReport): Promise<boolean> {
-  return writeAtomicJson(reportFile(record.id), record, 'state');
+  return writeAtomicJson(reportFile(record.id), record);
 }
 
 /** Forgets one. A file already gone is the outcome we wanted. */

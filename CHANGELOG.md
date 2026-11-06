@@ -9,6 +9,11 @@ scalability", only when that benefit is supported; omit implementation details.
 Do not add a release note for edits to this guidance.
 -->
 
+## 0.6.12
+
+- Windows file-save failures return promptly instead of waiting through repeated attempts.
+- Grok credential-save failures preserve protection against reusing an exchanged refresh token.
+
 ## 0.6.11
 
 - Maintenance release.

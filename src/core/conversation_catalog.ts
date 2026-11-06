@@ -69,7 +69,7 @@ export async function writeCatalog(
   entries: Catalog,
   current: () => boolean = () => true
 ): Promise<boolean> {
-  return files.writeAtomicText(CATALOG_FILE, encoded(entries), 'owned', current);
+  return files.writeAtomicText(CATALOG_FILE, encoded(entries), current);
 }
 
 export function cacheable(entry: Entry): boolean {

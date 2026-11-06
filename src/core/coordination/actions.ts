@@ -133,7 +133,7 @@ const recentActions = new Map<string, CountedAction>();
 export async function writeAction(action: CountedAction): Promise<boolean> {
   const name = `${randomUUID()}.json`;
   recentActions.set(name, action);
-  return writeAtomicJson(path.join(ACTIONS_DIR, name), action, 'state');
+  return writeAtomicJson(path.join(ACTIONS_DIR, name), action);
 }
 
 /**

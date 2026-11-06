@@ -66,11 +66,7 @@ export type LineageEntry = SpawnAction;
  * once one is read anywhere else.
  */
 export async function writeLineage(pid: number, entry: LineageEntry): Promise<void> {
-  await writeAtomicJson(
-    path.join(LINEAGE_DIR, `${pid}.json`),
-    { ...entry, kind: 'spawn' },
-    'owned'
-  );
+  await writeAtomicJson(path.join(LINEAGE_DIR, `${pid}.json`), { ...entry, kind: 'spawn' });
 }
 
 /**

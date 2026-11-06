@@ -7,7 +7,7 @@ import { nodeCli } from '../fixtures/node_cli';
 import { alive, heldDescendant, ownHeld, until, watchTable } from '../fixtures/root_only';
 import { accountRow } from '../../core/accounts';
 import type { ProcessTable } from '../../core/scan';
-import { disposeHome, modeBitsSkip, tempHome } from '../helpers';
+import { disposeHome, modeBitsSkip, needsFileSymlinks, tempHome } from '../helpers';
 
 let home: string;
 let grokPreflight: typeof import('../../core/grok/auth').grokPreflight;
@@ -462,6 +462,99 @@ const ok = (body: unknown) => (): Promise<TokenReply> =>
   Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
 
 describe('refreshGrokBearer', () => {
+  for (const persistent of [true, false]) {
+    it(`reports ${persistent ? 'persistent' : 'transient'} rename failure without restarting persistence or refresh`, async (t) => {
+      const dir = await writeCredential(
+        `save-failure-${persistent}`,
+        credentialFile(OLD_REFRESH, EXPIRED)
+      );
+      const file = authPath(dir);
+      const before = await fs.readFile(file, 'utf8');
+      const endpoint = tokenEndpoint(rotate());
+      const rename = fs.rename;
+      let attempts = 0;
+      t.mock.method(fs, 'rename', async (...args: Parameters<typeof fs.rename>) => {
+        if (args[1] !== file) return rename(...args);
+        attempts++;
+        if (persistent || attempts === 1) {
+          throw Object.assign(new Error('rename refused'), { code: 'EPERM' });
+        }
+        await rename(...args);
+      });
+      const options = {
+        home: dir,
+        fetch: endpoint.fetch,
+        scan: () => Promise.resolve(quietMachine())
+      };
+
+      assert.equal(await refreshGrokBearer(options), undefined);
+      assert.equal(attempts, 1);
+      assert.equal(await fs.readFile(file, 'utf8'), before);
+      assert.deepEqual(await fs.readdir(path.dirname(file)), ['auth.json']);
+      assert.equal(await exists(lockFor(OLD_REFRESH, dir)), true);
+      assert.equal(await refreshGrokBearer(options), undefined);
+      assert.equal(endpoint.calls.length, 1);
+      assert.equal(attempts, 1);
+    });
+  }
+
+  it('persists the rotated token with one rename and keeps unknown credential fields', async (t) => {
+    const dir = await writeCredential('save-success', credentialFile(OLD_REFRESH, EXPIRED));
+    const file = authPath(dir);
+    const endpoint = tokenEndpoint(rotate());
+    let attempts = 0;
+    const rename = fs.rename;
+    t.mock.method(fs, 'rename', async (...args: Parameters<typeof fs.rename>) => {
+      if (args[1] === file) attempts++;
+      await rename(...args);
+    });
+
+    assert.equal(
+      (
+        await refreshGrokBearer({
+          home: dir,
+          fetch: endpoint.fetch,
+          scan: () => Promise.resolve(quietMachine())
+        })
+      )?.key,
+      'fresh-'.repeat(4)
+    );
+    assert.equal(attempts, 1);
+    const written = JSON.parse(await fs.readFile(file, 'utf8'));
+    assert.equal(written['https://auth.x.ai::client'].key, 'fresh-'.repeat(4));
+    assert.equal(written['https://auth.x.ai::client'].refresh_token, NEW_REFRESH);
+    assert.equal(written['https://auth.x.ai::client'].something_a_later_cli_added, 42);
+    assert.deepEqual(await fs.readdir(path.dirname(file)), ['auth.json']);
+    assert.equal(await exists(lockFor(OLD_REFRESH, dir)), false);
+    assert.equal(endpoint.calls.length, 1);
+  });
+
+  it(
+    'updates a credential symlink target while keeping the link',
+    { skip: needsFileSymlinks() },
+    async () => {
+      const dir = await writeCredential('save-symlink', credentialFile(OLD_REFRESH, EXPIRED));
+      const file = authPath(dir);
+      const target = path.join(dir, 'credential.json');
+      await fs.rename(file, target);
+      await fs.symlink(target, file);
+      const endpoint = tokenEndpoint(rotate());
+
+      assert.ok(
+        await refreshGrokBearer({
+          home: dir,
+          fetch: endpoint.fetch,
+          scan: () => Promise.resolve(quietMachine())
+        })
+      );
+      assert.equal((await fs.lstat(file)).isSymbolicLink(), true);
+      const written = JSON.parse(await fs.readFile(target, 'utf8'));
+      assert.equal(written['https://auth.x.ai::client'].refresh_token, NEW_REFRESH);
+      assert.deepEqual(await fs.readdir(dir), ['.grok', '.squadron', 'credential.json']);
+      assert.equal(endpoint.calls.length, 1);
+    }
+  );
+
   it('sends the observed form body to the allowlisted endpoint', async () => {
     const dir = await writeCredential('refresh-body', credentialFile(OLD_REFRESH, EXPIRED));
     const endpoint = tokenEndpoint(

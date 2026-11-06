@@ -214,11 +214,8 @@ src/
                  acknowledgement releases admission; monitor death without one
                  retains unresolved job accounting. Other hosts refuse with terminal guidance.
                  `files/`: complete-file replacement, plain rename on POSIX;
-                 Windows retains retry only for the five named legacy callers.
-                 Budget kind comes from the writer, independently of retry
-                 provenance; beats/non-legacy owned writes never wait. Windows
-                 non-legacy state writes retry at most 20 times at 100 ms,
-                 fenced by target version/read-only metadata.
+                 Every backend performs one rename and propagates its error;
+                 operation owners decide recovery and publication failure.
                  Directory open/sync/finally-close also lives here; Windows
                  tolerates only directory-sync EPERM, POSIX propagates errors.
                  `contended` says a lock file's error meant another process was

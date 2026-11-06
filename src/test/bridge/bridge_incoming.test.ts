@@ -1,7 +1,6 @@
 import { incomingPlatformFixture } from '../remote/incoming_platform_helpers';
 import * as platform from '../../core/platform';
 import * as win32 from '../../core/platform/files/win32';
-import type { Budget } from '../../core/platform/files';
 import * as assert from 'node:assert/strict';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
@@ -370,26 +369,20 @@ it(
     const active = await t.view();
     assert.equal(active.access.state, 'active');
     const destination = path.join(paths.CONVERSATIONS_DIR, 'abcdefgh.json');
-    const budgets: Budget[] = [];
+    let publications = 0;
     let attempts = 0;
-    let waits = 0;
     const backend = win32.files({
-      stat: () => Promise.reject(new Error('target metadata unavailable')),
       open: () => {
         throw new Error('unexpected directory open');
       },
       rename: (source, to) => {
         if (to === destination) attempts++;
         return fs.rename(source, to);
-      },
-      sleep: () => {
-        waits++;
-        return Promise.resolve();
       }
     });
-    context.mock.method(platform.files, 'replace', (source: string, to: string, budget: Budget) => {
-      if (to === destination) budgets.push(budget);
-      return backend.replace(source, to, budget);
+    context.mock.method(platform.files, 'replace', (source: string, to: string) => {
+      if (to === destination) publications++;
+      return backend.replace(source, to);
     });
     const rename = fs.rename;
     let failing = true;
@@ -406,13 +399,8 @@ it(
       false
     );
     assert.equal((await t.view()).denial, 'admission-denied');
-    assert.ok(budgets.length > 0);
-    assert.deepEqual(
-      budgets,
-      budgets.map(() => ({ kind: 'owned' }))
-    );
-    assert.equal(attempts, budgets.length);
-    assert.equal(waits, 0);
+    assert.ok(publications > 0);
+    assert.equal(attempts, publications);
     assert.equal(await t.bridge.observeIncomingPolicy(current, t.holder), false);
     assert.equal((await t.view()).denial, 'admission-denied');
     assert.equal((await store.readConversations())[0]?.messages?.[0]?.access?.state, 'active');

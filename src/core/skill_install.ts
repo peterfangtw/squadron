@@ -459,7 +459,7 @@ export async function installSkill(
       await fs.rm(tmp, { force: true }).catch(() => {});
       return 'unsafe-path';
     }
-    await platform.files.replace(tmp, dest, { kind: 'state' });
+    await platform.files.replace(tmp, dest);
     return 'written';
   } catch {
     await fs.rm(tmp, { force: true }).catch(() => {});

@@ -517,7 +517,7 @@ function waitFile(id: string): string {
 
 /** Report write failure so the shim cannot promise a wake it never registered. */
 export async function writeWait(record: WaitRecord): Promise<boolean> {
-  return writeAtomicJson(waitFile(record.id), record, 'state');
+  return writeAtomicJson(waitFile(record.id), record);
 }
 
 export async function dropWait(id: string): Promise<void> {

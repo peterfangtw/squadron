@@ -18,7 +18,7 @@ export async function writeThread(
   markdown: string
 ): Promise<string | undefined> {
   const file = threadFile(conversationId);
-  return (await writeAtomicText(file, markdown, 'state')) ? file : undefined;
+  return (await writeAtomicText(file, markdown)) ? file : undefined;
 }
 
 const THREAD_HEADER =

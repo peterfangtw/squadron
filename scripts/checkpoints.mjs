@@ -89,7 +89,7 @@ export function atomic(file, value) {
 }
 
 // win32 replacement can return EPERM while a reader holds the target open.
-// Observed 2026-10-28: N1-D2 probes in TASK_inprogress_windows_tooling.md.
+// Observed 2026-10-28: N1-D2 probes in TASK_done_windows_tooling.md.
 export function retryFileOperation(action) {
   const pause = new Int32Array(new SharedArrayBuffer(4));
   const deadline = Date.now() + 2000;

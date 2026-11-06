@@ -198,7 +198,7 @@ function save(): void {
     if (same(merged, onDisk)) {
       return;
     }
-    await writeAtomicJson(store, merged, 'state');
+    await writeAtomicJson(store, merged);
   });
 }
 

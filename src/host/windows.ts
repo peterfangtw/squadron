@@ -55,7 +55,7 @@ export class WindowClaimant implements vscode.Disposable {
     try {
       await fs.mkdir(WINDOWS_DIR, { recursive: true });
       await fs.writeFile(tmp, JSON.stringify(claim));
-      await platform.files.replace(tmp, this.file, { kind: 'beat' });
+      await platform.files.replace(tmp, this.file);
     } catch {
       // best effort — the panel degrades to an "unknown window" group
       await fs.rm(tmp, { force: true }).catch(() => {});

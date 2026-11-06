@@ -148,11 +148,7 @@ export async function copyIndex(
     const cutoff = Math.floor(stat.mtimeMs / 1000);
     await fs.utimes(temporary, cutoff, cutoff);
     if (mode === 'seed') await fs.link(temporary, destination);
-    else
-      await platform.files.replace(temporary, destination, {
-        kind: 'owned',
-        legacyRetry: 'checkpoint-index'
-      });
+    else await platform.files.replace(temporary, destination);
     return true;
   } catch {
     return false;

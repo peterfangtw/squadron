@@ -45,14 +45,10 @@ import * as zip from './zip.mjs';
 import * as artifacts from './windows-helper-artifacts.mjs';
 import * as packagedBundles from './packaged-bundles.mjs';
 
-// vsce rewrites the README's relative image paths against `repository`, and the
-// source repo is private, so Open VSX and the Marketplace got a 404 for every
-// image. The images are mirrored into this public repo instead; a new README
-// image goes there too. `package.json` names no repository at all — it linked
-// the gallery pages to that same 404 — and vsce stops to ask without the flag.
+// README images must reach the public source snapshot before store publication.
 const PACKAGE =
-  'npx --yes @vscode/vsce package --out release.vsix --no-dependencies --allow-missing-repository' +
-  ' --baseImagesUrl https://raw.githubusercontent.com/peterfangtw/squadron-media/main';
+  'npx --yes @vscode/vsce package --out release.vsix --no-dependencies' +
+  ' --baseImagesUrl https://raw.githubusercontent.com/peterfangtw/squadron/main';
 
 const ROOT = join(import.meta.dirname, '..');
 

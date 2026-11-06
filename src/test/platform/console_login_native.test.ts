@@ -322,6 +322,11 @@ describe(
         assert.ok(result.supported && result.status === 'ok');
         const completed = collect(result.value);
         const value = await descendant(result.value);
+        assert.equal(
+          await listenerConnected(value.port),
+          true,
+          'the fixture callback survives collection before owner termination'
+        );
         caller.kill();
         await callerClosed;
         assert.equal((await completed).completion.kind, 'failed');
@@ -417,7 +422,15 @@ function descendant(child: LoginChild): Promise<Descendant> {
 }
 
 async function listenerGone(port: number): Promise<void> {
-  const connected = await new Promise<boolean>((resolve) => {
+  assert.equal(
+    await listenerConnected(port),
+    false,
+    'the grandchild callback listener is gone immediately after confirmed cleanup'
+  );
+}
+
+function listenerConnected(port: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
     const socket = net.connect(port, '127.0.0.1');
     socket.once('connect', () => {
       socket.destroy();
@@ -425,11 +438,6 @@ async function listenerGone(port: number): Promise<void> {
     });
     socket.once('error', () => resolve(false));
   });
-  assert.equal(
-    connected,
-    false,
-    'the grandchild callback listener is gone immediately after confirmed cleanup'
-  );
 }
 
 function member(mode: string, value: { pid: number; birth: string }): string {

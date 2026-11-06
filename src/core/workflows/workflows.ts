@@ -816,7 +816,7 @@ export async function duplicateWorkflow(id: string): Promise<SaveWorkflowResult>
     return { ok: false, reasons };
   }
   const file = path.join(WORKFLOWS_DIR, `${next.id}.json`);
-  if (!(await writeAtomicJson(file, next, 'state'))) {
+  if (!(await writeAtomicJson(file, next))) {
     return { ok: false, reasons: ['could not write workflow file'] };
   }
   return { ok: true, workflow: { ...next, path: file } };
@@ -921,7 +921,7 @@ export async function saveWorkflow(draft: WorkflowDraft): Promise<SaveWorkflowRe
     return { ok: false, reasons };
   }
   const file = path.join(WORKFLOWS_DIR, `${id}.json`);
-  if (!(await writeAtomicJson(file, next, 'state'))) {
+  if (!(await writeAtomicJson(file, next))) {
     return { ok: false, reasons: ['could not write workflow file'] };
   }
   return { ok: true, workflow: { ...next, path: file } };

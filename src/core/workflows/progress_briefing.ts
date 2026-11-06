@@ -98,7 +98,7 @@ export async function stageForSend(seed: ProgressSeed): Promise<StagedProgress |
   return {
     file,
     commit: async () => {
-      await platform.files.replace(staged, file, { kind: 'state' }).catch(() => {});
+      await platform.files.replace(staged, file).catch(() => {});
     },
     discard: async () => {
       await rm(staged, { force: true }).catch(() => {});

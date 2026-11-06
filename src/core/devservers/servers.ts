@@ -41,14 +41,10 @@ function fileFor(cwd: string, runnerId: string): string {
 
 /** Records one server. Best effort, like every other store under `STATE_DIR`. */
 export async function writeServer(server: RunningServer): Promise<void> {
-  await writeAtomicJson(
-    fileFor(server.cwd, server.runnerId),
-    {
-      ...server,
-      updatedAt: Date.now()
-    },
-    'beat'
-  );
+  await writeAtomicJson(fileFor(server.cwd, server.runnerId), {
+    ...server,
+    updatedAt: Date.now()
+  });
 }
 
 /**
@@ -70,7 +66,7 @@ export async function touchServer(cwd: string, runnerId: string): Promise<void> 
   const file = fileFor(cwd, runnerId);
   const current = await readJson<RunningServer>(file);
   if (isServer(current)) {
-    await writeAtomicJson(file, { ...current, updatedAt: Date.now() }, 'beat');
+    await writeAtomicJson(file, { ...current, updatedAt: Date.now() });
   }
 }
 
@@ -107,11 +103,11 @@ export async function keepServer(
     // immortal: its own window can die and no window can correct it, because
     // the branch below refuses to write a payload over a file that exists.
     if (current.windowId === server.windowId) {
-      await writeAtomicJson(file, { ...current, updatedAt: Date.now() }, 'beat');
+      await writeAtomicJson(file, { ...current, updatedAt: Date.now() });
     }
     return;
   }
-  await writeAtomicJson(file, { ...server, updatedAt: Date.now() }, 'beat');
+  await writeAtomicJson(file, { ...server, updatedAt: Date.now() });
 }
 
 /** Forgets one, on stop or on a window closing. A file that is not there is a stop. */
@@ -310,7 +306,7 @@ export async function reviseServer(server: RunningServer): Promise<boolean> {
   if (!isServer(current) || current.windowId !== server.windowId) {
     return false;
   }
-  await writeAtomicJson(file, { ...server, updatedAt: Date.now() }, 'beat');
+  await writeAtomicJson(file, { ...server, updatedAt: Date.now() });
   return true;
 }
 

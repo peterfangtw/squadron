@@ -1,6 +1,5 @@
 import * as platform from '../../core/platform';
 import * as win32 from '../../core/platform/files/win32';
-import type { Budget } from '../../core/platform/files';
 import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -43,35 +42,27 @@ const record = (over: Partial<import('../../core/awake').HoldRecord> = {}) => ({
  * "nothing is working" — with no other test in the suite going red.
  */
 describe('the hold store', () => {
-  it('publishes beat budgets without adding Windows lock waits', async (context) => {
+  it('attempts heartbeat publication once on replacement denial', async (context) => {
     let attempts = 0;
-    let waits = 0;
     const backend = win32.files({
-      stat: () => Promise.reject(new Error('target metadata unavailable')),
       open: () => {
         throw new Error('unexpected directory open');
       },
       rename: () => {
         attempts++;
         return Promise.reject(Object.assign(new Error('locked'), { code: 'EBUSY' }));
-      },
-      sleep: () => {
-        waits++;
-        return Promise.resolve();
       }
     });
     const replace = context.mock.method(
       platform.files,
       'replace',
-      async (source: string, destination: string, budget: Budget) => {
-        assert.deepEqual(budget, { kind: 'beat' });
-        await backend.replace(source, destination, budget);
+      async (source: string, destination: string) => {
+        await backend.replace(source, destination);
       }
     );
     await awake.writeHold(record());
     assert.equal(attempts, 1);
     assert.equal(replace.mock.callCount(), 1);
-    assert.equal(waits, 0);
   });
 
   it('round-trips a record', async () => {

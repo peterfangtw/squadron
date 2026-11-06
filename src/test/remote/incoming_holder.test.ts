@@ -5,7 +5,6 @@ import {
 } from './incoming_platform_helpers';
 import * as platform from '../../core/platform';
 import * as win32 from '../../core/platform/files/win32';
-import type { Budget } from '../../core/platform/files';
 import * as assert from 'node:assert/strict';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
@@ -789,26 +788,20 @@ it(
       }
       return rename(from, to);
     });
-    const budgets: Budget[] = [];
+    let publications = 0;
     let attempts = 0;
-    let waits = 0;
     const backend = win32.files({
-      stat: () => Promise.reject(new Error('target metadata unavailable')),
       open: () => {
         throw new Error('unexpected directory open');
       },
       rename: (source, to) => {
         if (to === manifest) attempts++;
         return fs.rename(source, to);
-      },
-      sleep: () => {
-        waits++;
-        return Promise.resolve();
       }
     });
-    context.mock.method(platform.files, 'replace', (source: string, to: string, budget: Budget) => {
-      if (to === manifest) budgets.push(budget);
-      return backend.replace(source, to, budget);
+    context.mock.method(platform.files, 'replace', (source: string, to: string) => {
+      if (to === manifest) publications++;
+      return backend.replace(source, to);
     });
     const fetching = fetch();
     await entered.promise;
@@ -816,9 +809,8 @@ it(
     assert.equal((await fetching).kind, 'refused');
     release.resolve();
     await off;
-    assert.deepEqual(budgets, [{ kind: 'owned' }, { kind: 'owned' }]);
+    assert.equal(publications, 2);
     assert.equal(attempts, 2);
-    assert.equal(waits, 0);
     assert.equal(JSON.parse(await fs.readFile(manifest, 'utf8')).expiresAt, first.expiresAt);
     assert.equal(await fs.readFile(first.path, 'utf8'), 'bytes');
   }

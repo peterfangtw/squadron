@@ -304,10 +304,8 @@ async function readAfterSend(home?: string): Promise<GrokCredential | undefined>
  * Not `writeAtomicJson`: its temp is created at the default mode, so it would
  * hand back a `0644` credential where the CLI wrote `0600`.
  *
- * The rename is retried, unlike most failures here. By the time it runs the old
- * refresh token is already dead server-side, so a transient `ENOSPC` is not a
- * benign "no reading this poll" — it is the reader signed out at the next
- * `grok` start.
+ * A failed save leaves the spent-token marker in place; another refresh cannot
+ * recover a disk failure without risking reuse of the token already exchanged.
  *
  * A crash between the write and the rename strands a temp holding the *new*
  * refresh token. It is `0600` like the credential beside it, and nothing here
@@ -339,21 +337,15 @@ async function writeCredentialFile(
     }
   });
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const tmp = `${file}.${process.pid}.${attempt}.tmp`;
-    try {
-      await fs.writeFile(tmp, body, { flag: 'wx', mode: 0o600 });
-      await platform.files.replace(tmp, file, {
-        kind: 'owned',
-        legacyRetry: 'grok-auth-credentials'
-      });
-      return true;
-    } catch {
-      await fs.rm(tmp, { force: true }).catch(() => {});
-      if (attempt < 3) await new Promise((wait) => setTimeout(wait, 25 * (attempt + 1)));
-    }
+  const tmp = `${file}.${process.pid}.0.tmp`;
+  try {
+    await fs.writeFile(tmp, body, { flag: 'wx', mode: 0o600 });
+    await platform.files.replace(tmp, file);
+    return true;
+  } catch {
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    return false;
   }
-  return false;
 }
 
 /**

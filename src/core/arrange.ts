@@ -73,7 +73,7 @@ function fileFor(cwd: string): string {
  */
 export async function writeArrangement(cwd: string, slots: ArrangeSlot[]): Promise<void> {
   const record: Arrangement = { schema: 1, cwd, updatedAt: Date.now(), slots };
-  await writeAtomicJson(path.join(ARRANGE_DIR, fileFor(cwd)), record, 'state');
+  await writeAtomicJson(path.join(ARRANGE_DIR, fileFor(cwd)), record);
 }
 
 /**

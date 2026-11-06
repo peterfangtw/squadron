@@ -367,5 +367,5 @@ export async function rememberPort(
     ...current,
     lastUsed: { ...current.lastUsed, [branch]: { ...current.lastUsed[branch], [key]: port } }
   };
-  await writeAtomicJson(fileFor(repoRoot), record, 'state');
+  await writeAtomicJson(fileFor(repoRoot), record);
 }

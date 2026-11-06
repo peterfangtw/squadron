@@ -118,7 +118,7 @@ describe('machine-wide startup admission', () => {
     }
   });
   it(
-    'replaces a startup receipt after its native read handle closes',
+    'reports a held startup receipt without advancing it or retrying publication',
     {
       skip: testPlatform() !== 'win32' && 'posix: an open read handle does not deny replacement'
     },
@@ -131,33 +131,26 @@ describe('machine-wide startup admission', () => {
       const handle = await fs.open(file, 'r');
       const rename = fs.rename;
       let denied = 0;
-      let closed = false;
       t.mock.method(fs, 'rename', async (...args: Parameters<typeof fs.rename>) => {
         try {
           await rename(...args);
-          if (args[1] === file) assert.ok(closed, 'receipt replacement waits for handle close');
         } catch (error) {
-          if (args[1] === file && !closed) {
+          if (args[1] === file) {
             assert.equal((error as NodeJS.ErrnoException).code, 'EPERM');
             denied++;
           }
           throw error;
         }
       });
-      const closing = new Promise<void>((resolve, reject) =>
-        setTimeout(() => {
-          handle.close().then(() => {
-            closed = true;
-            resolve();
-          }, reject);
-        }, 300)
-      );
       try {
-        await slot.spawning();
+        await assert.rejects(slot.spawning(), /Startup reservation could not be saved/);
+        assert.equal(denied, 1);
+        assert.deepEqual(JSON.parse(await fs.readFile(file, 'utf8')), original);
+        assert.deepEqual(await fs.readdir(paths.STARTUPS_DIR), [`${id}.json`]);
       } finally {
-        await closing;
+        await handle.close();
       }
-      assert.ok(denied > 0, 'native rename was denied while the read handle was held');
+      await slot.spawning();
       assert.deepEqual(JSON.parse(await fs.readFile(file, 'utf8')), {
         ...original,
         phase: 'spawning'

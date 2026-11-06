@@ -50,5 +50,5 @@ export async function readRepoTheme(folder: string): Promise<ThemeName | undefin
 export function writeRepoTheme(folder: string, theme: ThemeName): Promise<boolean> {
   if (folder === '' || !isThemeName(theme)) return Promise.resolve(false);
   const record: RepoTheme = { schema: 1, folder, theme };
-  return writeAtomicJson(path.join(THEMES_DIR, fileFor(folder)), record, 'state');
+  return writeAtomicJson(path.join(THEMES_DIR, fileFor(folder)), record);
 }

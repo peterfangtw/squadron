@@ -153,5 +153,5 @@ export async function uninstallHooks(
   const real = await fs.realpath(file);
   const tmp = `${real}.squadron.tmp`;
   await fs.writeFile(tmp, text);
-  await platform.files.replace(tmp, real, { kind: 'state', legacyRetry: 'claude-settings' });
+  await platform.files.replace(tmp, real);
 }

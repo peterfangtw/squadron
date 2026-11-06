@@ -123,7 +123,7 @@ export async function mutate<T>(
     const before = JSON.stringify(state);
     const answer = await change(state);
     if (before !== JSON.stringify(state) || !(await readState(brand, home))) {
-      if (!(await files.writeAtomicJson(file, state, 'state')))
+      if (!(await files.writeAtomicJson(file, state)))
         throw new Error('Could not persist usage cooldown.');
     }
     return answer;

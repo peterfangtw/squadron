@@ -239,10 +239,7 @@ function publishAdmission(
       if (!admission) return false;
       const temporary = `${runtime.contextFile}.next`;
       await fs.writeFile(temporary, JSON.stringify(admission), { mode: 0o600 });
-      await platform.files.replace(temporary, runtime.contextFile, {
-        kind: 'owned',
-        legacyRetry: 'execution-admission'
-      });
+      await platform.files.replace(temporary, runtime.contextFile);
       return runtime.enabled;
     })
     .catch(() => false);

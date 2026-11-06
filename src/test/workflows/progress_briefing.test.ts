@@ -3,7 +3,6 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import * as platform from '../../core/platform';
-import type { Budget } from '../../core/platform/files';
 import * as win32 from '../../core/platform/files/win32';
 import { disposeHome, modeBitsSkip, tempHome } from '../home';
 import { seed, workflow } from './progress_helpers';
@@ -146,29 +145,18 @@ describe('workflowFirstTurn', () => {
 describe('stageForSend', () => {
   it('names the path for the briefing but writes nothing there until commit', async (context) => {
     let attempts = 0;
-    let waits = 0;
     const backend = win32.files({
-      stat: () => Promise.reject(new Error('target metadata unavailable')),
       open: () => {
         throw new Error('unexpected directory open');
       },
       rename: (source, destination) => {
         attempts++;
         return fs.rename(source, destination);
-      },
-      sleep: () => {
-        waits++;
-        return Promise.resolve();
       }
     });
-    context.mock.method(
-      platform.files,
-      'replace',
-      async (source: string, destination: string, budget: Budget) => {
-        assert.deepEqual(budget, { kind: 'state' });
-        await backend.replace(source, destination, budget);
-      }
-    );
+    context.mock.method(platform.files, 'replace', async (source: string, destination: string) => {
+      await backend.replace(source, destination);
+    });
 
     const staged = await briefing.stageForSend(seed({ sessionId: 'stage-1' }));
     assert.ok(staged);
@@ -182,7 +170,6 @@ describe('stageForSend', () => {
     assert.equal(read.sessionId, 'stage-1');
     assert.ok(read.steps.every((s) => s.status === 'pending'));
     assert.equal(attempts, 1);
-    assert.equal(waits, 0);
   });
 
   it('discard leaves no trace, so a refused send is not a follow', async () => {

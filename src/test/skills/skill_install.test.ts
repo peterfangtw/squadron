@@ -1,6 +1,5 @@
 import * as platform from '../../core/platform';
 import * as win32 from '../../core/platform/files/win32';
-import type { Budget } from '../../core/platform/files';
 import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
@@ -77,29 +76,18 @@ const ourFile = (body: string, version: string): string => `${body}${stampLine(b
 describe('installSkill', () => {
   it('writes when the file is absent, and stamps what it wrote', async (context) => {
     let attempts = 0;
-    let waits = 0;
     const backend = win32.files({
-      stat: () => Promise.reject(new Error('target metadata unavailable')),
       open: () => {
         throw new Error('unexpected directory open');
       },
       rename: (source, destination) => {
         attempts++;
         return fs.rename(source, destination);
-      },
-      sleep: () => {
-        waits++;
-        return Promise.resolve();
       }
     });
-    context.mock.method(
-      platform.files,
-      'replace',
-      async (source: string, destination: string, budget: Budget) => {
-        assert.deepEqual(budget, { kind: 'state' });
-        await backend.replace(source, destination, budget);
-      }
-    );
+    context.mock.method(platform.files, 'replace', async (source: string, destination: string) => {
+      await backend.replace(source, destination);
+    });
 
     assert.equal(await installSkill(source, OURS, '.claude', home), 'written');
     const text = await read();
@@ -107,7 +95,6 @@ describe('installSkill', () => {
     assert.match(text, /^<!-- squadron 2026\.34\.15 [0-9a-f]{64} -->$/m);
     assert.match(text, /The document\./);
     assert.equal(attempts, 1);
-    assert.equal(waits, 0);
   });
 
   it('is a no-op the second time', async () => {

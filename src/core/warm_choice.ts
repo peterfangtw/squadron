@@ -32,17 +32,13 @@ export function writeWarmChoice(
 ): Promise<boolean> {
   if (!validKey(brand, sessionId) || typeof on !== 'boolean' || !Number.isFinite(at))
     return Promise.resolve(false);
-  return writeAtomicJson(
-    path.join(WARM_DIR, `${brand}.${sessionId}.json`),
-    {
-      schema: 1,
-      brand,
-      sessionId,
-      on,
-      statedAt: at
-    } satisfies WarmChoice,
-    'state'
-  );
+  return writeAtomicJson(path.join(WARM_DIR, `${brand}.${sessionId}.json`), {
+    schema: 1,
+    brand,
+    sessionId,
+    on,
+    statedAt: at
+  } satisfies WarmChoice);
 }
 
 /** One atomic file per conversation prevents two windows losing unrelated choices.

@@ -187,7 +187,7 @@ export class IncomingCache {
         }
         await sameRoot(snapshot);
         if (signal.aborted || !allowed()) throw new CacheRefusal('closed');
-        await platform.files.replace(temporary, path.join(root, name), { kind: 'owned' });
+        await platform.files.replace(temporary, path.join(root, name));
         created = false;
         landed = true;
         await sameRoot(snapshot);
@@ -207,7 +207,7 @@ export class IncomingCache {
               await rollback.close();
             }
             await sameRoot(snapshot);
-            await platform.files.replace(temporary, path.join(root, name), { kind: 'owned' });
+            await platform.files.replace(temporary, path.join(root, name));
             created = false;
           } catch {
             await sameRoot(snapshot)

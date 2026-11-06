@@ -356,7 +356,7 @@ async function publishCredentialRemoval(
   await tempHandle.writeFile(JSON.stringify(next, null, 2));
   await tempHandle.close();
   claim.tempHandle = undefined;
-  await platform.files.replace(tmp, file, { kind: 'owned', legacyRetry: 'grok-mcp-credentials' });
+  await platform.files.replace(tmp, file);
 }
 
 async function releaseCredentialClaim(claim: CredentialClaim): Promise<unknown[]> {

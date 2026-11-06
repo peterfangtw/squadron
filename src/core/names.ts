@@ -65,17 +65,13 @@ export function writeStatedName(
   name: string,
   at: number
 ): Promise<boolean> {
-  return writeAtomicJson(
-    statedNameFile(brand, sessionId),
-    {
-      schema: 1,
-      brand,
-      sessionId,
-      name,
-      statedAt: at
-    } satisfies StatedName,
-    'state'
-  );
+  return writeAtomicJson(statedNameFile(brand, sessionId), {
+    schema: 1,
+    brand,
+    sessionId,
+    name,
+    statedAt: at
+  } satisfies StatedName);
 }
 
 /**

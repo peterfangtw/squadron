@@ -202,7 +202,7 @@ export function seedProgress(seed: ProgressSeed): Progress {
 
 /** Temp-then-rename, same trap as every other writer under `~/.squadron`. */
 export async function writeProgress(progress: Progress): Promise<boolean> {
-  return writeAtomicJson(progressPath(progress.sessionId), progress, 'state');
+  return writeAtomicJson(progressPath(progress.sessionId), progress);
 }
 
 /**

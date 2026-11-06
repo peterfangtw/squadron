@@ -112,7 +112,7 @@ export function publishLive(record: PublishedLive, required = false): Promise<bo
     // Schema-1 readers in older windows reject the whole record without this field.
     const file = path.join(LIVE_DIR, `${pid}.json`);
     const body = { ...record, liveText: '' };
-    if (!required) return writeAtomicJson(file, body, 'beat');
+    if (!required) return writeAtomicJson(file, body);
     const tmp = `${file}.${randomUUID()}.tmp`;
     try {
       await fs.mkdir(LIVE_DIR, { recursive: true });
@@ -124,7 +124,7 @@ export function publishLive(record: PublishedLive, required = false): Promise<bo
       } finally {
         await output.close();
       }
-      await platform.files.replace(tmp, file, { kind: 'beat' });
+      await platform.files.replace(tmp, file);
       await platform.files.syncDirectory(LIVE_DIR);
       return (await fs.readFile(file, 'utf8')) === encoded;
     } catch {

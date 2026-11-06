@@ -3,7 +3,6 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { disposeHome, modeBitsSkip, tempHome } from '../home';
-import type { Budget } from '../../core/platform/files';
 import type { McpActionTarget } from '../../core/mcp_target';
 
 const ALPHA = 'https://alpha.example/mcp';
@@ -271,22 +270,18 @@ describe('grokMcpLogout', { concurrency: 1 }, () => {
       [ALPHA_KEY]: { n: 1 },
       [BETA_KEY]: { n: 2 }
     });
-    const budgets: Budget[] = [];
-    const replace = platform.files.replace.bind(platform.files);
-    const mocked = t.mock.method(
-      platform.files,
-      'replace',
-      async (source: string, destination: string, budget: Budget) => {
-        if (destination === file) budgets.push(budget);
-        await replace(source, destination, budget);
-      }
-    );
+    let attempts = 0;
+    const rename = fs.rename;
+    const mocked = t.mock.method(fs, 'rename', async (...args: Parameters<typeof fs.rename>) => {
+      if (args[1] === file) attempts++;
+      await rename(...args);
+    });
     try {
       await api.grokMcpLogout(target('alpha', ALPHA, dir), dir);
     } finally {
       mocked.mock.restore();
     }
-    assert.deepEqual(budgets, [{ kind: 'owned', legacyRetry: 'grok-mcp-credentials' }]);
+    assert.equal(attempts, 1);
     const next = JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, unknown>;
     assert.equal(next[ALPHA_KEY], undefined);
     assert.deepEqual(next[BETA_KEY], { n: 2 });
@@ -324,8 +319,8 @@ describe('grokMcpLogout', { concurrency: 1 }, () => {
     const mocked = t.mock.method(
       platform.files,
       'replace',
-      (source: string, destination: string, budget: Budget) => {
-        if (destination !== file) return replace(source, destination, budget);
+      (source: string, destination: string) => {
+        if (destination !== file) return replace(source, destination);
         replaces += 1;
         return Promise.reject(Object.assign(new Error('replace refused'), { code: 'EPERM' }));
       }

@@ -97,7 +97,7 @@ export async function writeWorkflowOrder(stated: StatedOrder): Promise<boolean> 
     updatedAt: Date.now(),
     order: ids(stated.order)
   };
-  return writeAtomicJson(WORKFLOW_ORDER_FILE, record, 'state');
+  return writeAtomicJson(WORKFLOW_ORDER_FILE, record);
 }
 
 /** The least a thing needs to be to have a place in this list. */

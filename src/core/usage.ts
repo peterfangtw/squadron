@@ -98,7 +98,7 @@ export async function writeStoredUsage(
 ): Promise<boolean> {
   const record =
     view.at === undefined ? { windows: view.windows } : { at: view.at, windows: view.windows };
-  return writeAtomicJson(usageFile(brand, home), record, 'state');
+  return writeAtomicJson(usageFile(brand, home), record);
 }
 
 /** File only. `forgetUsageFor` also clears memory. Tests use the store alone. */

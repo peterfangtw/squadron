@@ -5,7 +5,6 @@ import { execFile, spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import { setTimeout as sleep } from 'node:timers/promises';
 import type { Effects as FileEffects, Files } from './files';
 import * as darwinFiles from './files/darwin';
 import * as win32Files from './files/win32';
@@ -82,10 +81,8 @@ export const executables: Executables = /* @__PURE__ */ select({
 });
 
 const fileEffects: FileEffects = {
-  stat: (file) => fs.stat(file),
   open: (directory, flags) => fs.open(directory, flags),
-  rename: (source, destination) => fs.rename(source, destination),
-  sleep: (ms) => sleep(ms)
+  rename: (source, destination) => fs.rename(source, destination)
 };
 
 export const files: Files = /* @__PURE__ */ select({
@@ -167,7 +164,7 @@ export const launchers: Launchers = /* @__PURE__ */ select({
       lstat: (file) => fs.lstat(file),
       report: (message) => console.warn(message),
       writeFile: (file, text) => fs.writeFile(file, text, { flag: 'wx' }),
-      replace: (source, destination) => files.replace(source, destination, { kind: 'owned' }),
+      replace: (source, destination) => files.replace(source, destination),
       remove: (file) => fs.rm(file, { force: true })
     }),
   posix: () => darwinLaunchers.launchers(launcherEffects)
