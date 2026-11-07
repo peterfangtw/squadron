@@ -22,8 +22,8 @@
 Manage Claude Code, Codex, and Grok sessions in your IDE. Let agents delegate
 tasks, review each other’s work, and collaborate across models.
 
-Works in VS Code and editors built on it. Needs macOS for now; Windows support
-is planned.
+Works in VS Code and editors built on it. macOS is supported; Windows support
+is available with some features still in progress. See [Platforms](#platforms).
 
 ![Squadron showing sessions grouped by repository, with one conversation open](media/screenshot.png)
 
@@ -34,10 +34,8 @@ is planned.
   - **[Codex](https://developers.openai.com/codex/cli/):** `npm i -g @openai/codex`
   - **[Grok](https://x.ai/docs/build/overview):** `curl -fsSL https://x.ai/cli/install.sh | bash`
 - VS Code ≥ 1.95 (the extension also works in Antigravity via Open VSX)
-- macOS, Apple Silicon or Intel. Keep-awake, the machine gauges and the
-  dev-server ports read macOS tools (`caffeinate`, `pmset`, `vm_stat`, `lsof`).
-  Windows support is planned; Windows helper features require x64 and
-  .NET Framework 4.8.1 or later.
+- macOS (Apple Silicon or Intel), or Windows x64 with .NET Framework 4.8.1
+  or later. See [Platforms](#platforms) for current limitations.
 
 ## What you can do
 
@@ -48,12 +46,13 @@ is planned.
 - Build multi-step workflows with agents across models, and sequence workflows through step instructions.
 - Answer your sessions from your phone through Slack, with [Remote](#remote-answer-sessions-from-your-phone).
 - Keep an idle session's prompt cache warm, so coming back to it doesn't resend the whole conversation, with [Warm](#warm-keep-a-sessions-cache-warm) (experimental).
-- Keep your Mac awake while sessions work, or while Remote is on. **Keep-awake** on the bar at the bottom of the board shows what is holding it and for how long.
+- Keep your Mac awake while sessions work, Remote is on, or a session has Warm on. **Keep-awake** on the bar at the bottom of the board shows what is holding it and for how long.
 - Sign in to each CLI from **Settings** (the gear), see each account's plan usage beside it, and pick the model and effort new sessions start on.
 - Turn on the mascot, a small pixel chick that sits on the bar and flies to the card where something happens. Experimental and off by default: Settings → General → Mascot.
 - And more…
 
-Note that the extension only shows sessions started in it; TUI sessions are not supported as a product decision (also too much hassle to support).
+Each window shows only the sessions it started. Sessions started in a terminal
+are not shown.
 
 ## Agents that work together
 
@@ -99,17 +98,18 @@ to the agent.
 Click **Remote** on the bar at the bottom of the board to set it up. The guide
 walks you through making the Slack app from its manifest. Paste the app's two
 tokens, add your Slack member id under Allowed accounts, press **Check**, then
-turn on **Enable Remote Mode**.
+turn on **Enable Remote**.
 
 Only the accounts you allow are heard, and a permission can be denied from your
 phone but never allowed. Remote runs in one window at a time, comes back after a
-reload, and keeps your Mac awake while it's on (unless Keep-awake is off or the
-Mac is on battery).
+reload, and keeps your Mac awake while it's on, unless Keep-awake or its Remote
+hold is off, or the battery is below 20% while unplugged. Windows has no
+keep-awake support yet, so Remote cannot prevent that machine from sleeping.
 
 ## Warm: keep a session's cache warm
 
-Experimental. Each CLI keeps your conversation cached for a while after a turn:
-about an hour for Claude, 35 minutes for Codex and 10 for Grok. Warm sends an
+Experimental. Warm's default cache lifetimes are an hour for Claude, 35 minutes
+for Codex and 10 for Grok; actual cache retention can vary. Warm sends an
 idle session one short ping just before that runs out, for up to two hours
 after its last real turn, so picking the session back up doesn't pay to resend
 the whole context. A warmed card has a copper edge, and an ember runs along its
@@ -119,8 +119,11 @@ footer while a ping is out.
 
 Click **Warm** on the bar to switch it per session, and to set each CLI's cache
 lifetime, how early to ping and for how long. Turn on
-`squadron.warmCache.enabled` to have new sessions start warmed. Pings spend
-tokens, and the cache isn't guaranteed to be reused.
+`squadron.warmCache.enabled` to have conversations without a saved Warm choice
+start warmed. A session's choice survives resumes. Pings spend tokens, and the
+cache isn't guaranteed to be reused. On macOS, Warm also keeps the machine awake
+unless Keep-awake or its Warm hold is off, or the battery is below 20% while
+unplugged. On Windows, pings require the machine to remain awake.
 
 ## Getting started
 
@@ -146,14 +149,19 @@ Everything is under `squadron.*` in Settings. The ones worth knowing:
 | `squadron.model` | Model new sessions start on. Empty lets the CLI pick. |
 | `squadron.sound.level` | Sounds for finished and waiting sessions: `off`, `quiet`, `normal` (default) or `loud`. |
 | `squadron.cafe.enabled` | Keeps your Mac awake while sessions work. On by default. |
-| `squadron.warmCache.enabled` | Starts new sessions with Warm on. Experimental, off by default. |
+| `squadron.warmCache.enabled` | Defaults conversations to Warm on unless they have a saved choice. Experimental, off by default. |
 | `squadron.mascot.enabled` | Shows the mascot on the board. Experimental, off by default. |
-| `squadron.skipPermissions.enabled` | Starts sessions with `--dangerously-skip-permissions`, so they edit files and run commands without asking. Off by default. |
+| `squadron.skipPermissions.enabled` | Starts sessions in their CLI's permission bypass mode, so they edit files and run commands without asking. Off by default. |
 
 ## Platforms
 
-macOS is supported. Linux is untested. Windows doesn't work yet: sessions may
-never appear.
+- **macOS:** supported on Apple Silicon and Intel, including keep-awake.
+- **Windows:** session support is available, including Squadron commands,
+  Remote file transfers, MCP sign-in and Warm cache pings. Feature parity and
+  verification are still in progress. Helper features require Windows x64 and
+  .NET Framework 4.8.1 or later. Keep-awake is not available, including sleep
+  protection for Remote and Warm.
+- **Linux:** untested; keep-awake is not available.
 
 ## Roadmap
 
