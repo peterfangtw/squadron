@@ -2,7 +2,7 @@
   "name": "squadron",
   "displayName": "Squadron",
   "description": "Run Claude Code, Codex and Grok in the same UI on your editor, and let them work with each other autonomously.",
-  "version": "0.6.16",
+  "version": "0.6.17",
   "publisher": "peterfangtw",
   "license": "MIT",
   "icon": "media/icon.png",

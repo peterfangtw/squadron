@@ -9,6 +9,10 @@ scalability", only when that benefit is supported; omit implementation details.
 Do not add a release note for edits to this guidance.
 -->
 
+## 0.6.17
+
+- Maintenance release.
+
 ## 0.6.16
 
 - Maintenance release.

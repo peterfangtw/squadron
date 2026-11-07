@@ -1,6 +1,10 @@
 docs/
 .github/workflows/
 
+# Local release handoff inputs stay in the private checkout.
+WINDOWS_HELPER_INPUTS.md
+windows-helper-inputs-2026-11-04.zip
+
 # This audit reads docs/design_tokens and docs/mockups; the private gate still runs it.
 src/test/session/brand_marks.test.ts
 
