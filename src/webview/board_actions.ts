@@ -2,7 +2,7 @@
  * Delegated board handlers. Extracted from board.ts (H56).
  */
 
-import { alertBar, cards, chats, nav, setAlertExpanded, setWantAsk, vscode } from './state';
+import { cards, chats, nav, setWantAsk, vscode } from './state';
 import { closeMenu } from './kit';
 import { select, showDraft } from './dock';
 import { openPicker, retryResume, dismissResume } from './resume';
@@ -119,14 +119,6 @@ export function act(node: HTMLElement): void {
     case 'ask':
       if (pid) reveal(pid);
       return;
-    case 'expand':
-      setAlertExpanded(true);
-      repaintBoard();
-      return;
-    case 'collapse':
-      setAlertExpanded(false);
-      repaintBoard();
-      return;
     case 'openServers': {
       const { group, tree } = node.dataset;
       if (group !== undefined) openRunPicker(group, tree);
@@ -222,18 +214,6 @@ cards.addEventListener('click', (e) => {
  * target to click at. Passive, because nothing here cancels the scroll.
  */
 cards.addEventListener('scroll', () => closeMenu(), { passive: true });
-
-/**
- * The waiting bar's own clicks. It used to sit inside `#cards` and be reached by
- * the listener above; floating it out of the list took it out of that listener's
- * subtree, so the delegation follows it rather than the acts learning a second
- * way to be dispatched. Both chips it draws are `[data-act]` and nothing else in
- * here is, which is why this is the whole of it.
- */
-alertBar.addEventListener('click', (e) => {
-  const acted = hitOf(e.target)?.closest<HTMLElement>('[data-act]');
-  if (acted) act(acted);
-});
 
 /**
  * The nav bar's own clicks, delegated to `nav` — the element `renderNav` morphs

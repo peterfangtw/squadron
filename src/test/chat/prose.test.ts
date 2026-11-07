@@ -2146,3 +2146,39 @@ describe('prose: formatting', () => {
     });
   }
 });
+
+describe('ticket pill clipboard', () => {
+  const ref = '@ticket[ENG-42][https://example.test/issue/ENG-42]';
+  const url = 'https://example.test/issue/ENG-42';
+
+  it('types a ticket atom, copies a normal URL, and pastes the rich copy back as the same ticket', (t) => {
+    const m = mount(t);
+    m.prose.type(ref);
+    assert.equal(m.root.querySelector('.pchip.ticket')?.textContent, '@ENG-42');
+    assert.equal(m.prose.value(), ref);
+    key(m, 'a', { ctrl: true });
+    const written = copy(m);
+    assert.equal(written.get('text/plain'), url);
+    assert.ok(written.get('text/html')?.includes('href="' + url + '"'));
+    const other = mount(t);
+    paste(other, Object.fromEntries(written));
+    assert.equal(other.root.querySelector('.pchip.ticket')?.textContent, '@ENG-42');
+    assert.equal(other.prose.value(), ref);
+    key(other, 'Backspace');
+    assert.equal(other.prose.value(), '');
+  });
+
+  it('keeps code literal and rejects unsafe rich clipboard references', (t) => {
+    const m = mount(t);
+    m.prose.importMarkdown('`' + ref + '`');
+    assert.equal(m.root.querySelector('.pchip'), null);
+    const other = mount(t);
+    paste(other, {
+      'text/plain': 'ENG-42',
+      'text/html':
+        '<a href="javascript:evil()" data-squadron-mention="@ticket[ENG-42][javascript:evil()]">ENG-42</a>'
+    });
+    assert.equal(other.root.querySelector('.pchip'), null);
+    assert.equal(other.prose.value(), 'ENG-42');
+  });
+});

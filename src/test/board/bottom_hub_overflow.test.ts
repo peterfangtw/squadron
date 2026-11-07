@@ -35,6 +35,19 @@ it('keeps overflow chip actions and status current across pushes, and returns fo
   assert.ok(stack);
   const remote = doc.querySelector<HTMLButtonElement>('#bottomhub .remote-tab');
   assert.ok(remote);
+  const pointerClick = (): void => {
+    more.dispatchEvent(new p.window.MouseEvent('click', { bubbles: true, detail: 1 }));
+  };
+  pointerClick();
+  assert.equal(stack.hidden, false, 'a physical click opens More');
+  pointerClick();
+  assert.equal(stack.hidden, true, 'a second physical click closes More');
+  more.dispatchEvent(new p.window.MouseEvent('pointerenter'));
+  assert.equal(stack.hidden, false, 'hover opens More');
+  pointerClick();
+  assert.equal(stack.hidden, false, 'the first click keeps a hovered stack open');
+  pointerClick();
+  assert.equal(stack.hidden, true, 'the next click dismisses the pinned stack');
   more.click();
   assert.equal(more.getAttribute('aria-expanded'), 'true');
   assert.equal(stack.hidden, false);
@@ -49,6 +62,10 @@ it('keeps overflow chip actions and status current across pushes, and returns fo
   assert.ok(more.querySelector('.dot.fault'), 'More reports a hidden service fault');
   assert.equal(doc.querySelector('#bottomhub .warm-tab .num')?.textContent, '1');
   assert.equal(doc.querySelector('#bottomhub .remote-tab'), remote, 'keeps the original action');
+  pointerClick();
+  assert.equal(stack.hidden, true, 'a physical click still closes More after a count update');
+  pointerClick();
+  assert.equal(stack.hidden, false);
   remote.click();
   assert.equal(doc.querySelector('#bottomdrawer-head .ttl')?.textContent, 'Remote');
   assert.equal(more.getAttribute('aria-expanded'), 'false');
@@ -74,7 +91,7 @@ it('keeps overflow chip actions and status current across pushes, and returns fo
   assert.equal(more.hidden, true);
   assert.equal(
     doc.activeElement,
-    doc.querySelector('#bottomhub .wmore'),
+    doc.querySelector('#bottomhub .agents-tab'),
     'wide row receives focus when More disappears'
   );
 });

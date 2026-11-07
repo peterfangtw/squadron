@@ -524,51 +524,6 @@ export const css = /* css */ `
      or trailing edge, never between two members. */
   body.dragging-card #cards .fam .grid { pointer-events: none; }
 
-  /* Option B: a bar that appears only when sessions are blocked, naming each
-     as a chip that jumps to it. No chrome cost at zero waiting.
-
-     **This is the why for the float; the other three sites point here.**
-     As a row of #cards it was list content: the grid dropped 16px + its own
-     height the moment a session blocked, and it scrolled away with the list —
-     which is the one bar that has to still be there when the reader is three
-     screens down. So: absolute against #board-body (css/shell.ts), the box
-     holding what it covers, at that box's --body-pad and inset to the board
-     gutter. Nothing above the body enters the offset.
-
-     z-index 6 is the whole of the stacking argument, and it is narrower than it
-     looks. Above .ins (5), which is the only z-index inside #cards. Below the
-     bottom hub (12), the menus (20) and the scrims (30-33) — and 20 was the first
-     answer here, which is wrong: .fmenu is also 20, and #alert is later in
-     #board's stacking context, so the settings gear's own menu opened *under*
-     this bar for as long as anything was blocked. */
-  #alert { position: absolute; z-index: 6;
-           top: var(--body-pad); left: var(--board-gutter); right: var(--board-gutter);
-           display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-           max-height: 40vh; overflow-y: auto;
-           padding: 8px 12px; border-radius: 6px;
-           background: var(--av-warn-bg);
-           border: 1px solid var(--av-warn-border);
-           box-shadow: 0 4px 14px rgba(0, 0, 0, .32); }
-  /* Its own display, so the attribute has to be restated — the same trap
-     #nav[hidden] and #ask[hidden] already work around. */
-  #alert[hidden] { display: none; }
-  body.dragging-card #alert { pointer-events: none; }
-  #alert .lead { display: inline-flex; align-items: center; gap: 6px; font-weight: 600;
-                 font-size: var(--av-fs-lg); color: var(--av-orange);
-                 font-variant-numeric: tabular-nums; }
-  #alert .lead svg { display: block; }
-  .schip { font-family: inherit; font-size: var(--av-fs-md); padding: 3px 9px; border-radius: 12px;
-           cursor: pointer; white-space: nowrap; color: var(--av-fg);
-           background: var(--av-card);
-           border: 1px solid var(--av-warn-border); }
-  .schip:hover { border-color: var(--av-orange); }
-  .schip .why { color: var(--av-fg-3); }
-  .schip.more { border-style: dashed; }
-  @media (prefers-reduced-motion: no-preference) {
-    #alert .lead svg { animation: breathe 2.4s ease-in-out infinite; }
-    @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
-  }
-
   /* flex: none, like every sibling here. #thread is flex: 1 off a zero basis, so
      it absorbs none of the column's shrink and squashing lands on whatever is
      left with an auto one. */
@@ -580,9 +535,8 @@ export const css = /* css */ `
   .td-tools { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: var(--av-fs-md); }
   /* The id, because .ashead b ties on specificity and css/auth.ts joins later. */
   #ticket-detail .td-tools b { font-size: var(--av-fs-md); font-weight: 400; color: var(--av-fg-2); }
-  .td-external { border: 0; background: none; color: var(--av-link); cursor: pointer;
-    min-height: 28px; font: inherit; padding: 0 4px; }
-  .td-external:hover { text-decoration: underline; }
+  .td-tools .td-external, .td-tools .td-copy { min-width: 28px; min-height: 28px; }
+  .td-copy-status { margin-left: auto; color: var(--av-fg-2); font-size: var(--av-fs-sm); }
   #ticket-detail .ax { min-width: 28px; min-height: 28px; }
   /* color and display answer the bare h2 in css/shell.ts, a group heading's. */
   #ticket-detail .td-title { display: block; color: inherit; font-size: var(--av-fs-lg); font-weight: 600;

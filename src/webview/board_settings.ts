@@ -9,6 +9,7 @@ import type { LaunchTarget } from '../core/model';
 import type { ComposerContext } from '../ui/chat_state';
 import { closeMenu, drillRow, menuItem, searchBox, switchRow } from './kit';
 import { SEARCH_ABOVE } from './picker';
+import * as warningInk from './warning_ink';
 
 /**
  * What an empty model list means, now that nothing asks a CLI.
@@ -375,6 +376,8 @@ export const THEMES: {
 export function paintTheme(next: ThemeName): void {
   if (next === 'follow') delete document.body.dataset.theme;
   else document.body.dataset.theme = next;
+  const warning = document.querySelector<HTMLElement>('.waiting-count:not([hidden])');
+  if (warning) warningInk.sync(warning);
 }
 
 export const painted = (): ThemeName => (document.body.dataset.theme as ThemeName) ?? 'follow';

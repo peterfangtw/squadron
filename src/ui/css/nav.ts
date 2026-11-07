@@ -10,10 +10,6 @@ export const css = /* css */ `
      cannot be made to overlap what it heads. A flex-none bar against a flex-1
      board is the whole of the arrangement.
 
-     That rule is about a bar that *heads* a list, and the waiting bar is the
-     case it does not cover: overlapping the cards is exactly what that one
-     wants, so it floats instead, over #board-body (css/tickets.ts).
-
      The 40px is the outer edge, border included. Measured 2026-10-06 on the
      running panel: a chip centered in the content box sat on that box's
      center, and about 4px of the box sat above the editor tab seam, so the

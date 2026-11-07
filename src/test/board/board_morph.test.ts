@@ -168,11 +168,11 @@ describe('a control under a press keeps its meaning', () => {
     assert.deepEqual(assertedMessageBody(p.posted.at(-1)), { type: 'close', pid: 7 });
   });
 
-  it('never lets an alert chip take another session’s pid', (t) => {
+  it('never lets an waiting pill take another session’s pid', (t) => {
     const p = openPanel(t);
     const waiting = (pid: number) => cardView({ pid, name: 'p' + pid, status: 'waiting' });
     const chips = (p: Panel): HTMLElement[] => [
-      ...p.window.document.querySelectorAll<HTMLElement>('#alert .schip')
+      ...p.window.document.querySelectorAll<HTMLElement>('#bottomhub-waiting .waiting-session')
     ];
     p.push(stateMessage([groupView({ sessions: [waiting(11), waiting(22)] })]));
     const first = chips(p)[0];

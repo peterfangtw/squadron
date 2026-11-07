@@ -675,7 +675,7 @@ describe('a pending question', () => {
   // only the thread does, a push later. Opening on the click would show the
   // outgoing session's block.
   for (const [where, sel] of [
-    ['the waiting strip', '#alert .schip'],
+    ['the waiting stack', '#bottomhub-waiting .waiting-session'],
     ['the blocked card itself', '.card[data-pid="7"]']
   ] as const) {
     it(`opens from ${where}, on the push that carries the ask`, (t) => {

@@ -11,19 +11,8 @@ import {
 } from '../harness';
 import type { Panel } from '../harness';
 
-/**
- * The bottom hub: `docs/mockups/workflow-sheet.html`, and roadmap 44.
- *
- * It holds the handle that opens the sheet and nothing a reader picks: a
- * workflow is applied from the composer. It **reports nothing** — no step, no
- * stall, no exit code, no session name, and no button that acts on a run.
- * Those are facts about a session, the bar is not session-scoped, and there is
- * no surface here for them. The last test is what holds that line.
- *
- * The `pick one` pill, the `on` switch and Edit are all gone into the sheet, so
- * what a *list* of workflows does is `workflow_sheet.test.ts`'s. What is left
- * here is the bar's own job: opening the sheet, and surviving the poll.
- */
+/** The board-wide hub reports waiting sessions and opens its service modes.
+ * Workflow application remains the composer's responsibility. */
 
 const $ = (p: Panel, sel: string): HTMLElement | null =>
   p.window.document.querySelector<HTMLElement>(sel);
@@ -68,7 +57,11 @@ describe('the bottom hub', () => {
         [
           groupView({
             sessions: [
-              cardView({ pid: 5, warm: { on: true, ttlMs: 3_600_000, source: 'measured' } })
+              cardView({
+                pid: 5,
+                status: 'waiting',
+                warm: { on: true, ttlMs: 3_600_000, source: 'measured' }
+              })
             ]
           })
         ],
@@ -88,7 +81,11 @@ describe('the bottom hub', () => {
           [
             groupView({
               sessions: [
-                cardView({ pid: 5, warm: { on: false, ttlMs: 3_600_000, source: 'measured' } })
+                cardView({
+                  pid: 5,
+                  status: 'waiting',
+                  warm: { on: false, ttlMs: 3_600_000, source: 'measured' }
+                })
               ]
             })
           ],
@@ -135,7 +132,7 @@ describe('the bottom hub', () => {
     p.push(stateMessage(owned(), { workflows: WORKFLOWS, thread: threadView({ pid: 5 }) }));
     assert.deepEqual(
       $$(p, '#bottomhub button:not([hidden])').map((b) => b.textContent),
-      ['Workflows', 'Warm 0', 'Remote', 'Agents', 'Keep-awake']
+      ['Agents', 'Workflows', 'Remote', 'Warm 0', 'Keep-awake']
     );
   });
 
@@ -155,7 +152,7 @@ describe('the bottom hub', () => {
     p.push(stateMessage(board()));
     assert.deepEqual(
       $$(p, '#bottomhub button:not([hidden])').map((b) => b.textContent),
-      ['+ New workflow', 'Warm 0', 'Remote', 'Agents', 'Keep-awake']
+      ['Agents', '+ New workflow', 'Remote', 'Warm 0', 'Keep-awake']
     );
   });
 
@@ -220,5 +217,87 @@ describe('the bottom hub', () => {
     for (const button of $$(p, '#bottomhub button')) {
       assert.doesNotMatch(button.textContent ?? '', /advance|retry|cancel|skip|answer/i);
     }
+  });
+});
+
+describe('waiting sessions above Agents', () => {
+  it('counts waiting sessions across groups and restores Orchestration when resolved', (t) => {
+    const p = openPanel(t);
+    p.push(
+      stateMessage(
+        [
+          groupView({
+            sessions: [
+              cardView({ pid: 1, status: 'waiting', name: 'First request' }),
+              cardView({ pid: 3 })
+            ]
+          }),
+          groupView({
+            cwd: '/other',
+            sessions: [cardView({ pid: 2, status: 'waiting', name: 'Second request' })]
+          })
+        ],
+        { orchestrators: true }
+      )
+    );
+    assert.equal($(p, '#alert'), null);
+    assert.equal($(p, '.agents-tab .waiting-count')?.textContent, '2');
+    assert.ok($(p, '.agents-tab.needs-input'));
+    assert.deepEqual(
+      $$(p, '#bottomhub-waiting .waiting-session').map((n) => n.textContent),
+      ['First request', 'Second request']
+    );
+    p.push(stateMessage(board(), { orchestrators: true }));
+    assert.equal($(p, '.agents-tab .waiting-count')?.hidden, true);
+    assert.equal($(p, '.agents-tab.needs-input'), null);
+    assert.ok($(p, '.agents-tab .dot.on'));
+    assert.equal($$(p, '#bottomhub-waiting .waiting-session').length, 0);
+  });
+
+  it('reveals all waiting pills by hover without opening Agents settings', (t) => {
+    const p = openPanel(t);
+    p.push(
+      stateMessage([
+        groupView({
+          sessions: Array.from({ length: 12 }, (_, i) =>
+            cardView({ pid: i + 1, status: 'waiting' })
+          )
+        })
+      ])
+    );
+    const trigger = $(p, '.agents-tab');
+    assert.ok(trigger);
+    assert.equal($(p, '#bottomhub-waiting')?.hidden, true);
+    trigger.dispatchEvent(new p.window.MouseEvent('pointerenter'));
+    assert.equal($(p, '#bottomhub-waiting')?.hidden, false);
+    assert.equal($$(p, '#bottomhub-waiting .waiting-session').length, 12);
+    assert.equal($(p, '#bottomdrawer')?.hidden, true);
+    trigger.click();
+    assert.equal($(p, '#bottomdrawer')?.hidden, false);
+    assert.equal($(p, '#bottomdrawer-head .ttl')?.textContent, 'Agents');
+    assert.equal($(p, '#bottomhub-waiting')?.hidden, true);
+  });
+
+  it('supports keyboard browsing, Escape and a session leaving while focused', (t) => {
+    const p = openPanel(t);
+    const push = (sessions: ReturnType<typeof cardView>[]) =>
+      p.push(stateMessage([groupView({ sessions })]));
+    const waiting = (pid: number) => cardView({ pid, status: 'waiting' });
+    push([waiting(1), waiting(2)]);
+    const trigger = $(p, '.agents-tab');
+    assert.ok(trigger);
+    trigger.focus();
+    trigger.dispatchEvent(new p.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    const first = $(p, '#bottomhub-waiting .waiting-session:last-child');
+    assert.equal(p.window.document.activeElement, first);
+    push([waiting(1)]);
+    assert.equal(p.window.document.activeElement, trigger);
+    assert.ok(first && !p.window.document.contains(first));
+    trigger.dispatchEvent(new p.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    p.window.document.activeElement?.dispatchEvent(
+      new p.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+    );
+    assert.equal($(p, '#bottomhub-waiting')?.hidden, true);
+    assert.equal(p.window.document.activeElement, trigger);
   });
 });

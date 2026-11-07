@@ -745,7 +745,7 @@ export const css = /* css */ `
   .mode.bypass { color: var(--av-orange); }
   .specs .mode { color: var(--av-fg-2); }
   .specs .mode.bypass { color: var(--av-orange); }
-  .specs .mode .g { display: none; }
+  .specs .mode .g { display: none; line-height: 1; }
 
   /* Card density: hide secondary chrome below two container breakpoints,
      rather than squeezing every element until overflow clips it. Markup is

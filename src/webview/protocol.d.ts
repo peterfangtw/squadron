@@ -1251,7 +1251,7 @@ interface GroupView {
   skillsByBrand?: Partial<Record<BrandId, string[]>>;
   /** How to lay `sessions` out, never what is in it: every card stays in
    *  `sessions` whether or not a family names it, because the nav tally, the
-   *  status filter and the alert bar all read the flat list. Absent or empty
+   *  status filter and the waiting pills all read the flat list. Absent or empty
    *  means the flat grid — a machine that has never spawned anything, and a
    *  group whose last box has dissolved down to one card. */
   families?: FamilyView[];
@@ -2732,6 +2732,7 @@ type WebviewMessage =
   | ({ type: 'readTicket'; key: string; requestId: string } & TicketSelectionToken)
   | { type: 'closeTicketDetail'; requestId: string }
   | { type: 'openTicketLink'; requestId: string; url: string }
+  | { type: 'openTicketReference'; reference: string }
   /** Ask for a branch's occupancy, so its picker can open. Answered with
    *  `ports`; the bind test happens here and never on the poll. */
   /** Ask for what a row's sheet needs. `cwd` is the row's own directory — which

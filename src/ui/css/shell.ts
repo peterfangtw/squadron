@@ -24,15 +24,14 @@ export const css = /* css */ `
   #board-head { flex: none; display: flex; align-items: center; min-height: 44px;
                 padding: 6px var(--board-gutter); box-sizing: border-box; }
   #board-head > * { flex: 1; min-width: 0; display: flex; align-items: center; }
-  /* Positioned for #alert, the one child floated over the others. --body-pad is
-     where their content starts, and so where the bar starts too. */
+  /* The shared content inset beneath either view’s filter head. */
   #board-body { flex: 1; min-height: 0; display: flex; flex-direction: column;
                 position: relative; --body-pad: 4px; }
   #board-head > [hidden], #board-body > [hidden] { display: none; }
   /* On the scrollers, not #board-body: the bottom hub's clearance has to be
      scrolled past. The head's 44px already leaves ~9px under its pills; 4px
      more halves the gap the full 16px left between filter row and content. */
-  #board-body > :not(#alert) { padding-block: var(--body-pad) 16px; }
+  #board-body > * { padding-block: var(--body-pad) 16px; }
   #cards { flex: 1; overflow-y: auto; padding-inline: var(--board-gutter); min-width: 0; }
   /* One pixel painted, eleven felt. The hit band outranks the later,
      positioned #thread, but stays under the workflow drawer (8) and ask layer

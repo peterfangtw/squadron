@@ -45,6 +45,7 @@ export const scenarios: readonly string[] = [
   'grok.smoke',
   'codex.smoke',
   'tickets.smoke',
+  'ticket_pills.smoke',
   'servers.smoke',
   'monorepo.smoke',
   'notices.smoke',

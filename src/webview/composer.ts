@@ -134,6 +134,7 @@ attachMentions(prose.selection, {
       // The board's list, not the session's: the peer a model mention asks
       // for may run another brand, and `context.models` is one brand's.
       models: ui.state.models,
+      tickets: ui.state.tickets,
       skills: context.skills ?? [],
       sessions: ui.state.groups.flatMap((g) => g.sessions).filter((card) => card.pid !== self)
     };

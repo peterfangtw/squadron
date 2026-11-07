@@ -1,3 +1,7 @@
+import { icon } from '../ui/icons';
+import * as ticketRefs from '../core/ticket_ref';
+import * as clipboard from './mention_clipboard';
+import { iconButton } from './kit';
 import { el } from './dom';
 import { ui, vscode } from './state';
 import * as sheets from './sheet';
@@ -34,12 +38,34 @@ export function openTicketDetail(row: TicketView, token: TicketSelectionToken): 
   tools.append(identifier);
   const source = ui.state.ticketSource;
   if (source && /^https?:\/\//i.test(row.url)) {
-    const external = el('button', 'td-external', 'Open in ' + source.presentation.label);
-    external.onclick = () => {
+    const external = iconButton(icon('external'), 'Open in ' + source.presentation.label, () => {
       if (current)
         vscode.postMessage({ type: 'openTicket', ...current.token, key: current.row.key });
-    };
-    tools.append(external);
+    });
+    external.classList.add('td-external');
+    const feedback = el('span', 'td-copy-status');
+    feedback.setAttribute('role', 'status');
+    tools.append(feedback, external);
+    const ref = ticketRefs.ticketRef(row.identifier, row.url);
+    if (ref) {
+      const copy = iconButton(icon('copy'), 'Copy ticket', () => {
+        feedback.textContent = 'Copying…';
+        copy.setAttribute('disabled', '');
+        void clipboard
+          .copyMention(ref)
+          .then(
+            () => {
+              feedback.textContent = 'Copied';
+            },
+            () => {
+              feedback.textContent = 'Could not copy. Try again.';
+            }
+          )
+          .finally(() => copy.removeAttribute('disabled'));
+      });
+      copy.classList.add('td-copy');
+      tools.append(copy);
+    }
   }
   if (close) tools.append(close);
   const title = el('h2', 'td-title', row.title);
@@ -154,4 +180,21 @@ function request(): void {
     key: view.row.key,
     requestId: view.requestId
   });
+}
+
+export function openTicketReference(expansion: string): void {
+  const [ref] = ticketRefs.findTickets(expansion);
+  if (!ref || ref.text !== expansion) return;
+  const source = ui.state.ticketSource;
+  const identity = ticketRefs.ticketRef(ref.identifier, ref.url);
+  const row = ui.state.tickets?.find(
+    (ticket) => ticketRefs.ticketRef(ticket.identifier, ticket.url) === identity
+  );
+  if (source?.linked && row && source.scopeId === row.scopeId) {
+    openTicketDetail(row, {
+      generation: source.generation,
+      selectionSeq: source.selectionSeq,
+      scopeId: source.scopeId
+    });
+  } else vscode.postMessage({ type: 'openTicketReference', reference: expansion });
 }

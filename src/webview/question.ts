@@ -992,7 +992,7 @@ export function renderQuestion(pushed: ThreadView | undefined): void {
   // ends must not dismiss reading; pendingOver distinguishes these cases.
   const over = replay?.over;
   if (over && dialogs.some((c) => !over.has(c.requestId))) replay = undefined;
-  // Let wantAsk beat the record before its early return; the alert names a live question.
+  // Let wantAsk beat the record before its early return; the waiting pill names a live question.
   if (replay && ui.wantAsk === t?.pid) replay = undefined;
   // Compare replay with selection, not t, which the guard may have removed;
   // leaving the session must close its record even without a new push.

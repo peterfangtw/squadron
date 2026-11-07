@@ -42,6 +42,22 @@ type ModeSpec = {
 // only when a callback runs, after the whole cycle has initialized (H56).
 const MODES = [
   {
+    id: 'agents',
+    barClass: 'hpill agents-tab',
+    title: 'Agents',
+    focusWord: '.agents-tab',
+    available: true,
+    columns: true,
+    note: () => 'What sessions may do to each other, and how new ones start.',
+    paint: () => agentsSheet.paintAgentsSheet(),
+    repaint: (active: boolean) => {
+      if (active) agentsSheet.paintAgentsSheet();
+    },
+    bar: () => agentsSheet.agentsBar(),
+    badge: 'dot',
+    beat: false
+  },
+  {
     id: 'workflows',
     barClass: 'wmore',
     title: 'Workflows',
@@ -63,22 +79,6 @@ const MODES = [
     beat: false
   },
   {
-    id: 'warm',
-    barClass: 'hpill warm-tab',
-    title: 'Warm',
-    focusWord: '.warm-tab',
-    available: true,
-    columns: true,
-    note: () => warmMenu.warmNote(),
-    paint: () => warmMenu.paintWarmSheet(),
-    repaint: (active: boolean) => {
-      if (active) warmMenu.paintWarmSheet();
-    },
-    bar: () => warmMenu.warmBar(),
-    badge: 'count',
-    beat: true
-  },
-  {
     id: 'remote',
     barClass: 'hpill remote-tab',
     title: 'Remote',
@@ -93,20 +93,20 @@ const MODES = [
     beat: false
   },
   {
-    id: 'agents',
-    barClass: 'hpill agents-tab',
-    title: 'Agents',
-    focusWord: '.agents-tab',
+    id: 'warm',
+    barClass: 'hpill warm-tab',
+    title: 'Warm',
+    focusWord: '.warm-tab',
     available: true,
     columns: true,
-    note: () => 'What sessions may do to each other, and how new ones start.',
-    paint: () => agentsSheet.paintAgentsSheet(),
+    note: () => warmMenu.warmNote(),
+    paint: () => warmMenu.paintWarmSheet(),
     repaint: (active: boolean) => {
-      if (active) agentsSheet.paintAgentsSheet();
+      if (active) warmMenu.paintWarmSheet();
     },
-    bar: () => agentsSheet.agentsBar(),
-    badge: 'dot',
-    beat: false
+    bar: () => warmMenu.warmBar(),
+    badge: 'count',
+    beat: true
   },
   {
     id: 'awake',

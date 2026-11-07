@@ -1570,3 +1570,20 @@ describe('the nav bar shares its outer edge with the dock', () => {
     assert.match(bar, /padding:\s*4px var\(--board-gutter\) 0/);
   });
 });
+
+it('keeps the Sessions badge at the full window total through status filters, loading and zero', (t) => {
+  const p = openPanel(t);
+  const badge = () => p.window.document.querySelector('#board-sessions .tb');
+  assert.equal(badge()?.getAttribute('aria-label'), 'Loading sessions');
+  const groups = [
+    groupView({
+      sessions: [cardView({ pid: 1, status: 'waiting' }), cardView({ pid: 2, status: 'busy' })]
+    })
+  ];
+  p.push(stateMessage(groups));
+  assert.equal(badge()?.textContent, '2');
+  statusOption(p, 'waiting')?.click();
+  assert.equal(badge()?.textContent, '2');
+  p.push(stateMessage([]));
+  assert.equal(badge()?.textContent, '0');
+});

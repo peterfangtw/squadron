@@ -1,3 +1,4 @@
+import * as ticketRefs from '../core/ticket_ref';
 import * as markdown from './markdown';
 import * as conversations from '../core/conversations';
 import * as conversationPages from '../core/conversation_pages';
@@ -772,6 +773,10 @@ export class OverviewPanel {
           void this.refresh();
         } else if (msg.type === 'openExtensionPage') {
           void vscode.env.openExternal(vscode.Uri.parse(EXTENSION_PAGES[msg.page]));
+        } else if (msg.type === 'openTicketReference') {
+          const [ref] =
+            typeof msg.reference === 'string' ? ticketRefs.findTickets(msg.reference) : [];
+          if (ref?.text === msg.reference) void vscode.env.openExternal(vscode.Uri.parse(ref.url));
         } else if (msg.type === 'openTicketLink') {
           const url = this.tickets.detailCurrent(msg.requestId) ? webUri(msg.url) : undefined;
           if (url) void vscode.env.openExternal(vscode.Uri.parse(url.href));

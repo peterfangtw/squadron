@@ -303,12 +303,12 @@ export function footer(s: CardView): HTMLElement {
   return foot;
 }
 
-/** One waiting predicate keeps the alert bar, family count and ask action consistent. */
+/** One waiting predicate keeps the waiting pills, family count and ask action consistent. */
 export const blocked = (s: CardView): boolean => s.status === 'waiting';
 
 /**
  * A card and the group holding it, by pid — the whole of how any lineage
- * surface turns a pid into something to say. `alertBar` walks the same flat
+ * surface turns a pid into something to say. The waiting stack walks the same flat
  * list; this returns the group too, because the family header names the one a
  * parent is under.
  *

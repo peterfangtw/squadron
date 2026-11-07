@@ -40,7 +40,8 @@ import type { Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { Markdown } from 'tiptap-markdown';
 import { imeKey } from './dom';
-import { findMentions, labelOf, mentionOf } from './mention_text';
+import * as mentionClipboard from './mention_clipboard';
+import { findMentions, pillPresentation, mentionOf } from './mention_text';
 import type { MentionKind } from './mention_text';
 import type { MentionChange, MentionSpot, MentionTarget } from './mentions';
 import { WORD } from './skilltext';
@@ -156,7 +157,7 @@ export function createProse(host: HTMLElement, options: ProseOptions): Prose {
   let current: ProseOptions = { ...options };
   const read = (): ProseOptions => current;
   const { mode } = options;
-  const editor = new Editor({
+  const editor: Editor = new Editor({
     element: host,
     extensions: mode === 'rich' ? richExtensions(read) : plainExtensions(read),
     editable: !options.readOnly,
@@ -165,7 +166,15 @@ export function createProse(host: HTMLElement, options: ProseOptions): Prose {
     // Paste rules run markdown-shaped regexes over pasted text: `_x_` turned
     // italic, which breaks "plain text is inserted literally".
     enablePasteRules: false,
-    editorProps: editorProps(mode, read),
+    editorProps: {
+      ...editorProps(mode, read),
+      ...(mode === 'rich'
+        ? {
+            clipboardTextSerializer: (slice: Slice) =>
+              markdownStorage(editor).serializer.serialize(clipboardContent(slice.content))
+          }
+        : {})
+    },
     // Plain mode's copy: one newline between lines, not a blank line.
     coreExtensionOptions: { clipboardTextSerializer: { blockSeparator: '\n' } }
   });
@@ -429,6 +438,8 @@ function editorProps(
       // keymap binding. Leave it to the surface's dismissal or interrupt handler.
       keydown: (_view, event) => imeKey(event) || event.key === 'Escape'
     },
+    transformPastedHTML: (html) =>
+      mode === 'rich' ? mentionClipboard.restoreClipboardMentions(html) : html,
     clipboardTextParser: (text, $context, _plain, view) =>
       mode === 'rich'
         ? richTextSlice(view.state.schema, text, $context)
@@ -781,9 +792,8 @@ const inlineText = (block: PMNode): string =>
 
 /**
  * A mention or an attachment, atomic: one Backspace removes it, its label is
- * what the reader sees, and its expansion is what is sent and what a copy
- * carries. The label is derived from the expansion on every draw, never
- * stored, so a snapshot holds only what a send needs.
+ * what the reader sees, and its expansion is what is sent. The label is
+ * derived from the expansion on every draw, never stored, so a snapshot holds only what a send needs.
  */
 const Chip = Node.create<{ read: () => ProseOptions }>({
   name: CHIP,
@@ -893,7 +903,7 @@ function chipLabel(attrs: ChipAttrs, options: ProseOptions): string {
   if (kind === 'image') return expansion;
   if (kind === 'file') return `@${localPath.pathLeaf(expansion)}`;
   const hit = mentionOf(expansion);
-  return hit ? labelOf(hit, options.sessionName) : expansion;
+  return hit ? pillPresentation(hit, options.sessionName).label : expansion;
 }
 
 /**
@@ -913,19 +923,38 @@ function removeChip(view: EditorView, side: -1 | 1): boolean {
 }
 
 /**
- * Copy and cut write a chip as its expansion, in the HTML as in the text: a
- * bare span, no label, no attrs, so a paste anywhere reads what a send would
- * say.
+ * Copy and cut preserve existing mention expansions. Tickets use a normal
+ * link outside Squadron and validated HTML metadata for an internal paste.
  */
 function clipboardSerializer(schema: Schema): DOMSerializer {
   const base = DOMSerializer.fromSchema(schema);
   return new DOMSerializer(
     {
       ...base.nodes,
-      [CHIP]: (node) => ['span', (node.attrs as ChipAttrs).expansion]
+      [CHIP]: (node) =>
+        mentionClipboard.clipboardLink((node.attrs as ChipAttrs).expansion) ?? [
+          'span',
+          (node.attrs as ChipAttrs).expansion
+        ]
     },
     base.marks
   );
+}
+
+function clipboardContent(fragment: Fragment): Fragment {
+  const nodes: PMNode[] = [];
+  fragment.forEach((node) => {
+    if (node.type.name === CHIP) {
+      const attrs = node.attrs as ChipAttrs;
+      const hit = mentionOf(attrs.expansion);
+      nodes.push(
+        hit?.kind === 'ticket'
+          ? node.type.create({ ...attrs, expansion: hit.url }, null, node.marks)
+          : node
+      );
+    } else nodes.push(node.isLeaf ? node : node.copy(clipboardContent(node.content)));
+  });
+  return Fragment.fromArray(nodes);
 }
 
 /**
@@ -1279,7 +1308,7 @@ function inOpenCode(state: EditorState, from: number): boolean {
 type MarkdownStorage = {
   getMarkdown(): string;
   parser: { parse(md: string): string };
-  serializer: { serialize(doc: PMNode): string };
+  serializer: { serialize(doc: PMNode | Fragment): string };
 };
 
 const markdownStorage = (editor: Editor): MarkdownStorage =>

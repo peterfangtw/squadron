@@ -3,9 +3,10 @@ const js = require('@eslint/js');
 const tseslint = require('typescript-eslint');
 const skipReason = require('./scripts/eslint-skip-reason.cjs');
 const portability = require('./scripts/eslint-portability.cjs');
+const mentions = require('./scripts/eslint-mention-pills.cjs');
 
 // One plugin object: flat config refuses a name bound to two different ones.
-const squadron = { rules: { 'skip-reason': skipReason, ...portability.rules } };
+const squadron = { rules: { 'skip-reason': skipReason, ...portability.rules, ...mentions.rules } };
 
 // A found Program comes from resolution; fixtures alone may name one.
 const namedProgram = {
@@ -89,6 +90,18 @@ module.exports = tseslint.config(
       // no comment saying so is not.
       'no-empty': ['error', { allowEmptyCatch: false }]
     }
+  },
+  {
+    files: ['src/webview/**/*.ts'],
+    plugins: { squadron },
+    processor: mentions.processor,
+    rules: { 'squadron/mention-exception-reason': 'error' }
+  },
+  {
+    files: ['src/webview/**/*.ts'],
+    ignores: ['src/webview/prose.ts', 'src/webview/mention_pill.ts'],
+    plugins: { squadron },
+    rules: { 'squadron/mention-pills': 'error' }
   },
   {
     files: ['src/**/*.ts'],

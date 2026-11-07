@@ -370,6 +370,10 @@ export const css = /* css */ `
   /* A model pick, in .pchip.model's grey (css/prose.ts says why no accent). */
   .sref.model { background: color-mix(in srgb, var(--av-fg-3) 18%, transparent);
                 box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--av-fg-3) 50%, transparent); }
+  button.sref.ticket { border: 0; font: inherit; color: var(--av-link); cursor: pointer;
+    background: color-mix(in srgb, var(--av-link) 24%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--av-link) 60%, transparent); }
+  button.sref.ticket:hover { text-decoration: underline; }
   /* The marker: a path this turn changed is missing from the row beside it.
      Deliberately quiet and deliberately not a pill — it opens nothing, and a
      solid border at .wpill's weight would read as one more file. Dashed and

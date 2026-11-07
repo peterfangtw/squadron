@@ -186,7 +186,7 @@ section('compact board filters, in the real IDE', () => {
     });
   });
 
-  step('floats the waiting bar where the content it covers starts', async () => {
+  step('keeps waiting work off the content heading', async () => {
     await holdingHostState(async () => {
       const state = fixtures.stateMessage([
         fixtures.groupView({ sessions: [fixtures.cardView({ status: 'waiting' })] })
@@ -197,16 +197,9 @@ section('compact board filters, in the real IDE', () => {
           window.dispatchEvent(new MessageEvent('message', { data }));
         }, state);
       await panel().locator('#board-sessions').click();
-      await panel().locator('#alert').waitFor();
-      const gaps = await panel()
-        .locator('#board')
-        .evaluate((n) => {
-          const head = n.querySelector('#board-head')!.getBoundingClientRect().bottom;
-          const top = (selector: string) =>
-            Math.round(n.querySelector(selector)!.getBoundingClientRect().top - head);
-          return { alert: top('#alert'), heading: top('#cards .repo h2') };
-        });
-      assert.equal(gaps.alert, gaps.heading, JSON.stringify(gaps));
+      assert.equal(await panel().locator('#alert').count(), 0);
+      assert.equal(await panel().locator('.agents-tab .waiting-count').textContent(), '1');
+      assert.equal(await panel().locator('#bottomhub-waiting').isVisible(), false);
     });
   });
 });

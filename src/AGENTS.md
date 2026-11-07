@@ -14,7 +14,7 @@
 | the board's tickets tab | `tickets` | `#tk-head`, `#tk-list` |
 | one turn image over the board | `lightbox` | `#lightbox`, `webview/lightbox.ts` |
 | the filter and tally strip atop the board | `nav bar` | `#nav` |
-| the strip naming sessions that want a reader | `alert bar` | `#alert` |
+| sessions needing input, above Agents | `waiting pills` | `#bottomhub-waiting`, `webview/bottom_hub.ts` |
 | the live chips above a group's cards | `servers line`, one `server chip` | `.servers`, `.srv` |
 | the heading's way into the sheet | `door` | `.sdoor` |
 | a repo's worktrees, what each can start, on which port | `servers sheet`: `rail`, `starts`, `port row` | `#runsheet`, `webview/runpicker.ts` |
@@ -940,6 +940,8 @@ src/
                  of its own, which is what lets the bundle take it, beside
                  `tokens`, `model`, `model_names`, `workflows/graph` and
                  `workflows/authoring`
+    ticket_ref.ts   portable ticket references: identifier plus validated HTTP(S)
+                 URL, shared by host validation and mention recognition
     session_ref.ts  `@squadron[pid][transcript]`: what a card's copy writes and
                  what the dock and the composer draw back as a pill. A leaf for
                  `markers`' reason
@@ -1361,7 +1363,7 @@ src/
                       ping's footer animation; document visibility is main.ts
     warm_choice.ts    one pending per-session warm preference shared by the
                       card and Warm sheet, keyed by pid + startedAt; posts setWarm
-    board_nav.ts      nav bar, gauges, filter, alert, start slots
+    board_nav.ts      nav bar, gauges, filter, start slots
     warm_menu.ts Warm on the bottom drawer: this window's switches, the
                  pinned New sessions default, the configuration column, and
                  the bar's count. Paint only; the decision arrives on
@@ -1446,7 +1448,13 @@ src/
     bottom_hub.ts    the capsule over the board, built from bottom_drawer_modes.ts. Its one
                  bar sync compares counts, dots, tips and expanded state before
                  writing, then lets bottom_hub_overflow.ts measure the updated words.
+                 Agents reports waiting sessions and exposes their keyed pills;
+                 a pill uses board_actions.reveal to open its chat and request.
                  It applies nothing — the composer is the path a mention takes
+    pill_stack.ts shared upward-pill interaction: hover grace, keyboard/touch access,
+                 one open stack, board-clamped placement and disposal
+    warning_ink.ts resolves black/white text for the rendered warning fill,
+                 including its brighter hover state; cached by fill and ground
     bottom_hub_overflow.ts moves the bar's original buttons between its row and More's
                  stack, preserving their actions, status and focus on resize
     cafe.ts      the coffee cup over the board: drawing, drag, level. **Not
@@ -1475,6 +1483,10 @@ src/
                  positioning; MCP and End confirmation use full-panel positioning.
                  Its backdrop owns clicks even when their target closes the
                  sheet; its capture listener owns Escape before surfaces below
+    mention_pill.ts shared chat mention markup, consuming mention_text's
+                 exhaustive presentation contract; only tickets are actionable
+    mention_clipboard.ts ticket HTML links with validated reference metadata,
+                 plain URL copy, and internal rich-paste recovery
     ticket_details.ts on-demand read surface, one current ticket; uncached host
                  Markdown, shared sanitizer and prose styles; closes release
                  content and cancel the correlated host read. Its board-scoped

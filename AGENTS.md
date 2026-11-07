@@ -164,6 +164,17 @@ Workflow execution names both an agent role and the code that resolves waits.
 - HTML design previews: never Claude Artifacts. Write HTML to file, open in
   browser.
 
+### Mention pills
+
+Composer/chat mention pills use `src/webview/mention_text.ts` for recognition,
+labels and presentation, `prose.ts` for editor atoms, and `mention_pill.ts` for
+chat markup. New kinds join this contract; do not create a separate pill path.
+`squadron/mention-pills` lint guards direct class construction outside those
+renderers. Exceptions require `eslint-disable-next-line` with a `--` reason.
+Filter chips, status badges and file/image attachments are separate concepts.
+Ticket delivery text and clipboard text differ deliberately: rich HTML restores
+its validated reference inside Squadron; plain text is an ordinary URL.
+
 ### Style
 
 Pruned from opencode's `AGENTS.md`; anything a linter can decide belongs in

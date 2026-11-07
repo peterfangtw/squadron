@@ -1,5 +1,6 @@
 import * as layout from '../ui/bottom_hub_layout';
 import { el } from './dom';
+import * as pillStack from './pill_stack';
 
 interface Overflow {
   row: HTMLElement;
@@ -25,7 +26,7 @@ export function sync(bar: HTMLElement, board: HTMLElement): void {
 function createOverflow(bar: HTMLElement, board: HTMLElement): Overflow {
   const options = Array.from(bar.querySelectorAll<HTMLButtonElement>(':scope > button'));
   const row = el('div', 'bottomhub-row');
-  const stack = el('div', 'bottomhub-overflow');
+  const stack = el('div', 'bottomhub-overflow pill-stack');
   stack.id = 'bottomhub-overflow';
   stack.hidden = true;
   stack.inert = true;
@@ -45,73 +46,8 @@ function createOverflow(bar: HTMLElement, board: HTMLElement): Overflow {
   let signature = '';
   let boardWidth = 0;
   let boardHeight = 0;
-  let version = 0;
-  let animations: Animation[] = [];
-  const expanded = (): boolean => more.getAttribute('aria-expanded') === 'true';
-
-  function setExpanded(open: boolean, animate = true): void {
-    if (animate && expanded() === open) return;
-    const currentVersion = ++version;
-    const wasHidden = stack.hidden;
-    const chips = Array.from(stack.children) as HTMLElement[];
-    const current = chips.map((chip) => {
-      const style = getComputedStyle(chip);
-      return { transform: style.transform, opacity: style.opacity, boxShadow: style.boxShadow };
-    });
-    animations.forEach((animation) => animation.cancel());
-    animations = [];
-    more.setAttribute('aria-expanded', String(open));
-    stack.inert = !open;
-    const reduced =
-      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const motion = animate && !reduced && chips.every((chip) => typeof chip.animate === 'function');
-    if (!motion || (!open && wasHidden)) {
-      stack.hidden = !open;
-      if (!open) return;
-    }
-    if (open) {
-      stack.hidden = false;
-      positionStack();
-    }
-    if (!motion) return;
-    const tucked = {
-      transform: 'translateY(14px) scale(.88)',
-      opacity: 0,
-      boxShadow: '0 1px 3px #0002'
-    };
-    const resting = {
-      transform: 'translateY(0) scale(1)',
-      opacity: 1,
-      boxShadow: '0 4px 12px #0005'
-    };
-    animations = chips.map((chip, i) =>
-      chip.animate([wasHidden ? tucked : (current[i] ?? resting), open ? resting : tucked], {
-        duration: open ? 230 : 150,
-        delay: open ? (chips.length - 1 - i) * 28 : i * 18,
-        easing: open ? 'cubic-bezier(.2,.85,.3,1.15)' : 'cubic-bezier(.4,0,1,1)',
-        fill: 'both'
-      })
-    );
-    void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => {
-      if (currentVersion !== version) return;
-      stack.hidden = !open;
-      animations.forEach((animation) => animation.cancel());
-      animations = [];
-    });
-  }
-
-  function positionStack(): void {
-    const bounds = board.getBoundingClientRect();
-    const barBounds = bar.getBoundingClientRect();
-    stack.style.maxHeight = `${Math.max(32, bounds.height - barBounds.height - 62)}px`;
-    const half = stack.getBoundingClientRect().width / 2;
-    const trigger = more.getBoundingClientRect();
-    const center = Math.max(
-      bounds.left + half + 8,
-      Math.min(bounds.right - half - 8, (trigger.left + trigger.right) / 2)
-    );
-    stack.style.left = `${center - barBounds.left - half}px`;
-  }
+  const pills = pillStack.create(more, stack, board, true);
+  const expanded = (): boolean => pills.open();
 
   function syncSummary(): void {
     const dot = more.querySelector('.dot');
@@ -138,7 +74,7 @@ function createOverflow(bar: HTMLElement, board: HTMLElement): Overflow {
     const reopen = expanded() && width === boardWidth && height === boardHeight;
     boardWidth = width;
     boardHeight = height;
-    setExpanded(false, false);
+    if (!reopen) pills.setOpen(false);
     row.replaceChildren(...options, more);
     more.hidden = false;
     const style = getComputedStyle(bar);
@@ -156,7 +92,8 @@ function createOverflow(bar: HTMLElement, board: HTMLElement): Overflow {
     stack.replaceChildren(...options.slice(count));
     more.hidden = count === options.length;
     syncSummary();
-    if (reopen && !more.hidden) setExpanded(true, false);
+    if (more.hidden) pills.setOpen(false);
+    else if (reopen) pills.refresh();
     if (focused === more) {
       (more.hidden ? options[0] : more)?.focus();
     } else if (focused instanceof HTMLElement && options.includes(focused as HTMLButtonElement)) {
@@ -164,32 +101,13 @@ function createOverflow(bar: HTMLElement, board: HTMLElement): Overflow {
     }
   }
 
-  more.onclick = () => setExpanded(!expanded());
   bar.addEventListener(
     'click',
     (event) => {
       if (!(event.target instanceof Element)) return;
       const option = event.target.closest('button');
       if (option && options.includes(option) && option.getAttribute('aria-disabled') !== 'true')
-        setExpanded(false);
-    },
-    { signal: events.signal }
-  );
-  document.addEventListener(
-    'click',
-    (event) => {
-      if (expanded() && event.target instanceof Node && !bar.contains(event.target))
-        setExpanded(false);
-    },
-    { signal: events.signal }
-  );
-  document.addEventListener(
-    'keydown',
-    (event) => {
-      if (event.key !== 'Escape' || !expanded()) return;
-      event.preventDefault();
-      setExpanded(false);
-      more.focus();
+        pills.setOpen(false);
     },
     { signal: events.signal }
   );
@@ -199,8 +117,9 @@ function createOverflow(bar: HTMLElement, board: HTMLElement): Overflow {
     row,
     refit,
     dispose: () => {
-      setExpanded(false, false);
+      pills.setOpen(false);
       observer?.disconnect();
+      pills.dispose();
       events.abort();
     }
   };

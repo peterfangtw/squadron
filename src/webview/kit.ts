@@ -272,7 +272,7 @@ export function paintIfChanged(root: HTMLElement, sig: string, paint: () => void
  * the pointer comes up.
  *
  * `data-key` and not the `data-pid`/`data-tid` the handlers read: morphdom's key
- * map is one flat map over the whole tree, and an alert chip carries a pid too,
+ * map is one flat map over the whole tree, and an waiting pill carries a pid too,
  * so a chip and a card sharing a key could be morphed into each other's place.
  * Keys are namespaced by what they name (`ask:`, `count:`, `tk:`) for that
  * reason; the id fallback is morphdom's own default.

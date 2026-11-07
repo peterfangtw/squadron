@@ -7,10 +7,8 @@ export const css = /* css */ `
      #ask (31) and #picker (33), so a pending question still covers the column
      entire.
 
-     One oval, one row, and one size: the bar arms nothing and carries no run
-     state, so its width changes only when a person changes it. That is what
-     makes centring safe — a bar whose width tracked a live readout could not be
-     centred without sliding sideways every 3s and dragging its own menu with it.
+     The Agents count reserves two digits, so routine waiting-count updates
+     do not shift the centered bar or its anchored pills.
 
      No overflow: hidden. The menu opens upward out of this box, and a clip here
      is what silently eats it. */
@@ -25,7 +23,7 @@ export const css = /* css */ `
   /* Padding on the scroller, never a height on #board: the board's width is what
      the grid measures its columns from, and a row that resized it would re-slot
      the cards every time the bar came or went. */
-  #board.hasbar #board-body > :not(#alert) { padding-bottom: 58px; }
+  #board.hasbar #board-body > * { padding-bottom: 58px; }
   /* No status hue and no --st: the colours were the run's, and the run is not
      reported here. The border is the menu border in every state this bar has. */
   /* Shrink, do not grow: short names keep the capsule tight; long ones yield
@@ -99,9 +97,9 @@ export const css = /* css */ `
   #bottomhub .more .dot.fault { --st: var(--av-red); }
   #bottomhub .more .dot.elsewhere { background: none; border: 1px solid var(--av-fg-2); }
   #bottomhub .bottomhub-overflow { position: absolute; bottom: 100%; display: flex;
-                           flex-direction: column; align-items: center; gap: 8px;
+                           flex-direction: column; align-items: flex-start; gap: 8px;
                            width: max-content; max-width: calc(100vw - 36px);
-                           padding: 8px; overflow-y: auto; scrollbar-width: thin; }
+                           padding: 8px 0; overflow-y: auto; scrollbar-width: thin; }
   #bottomhub .bottomhub-overflow[hidden], #bottomhub .more[hidden] { display: none; }
   #bottomhub .bottomhub-overflow[inert] { pointer-events: none; }
   #bottomhub .bottomhub-overflow > button { min-height: 32px; padding: 0 14px;
@@ -109,7 +107,7 @@ export const css = /* css */ `
                                     background: var(--av-menu-bg); transform-origin: center bottom;
                                     box-shadow: 0 4px 12px #0005; }
   #bottomhub .bottomhub-overflow > button:not([aria-disabled="true"]):hover {
-    background: var(--av-list-hover); }
+    filter: brightness(1.12); }
 
   #bottomhub .warm-tab { gap: 5px; }
   #bottomhub .hpill[aria-expanded="true"] {
@@ -142,6 +140,37 @@ export const css = /* css */ `
   body.warm-paused #bottomhub .remote-tab .dot.pending { animation-play-state: paused; }
   #bottomhub .warm-tab .num { font-size: var(--av-fs-sm); color: var(--av-fg-2);
                            font-variant-numeric: tabular-nums; min-width: 10px; }
+  .pill-stack { position: absolute; bottom: calc(100% + 8px);
+                display: flex; flex-direction: column; align-items: flex-start;
+                gap: 8px; width: max-content; padding: 8px 0; overflow-y: auto;
+                scrollbar-width: thin; }
+  .pill-stack[hidden] { display: none; }
+  .pill-stack[inert] { pointer-events: none; }
+  .waiting-pills { left: 14px; }
+  #bottomhub .pill-stack > button { flex: none; min-height: 32px; padding: 5px 14px;
+                 max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+                 white-space: nowrap; text-align: left;
+                 border-color: var(--av-menu-border); background: var(--av-menu-bg);
+                 box-shadow: 0 4px 12px #0005; transform-origin: left bottom; }
+  #bottomhub .agents-tab.needs-input { color: var(--av-orange); }
+  #bottomhub .agents-tab.needs-input .dot { display: none; }
+  #bottomhub .waiting-count { display: inline-flex; align-items: center; justify-content: center;
+                 min-width: 2ch; height: 18px; padding: 0 5px; border-radius: 999px;
+                 background: var(--av-orange); color: var(--av-warning-ink, var(--av-on-orange));
+                 font-weight: 600; font-variant-numeric: tabular-nums; }
+  #bottomhub .waiting-count[hidden] { display: none; }
+  #bottomhub .waiting-pills > button { background: var(--av-orange);
+                 color: var(--av-warning-ink, var(--av-on-orange)); border-color: var(--av-orange); }
+  #bottomhub .waiting-pills > button:hover { filter: brightness(1.12);
+                 color: var(--av-warning-hover-ink, var(--av-on-orange)); }
+  #bottomhub .waiting-pills > button:focus-visible { outline: 2px solid var(--av-fg); outline-offset: 2px; }
+  @media (prefers-reduced-motion: no-preference) {
+    #bottomhub .pill-stack:not([hidden]) > button,
+    #bottomhub .bottomhub-overflow:not([hidden]) > button {
+      animation: rbpop 180ms cubic-bezier(.2,.8,.3,1) both;
+    }
+  }
+
   /* A surface not built yet: in place, so the bar keeps its width, and quiet. */
   #bottomhub .hpill[aria-disabled="true"] { color: var(--av-fg-3); cursor: default; }
   #board.drawer-open #bottomhub .wmore { color: var(--av-fg); }

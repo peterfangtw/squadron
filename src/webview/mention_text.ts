@@ -15,14 +15,16 @@
  */
 
 import { findRefs, refLabel } from '../core/session_ref';
+import * as ticketRefs from '../core/ticket_ref';
 import { disjoint } from '../core/tokens';
 import { ctxLabel } from './dom';
 import { expansionFor, skillPhrases, WORD } from './skilltext';
 
-export type MentionKind = 'model' | 'skill' | 'session';
+export type MentionKind = 'model' | 'skill' | 'session' | 'ticket';
 
 /** What one box offers. A kind left out is not offered. */
 export type MentionSources = {
+  tickets?: readonly TicketView[];
   models?: readonly ModelView[];
   skills?: readonly string[];
   sessions?: readonly CardView[];
@@ -40,7 +42,8 @@ export type Mention = { kind: MentionKind; label: string; expansion: string };
 export type RecentId =
   | { kind: 'model'; brand: string; value: string; window?: number; effort?: string }
   | { kind: 'skill'; name: string }
-  | { kind: 'session'; pid: number };
+  | { kind: 'session'; pid: number }
+  | { kind: 'ticket'; key: string; url: string };
 
 /** What pressing a row does: narrow to a kind, or take a mention. `follow` is
  *  the model whose efforts are offered next. */
@@ -69,13 +72,39 @@ export type Line = Row | Head;
  */
 export type Mode = 'kinds' | 'search' | MentionKind | 'effort';
 
-export const KINDS: readonly MentionKind[] = ['model', 'skill', 'session'];
-
-const TITLE: Record<MentionKind, string> = {
-  model: 'Models',
-  skill: 'Skills',
-  session: 'Sessions'
+/** Every kind declares recognition, picker name, appearance and copy policy. */
+export const MENTIONS: Readonly<
+  Record<
+    MentionKind,
+    {
+      title: string;
+      className: string;
+      clipboard: 'expansion' | 'link';
+      find: (text: string, skills: readonly string[]) => MentionHit[];
+    }
+  >
+> = {
+  model: {
+    title: 'Models',
+    className: 'model',
+    clipboard: 'expansion',
+    find: (text) => findModels(text).map((hit) => ({ kind: 'model', ...hit }))
+  },
+  skill: { title: 'Skills', className: 'skill', clipboard: 'expansion', find: findSkills },
+  session: {
+    title: 'Sessions',
+    className: 'ref',
+    clipboard: 'expansion',
+    find: (text) => findRefs(text).map((hit) => ({ kind: 'session', ...hit }))
+  },
+  ticket: {
+    title: 'Tickets',
+    className: 'ticket',
+    clipboard: 'link',
+    find: (text) => ticketRefs.findTickets(text).map((hit) => ({ kind: 'ticket', ...hit }))
+  }
 };
+export const KINDS = Object.keys(MENTIONS) as MentionKind[];
 
 /** How many Recent keeps. */
 const RECENT = 3;
@@ -91,6 +120,7 @@ const namable = (cards: readonly CardView[] | undefined): CardView[] =>
 function all(sources: MentionSources, kind: MentionKind): number {
   if (kind === 'model') return sources.models?.length ?? 0;
   if (kind === 'skill') return sources.skills?.length ?? 0;
+  if (kind === 'ticket') return ticketRows(sources.tickets).length;
   return namable(sources.sessions).length;
 }
 
@@ -119,7 +149,7 @@ export function linesFor(
   recent: readonly RecentId[]
 ): { mode: Mode; lines: Line[] } {
   const kinds = offered(sources);
-  const scope = /^(model|skill|session):(.*)$/s.exec(query);
+  const scope = /^(\w+):(.*)$/s.exec(query);
   const scoped = scope && kinds.includes(scope[1] as MentionKind) ? scope : null;
   if (kinds.length === 1 && !scoped) {
     const [only] = kinds as [MentionKind];
@@ -128,7 +158,10 @@ export function linesFor(
   if (scoped) {
     const kind = scoped[1] as MentionKind;
     const rows = rowsOf(sources, kind, scoped[2] ?? '');
-    return { mode: kind, lines: rows.length ? [{ head: TITLE[kind], crumb: true }, ...rows] : [] };
+    return {
+      mode: kind,
+      lines: rows.length ? [{ head: MENTIONS[kind].title, crumb: true }, ...rows] : []
+    };
   }
   if (!query) {
     const lines: Line[] = kinds.map((kind) => kindRow(sources, kind));
@@ -138,11 +171,11 @@ export function linesFor(
   }
   const wanted = query.toLowerCase();
   const lines: Line[] = kinds
-    .filter((kind) => TITLE[kind].toLowerCase().startsWith(wanted))
+    .filter((kind) => MENTIONS[kind].title.toLowerCase().startsWith(wanted))
     .map((kind) => kindRow(sources, kind));
   for (const kind of kinds) {
     const rows = rowsOf(sources, kind, query);
-    if (rows.length) lines.push({ head: TITLE[kind] }, ...rows);
+    if (rows.length) lines.push({ head: MENTIONS[kind].title }, ...rows);
   }
   return { mode: 'search', lines };
 }
@@ -175,7 +208,7 @@ export function effortLines(model: ModelView, models: readonly ModelView[], quer
   const wanted = query.toLowerCase();
   const matching = rows.filter((row) => row.name.toLowerCase().startsWith(wanted));
   return matching.length
-    ? [{ head: `${TITLE.model} › ${stem} › effort`, crumb: true }, ...matching]
+    ? [{ head: `${MENTIONS.model.title} › ${stem} › effort`, crumb: true }, ...matching]
     : [];
 }
 
@@ -204,6 +237,7 @@ export function labelOf(
 ): string {
   if (hit.kind === 'session') return refLabel(hit.pid, name(hit.pid));
   if (hit.kind === 'skill') return `@${hit.name}`;
+  if (hit.kind === 'ticket') return `@${hit.identifier}`;
   return `@${hit.stem}${hit.effort ? ` · ${hit.effort}` : ''}`;
 }
 
@@ -230,7 +264,13 @@ export function remember(recent: readonly RecentId[], id: RecentId): RecentId[] 
 
 function kindRow(sources: MentionSources, kind: MentionKind): Row {
   const count = kind === 'model' ? current(sources.models).length : all(sources, kind);
-  return { kind, name: TITLE[kind], meta: String(count), more: true, act: { scope: kind } };
+  return {
+    kind,
+    name: MENTIONS[kind].title,
+    meta: String(count),
+    more: true,
+    act: { scope: kind }
+  };
 }
 
 const current = (models: readonly ModelView[] | undefined): ModelView[] =>
@@ -249,9 +289,30 @@ function rowsOf(sources: MentionSources, kind: MentionKind, query: string): Row[
       .map((model) => modelRow(model, models));
   }
   if (kind === 'skill') return (sources.skills ?? []).filter(has).map(skillRow);
+  if (kind === 'ticket')
+    return ticketRows(sources.tickets).filter((row) => has(row.name) || has(row.meta));
   return namable(sources.sessions)
     .filter((card) => has(card.name))
     .map(sessionRow);
+}
+
+function ticketRows(tickets: readonly TicketView[] | undefined): Row[] {
+  return (tickets ?? []).flatMap((ticket) => {
+    const expansion = ticketRefs.ticketRef(ticket.identifier, ticket.url);
+    return expansion
+      ? [
+          {
+            kind: 'ticket' as const,
+            name: ticket.identifier,
+            meta: ticket.title,
+            act: {
+              mention: { kind: 'ticket' as const, label: `@${ticket.identifier}`, expansion },
+              recent: { kind: 'ticket' as const, key: ticket.key, url: ticket.url }
+            }
+          }
+        ]
+      : [];
+  });
 }
 
 function modelRow(model: ModelView, models: readonly ModelView[]): Row {
@@ -358,6 +419,7 @@ export type MentionHit = { at: number; text: string } & (
   | { kind: 'session'; pid: number; transcript: string }
   | { kind: 'model'; stem: string; effort?: string }
   | { kind: 'skill'; name: string }
+  | ({ kind: 'ticket' } & ticketRefs.TicketRef)
 );
 
 /**
@@ -369,24 +431,33 @@ export type MentionHit = { at: number; text: string } & (
  * its `@` sigil and closes on `]`, so it needs no boundary.
  */
 export function findMentions(text: string, skills: readonly string[]): MentionHit[] {
+  return disjoint<MentionHit>(KINDS.flatMap((kind) => MENTIONS[kind].find(text, skills)));
+}
+
+function findSkills(text: string, skills: readonly string[]): MentionHit[] {
   const named = new Map(skills.map((name) => [expansionFor(name), name]));
-  return disjoint<MentionHit>([
-    ...findRefs(text).map((ref) => ({ kind: 'session' as const, ...ref })),
-    ...findModels(text).map((model) => ({ kind: 'model' as const, ...model })),
-    ...skillPhrases(text, skills).map((hit) => ({
-      kind: 'skill' as const,
-      ...hit,
-      name: named.get(hit.text) ?? hit.text
-    }))
-  ]);
+  return skillPhrases(text, skills).map((hit) => ({
+    kind: 'skill',
+    ...hit,
+    name: named.get(hit.text) ?? hit.text
+  }));
 }
 
 /** Each kind's pill class, after the dock's own (`sref`). */
-export const PILL_CLASS: Readonly<Record<MentionKind, string>> = {
-  session: 'ref',
-  model: 'model',
-  skill: 'skill'
-};
+export const PILL_CLASS = Object.fromEntries(
+  KINDS.map((kind) => [kind, MENTIONS[kind].className])
+) as Record<MentionKind, string>;
+
+export function pillPresentation(
+  hit: MentionHit,
+  name?: (pid: number) => string | undefined
+): { label: string; className: string; expansion: string } {
+  return {
+    label: labelOf(hit, name),
+    className: PILL_CLASS[hit.kind],
+    expansion: hit.text
+  };
+}
 
 const modelId = (model: ModelView): Extract<RecentId, { kind: 'model' }> => ({
   kind: 'model',
@@ -407,6 +478,7 @@ function sameId(a: RecentId, b: RecentId): boolean {
   }
   if (a.kind === 'skill' && b.kind === 'skill') return a.name === b.name;
   if (a.kind === 'session' && b.kind === 'session') return a.pid === b.pid;
+  if (a.kind === 'ticket' && b.kind === 'ticket') return a.key === b.key && a.url === b.url;
   return false;
 }
 
@@ -418,6 +490,12 @@ function sameId(a: RecentId, b: RecentId): boolean {
 function resolve(sources: MentionSources, id: RecentId): Row | undefined {
   if (id.kind === 'skill') {
     return sources.skills?.includes(id.name) ? skillRow(id.name) : undefined;
+  }
+  if (id.kind === 'ticket') {
+    const ticket = sources.tickets?.find(
+      (ticket) => ticket.key === id.key && ticket.url === id.url
+    );
+    return ticket ? ticketRows([ticket])[0] : undefined;
   }
   if (id.kind === 'session') {
     const card = namable(sources.sessions).find((c) => c.pid === id.pid);

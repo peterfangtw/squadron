@@ -1,7 +1,5 @@
 import { ago, el, noLimitLabel, pctRank, until } from './dom';
 import {
-  ALERT_CAP,
-  alertBar,
   cards,
   chats,
   nav,
@@ -9,7 +7,6 @@ import {
   ticketsHead,
   ticketsList,
   setBoardView,
-  setAlertExpanded,
   ui,
   vscode
 } from './state';
@@ -25,7 +22,6 @@ import {
 } from './accounts';
 import type { Draft, SendInput } from '../ui/chat_state';
 import { tipRows, type TipRow } from './tip';
-import { blocked } from './board_card';
 import * as settings from './settings';
 import { picker, type Picker } from './picker';
 import { renderTickets } from './tickets';
@@ -463,74 +459,6 @@ export function prunePending(): boolean {
 }
 
 /**
- * The waiting-count bar (treatment B): shown only while sessions are blocked,
- * naming each as a chip that selects it. Every window's blocked work is here,
- * this-window-first — the order buildGroups already sorts them into.
- *
- * A box of `#board-body` floated over the cards rather than a row of `#cards` — why,
- * and what it costs, is at the `#alert` rule in `css/tickets.ts`. What follows
- * from it here: the element outlives the paint, so this morphs its children the
- * way `renderNav` does instead of building a node for the list.
- */
-export function renderAlert(editing: boolean): void {
-  // The editor owns the board column whole, so the float goes with the cards it
-  // would otherwise be floating over nothing. Asked before the scan rather than
-  // beside it: this is a class read, and the scan is every session on the
-  // machine.
-  if (editing) return put();
-  const waiting: CardView[] = [];
-  for (const g of ui.state.groups) for (const s of g.sessions) if (blocked(s)) waiting.push(s);
-  if (!waiting.length) return put();
-
-  const nodes: HTMLElement[] = [];
-  const lead = el('span', 'lead');
-  lead.innerHTML = ICONS.clock;
-  lead.append(el('span', null, waiting.length + ' waiting'));
-  lead.dataset.key = 'ask:lead';
-  nodes.push(lead);
-
-  const shown = ui.alertExpanded ? waiting : waiting.slice(0, ALERT_CAP);
-  for (const s of shown) {
-    const chip = el('button', 'schip');
-    chip.append(el('span', null, s.name));
-    const why = s.waitingFor ?? s.needs;
-    if (why) chip.append(el('span', 'why', ' · ' + why));
-    chip.dataset.act = 'ask';
-    chip.dataset.pid = String(s.pid);
-    // Keyed by the session it names, not by where in the row it lands: a chip
-    // exists exactly while its session is in the state that is about to change,
-    // so this is the list most likely to shift under a press. Positional, the
-    // same node would take the next waiting session's pid and the press would
-    // reveal a question nobody asked for. `ask:` and not the bare pid — the
-    // key map is flat, and the card carries that one.
-    chip.dataset.key = 'ask:' + s.pid;
-    nodes.push(chip);
-  }
-  const hidden = waiting.length - shown.length;
-  if (hidden > 0) {
-    const more = el('button', 'schip more', '+' + hidden + ' more');
-    more.dataset.act = 'expand';
-    more.dataset.key = 'ask:more';
-    nodes.push(more);
-  } else if (ui.alertExpanded && waiting.length > ALERT_CAP) {
-    // Expanded alerts cover up to 40vh and cannot scroll away, so offer collapse.
-    const less = el('button', 'schip more', '− less');
-    less.dataset.act = 'collapse';
-    less.dataset.key = 'ask:less';
-    nodes.push(less);
-  }
-  alertBar.hidden = false;
-  morph(alertBar, nodes);
-}
-
-/** Empty hidden alerts so no chip outlives the session it named. */
-export function put(): void {
-  setAlertExpanded(false);
-  alertBar.hidden = true;
-  alertBar.replaceChildren();
-}
-
-/**
  * Keep filtering local: every card is already in state, so no host round trip
  * is needed. Reload shows everything for a view of what is running now.
  */
@@ -629,6 +557,20 @@ export function renderNav(): void {
     button.setAttribute('aria-pressed', String(ui.boardView === view));
     button.disabled = editing();
     button.append(el('span', 'nm', view === 'sessions' ? 'Sessions' : 'Tickets'));
+    if (view === 'sessions') {
+      const badge = el(
+        'span',
+        'tb',
+        ui.ready
+          ? String(ui.state.groups.reduce((count, group) => count + group.sessions.length, 0))
+          : ''
+      );
+      if (!ui.ready) {
+        badge.setAttribute('aria-label', 'Loading sessions');
+        badge.append(el('span', 'bone'));
+      }
+      button.append(badge);
+    }
     if (view === 'tickets' && ui.state.ticketSource?.linked) {
       const n = ui.state.tickets?.length;
       const badge = el(

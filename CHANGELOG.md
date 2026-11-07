@@ -9,6 +9,17 @@ scalability", only when that benefit is supported; omit implementation details.
 Do not add a release note for edits to this guidance.
 -->
 
+## 0.6.15
+
+- Expanded More pills keep a solid background when hovered.
+
+## 0.6.14
+
+- Copy ticket links from their details and paste them into the composer as ticket pills; ticket links in chat use the same labels.
+- Sessions waiting for an answer appear under Agents on the bottom hub, with shortcuts to their chat and open request.
+- The Sessions tab shows this window's total session count.
+- Better alignment for the compact permission-mode icon.
+
 ## 0.6.13
 
 - Start and resume sessions in an empty editor window without opening a folder.

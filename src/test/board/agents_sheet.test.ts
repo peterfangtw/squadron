@@ -52,7 +52,7 @@ const verbs = (group: Element): string[] =>
 const REFUSAL = 'Session verbs are off. Turn on Orchestration in Agents on the hub.';
 
 describe('Agents on the bottom hub', () => {
-  it('is a live word in the slot Interactions held', (t) => {
+  it('is the live first word on the hub', (t) => {
     const p = openPanel(t);
     push(p, false);
     assert.equal(word(p).getAttribute('aria-disabled'), null);
@@ -61,7 +61,7 @@ describe('Agents on the bottom hub', () => {
     const words = [...p.window.document.querySelectorAll('#bottomhub [data-drawer-mode]')].map(
       (b) => b.getAttribute('data-drawer-mode')
     );
-    assert.deepEqual(words.slice(-3), ['remote', 'agents', 'awake']);
+    assert.deepEqual(words, ['agents', 'remote', 'warm', 'awake']);
   });
 
   it('lights its dot and says so while Orchestration is on', (t) => {

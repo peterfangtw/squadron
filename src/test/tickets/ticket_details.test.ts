@@ -41,7 +41,10 @@ function openOnJira(t: TestContext, ticket: TicketView) {
 describe('ticket details beside chat', () => {
   it('names the source on its external link', (t) => {
     const { p, link } = openOnJira(t, row);
-    assert.equal(link?.textContent, 'Open in Jira');
+    assert.equal(link?.getAttribute('aria-label'), 'Open in Jira');
+    assert.ok(link?.querySelector('svg'));
+    assert.equal(link?.textContent, '');
+    assert.ok(p.window.document.querySelector('#ticket-detail .td-copy svg'));
     link?.click();
     const opened = p.posted.filter((m) => m.type === 'openTicket').at(-1);
     assert.equal(opened?.key, row.key);
@@ -203,5 +206,44 @@ describe('unassigned filter choice', () => {
     choices()[0]!.click();
     const cleared = p.posted.filter((m) => m.type === 'setTicketFilter').at(-1);
     assert.equal(cleared?.filter.assignee, 'anyone');
+  });
+});
+
+describe('ticket copy availability and feedback', () => {
+  for (const identifier of ['ENG 42', 'ENG[42]', 'A'.repeat(129)]) {
+    it(`omits copy when the identifier cannot form a ticket reference: ${identifier.length}`, (t) => {
+      const { p } = openOnJira(t, { ...row, identifier });
+      assert.equal(p.window.document.querySelector('#ticket-detail .td-copy'), null);
+      assert.ok(p.window.document.querySelector('#ticket-detail .td-external'));
+    });
+  }
+
+  it('announces each copy attempt and reports clipboard rejection locally', async (t) => {
+    const { p } = openOnJira(t, row);
+    let finish: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    let calls = 0;
+    Object.defineProperty(p.window, 'ClipboardItem', { value: class {} });
+    Object.defineProperty(p.window.navigator, 'clipboard', {
+      value: {
+        write: () => (++calls === 3 ? Promise.reject(new Error('denied')) : pending)
+      }
+    });
+    const copy = p.window.document.querySelector<HTMLElement>('#ticket-detail .td-copy')!;
+    const status = p.window.document.querySelector('#ticket-detail .td-copy-status')!;
+    copy.click();
+    assert.equal(status.textContent, 'Copying…');
+    finish?.();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(status.textContent, 'Copied');
+    copy.click();
+    assert.equal(status.textContent, 'Copying…');
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(status.textContent, 'Copied');
+    copy.click();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(status.textContent, 'Could not copy. Try again.');
   });
 });

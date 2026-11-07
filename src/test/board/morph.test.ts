@@ -10,16 +10,14 @@ describe('every acting node a morph writes is keyed', () => {
    * message row (`chat_turns.ts`) sets `data-act` too and is out of scope: the
    * thread does not go through morphdom.
    */
-  const ROOTS = ['#cards', '#nav', '#alert', '#tk-list', '#board-tickets'];
+  const ROOTS = ['#cards', '#nav', '#bottomhub-waiting', '#tk-list', '#board-tickets'];
 
   /** What each scenario below has to reach, so a fixture that stops drawing a
    *  site fails here instead of passing over an empty set. */
   const REACHED = [
     'ask',
     'clearFilter',
-    'collapse',
     'connect',
-    'expand',
     'killListener',
     'lane',
     'open',
@@ -110,7 +108,7 @@ describe('every acting node a morph writes is keyed', () => {
       over
     );
 
-  it('across the board, the alert bar and the tickets tab', (t: TestContext) => {
+  it('across the board, the waiting stack and the tickets tab', (t: TestContext) => {
     const p = openPanel(t);
     const acts = new Set<string>();
     const unkeyed: string[] = [];
@@ -121,8 +119,6 @@ describe('every acting node a morph writes is keyed', () => {
         tickets: [ticket(), ticket({ key: 'i2', identifier: 'ENG-2', state: ticketState('To Do') })]
       })
     );
-    sweep(p, acts, unkeyed);
-    p.window.document.querySelector<HTMLElement>('#alert [data-act="expand"]')?.click();
     sweep(p, acts, unkeyed);
     p.window.document.querySelector<HTMLElement>('#board-tickets')?.click();
     sweep(p, acts, unkeyed);

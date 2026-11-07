@@ -163,10 +163,6 @@ ${panelStylesheet()}
   <div id="board-body">
     <div id="cards" class="empty" aria-busy="true">Loading sessions…</div>
     <div id="tk-list" hidden></div>
-    <!-- The waiting bar: floated over the content, not a row of it. Why, and
-         what its z-index has to clear, is at the #alert rule in
-         css/tickets.ts. -->
-    <div id="alert" hidden></div>
   </div>
   <div id="wfeditor" hidden></div>
   <!-- The lane canvas. The editor moves this node into itself while it is

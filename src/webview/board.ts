@@ -22,7 +22,6 @@ import {
   carryDrag,
   filter,
   prunePending,
-  renderAlert,
   renderNav,
   shown,
   startingCard
@@ -139,8 +138,7 @@ let slotted: string | undefined;
  * here so no call site has to ask for motion. `boardShape()` defines
  * "differs", narrower than "anything that moves a card". A filter pick stays a
  * cut because most cards leave rather than travel, which wants its own design.
- * The alert bar's expand grows without re-ordering. The starting card appears
- * in the slot it will keep.
+ * The starting card appears in the slot it will keep.
  *
  * Nothing animates while a card is in flight: the ticker fires under a drag, a
  * session can start under one, and moving cards slide out from under the hand.
@@ -174,9 +172,6 @@ function paint(): void {
   cards.className = '';
   cards.setAttribute('aria-busy', String(!ui.ready));
   const inEditor = editing();
-  // Ahead of every early return below: an empty board and an open editor both
-  // have to put the bar away.
-  renderAlert(inEditor || ui.boardView !== 'sessions');
   nav.hidden = false;
   renderNav();
   if (inEditor || ui.boardView !== 'sessions') {

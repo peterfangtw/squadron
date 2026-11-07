@@ -410,7 +410,12 @@ describe('findMentions', () => {
 
 describe('PILL_CLASS', () => {
   it('names each kind’s pill the way every surface classes it', () => {
-    assert.deepEqual(PILL_CLASS, { session: 'ref', model: 'model', skill: 'skill' });
+    assert.deepEqual(PILL_CLASS, {
+      session: 'ref',
+      model: 'model',
+      skill: 'skill',
+      ticket: 'ticket'
+    });
   });
 });
 
@@ -459,5 +464,20 @@ describe('Recent', () => {
     // A signed-out brand: its rows leave the wire, so they leave Recent too.
     assert.deepEqual(bare({ models: [grok] }, [opusId]), []);
     assert.deepEqual(bare({}, [{ kind: 'session', pid: 9 }]), []);
+  });
+});
+
+describe('ticket mention identity', () => {
+  it('recognizes a portable reference without any loaded board and rejects unsafe URLs', () => {
+    const ref = '@ticket[ENG-42][https://example.test/issue/42]';
+    assert.equal(kindOf(ref), 'ticket');
+    assert.equal(findMentions('see ' + ref, [])[0]?.text, ref);
+    for (const url of [
+      'javascript:alert(1)',
+      'file:///tmp/a',
+      'https://user:pass@example.test/a'
+    ]) {
+      assert.equal(kindOf('@ticket[ENG-42][' + url + ']'), undefined);
+    }
   });
 });

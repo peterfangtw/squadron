@@ -1,16 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import {
-  assertedMessageBody,
-  Panel,
-  cardView,
-  groupView,
-  openPanel,
-  stateMessage,
-  workflowView
-} from '../harness';
-import { css as shellCss } from '../../ui/css/shell';
-import { css as ticketsCss } from '../../ui/css/tickets';
+import { Panel, cardView, groupView, openPanel, stateMessage } from '../harness';
 
 describe('startup before host data arrives', () => {
   it('initializes both Keep-awake columns when the first snapshot arrives', (t) => {
@@ -101,7 +91,7 @@ describe('the board frame', () => {
       'board-body'
     ]);
     assert.deepEqual(ids(d.getElementById('board-head')), ['sessions-head', 'tk-head']);
-    assert.deepEqual(ids(d.getElementById('board-body')), ['cards', 'tk-list', 'alert']);
+    assert.deepEqual(ids(d.getElementById('board-body')), ['cards', 'tk-list']);
   });
 
   it('shows only the picked view in the head and the body', (t) => {
@@ -115,124 +105,6 @@ describe('the board frame', () => {
     assert.deepEqual(views(), ['tk-head', 'tk-list']);
     d.querySelector<HTMLElement>('#nav [data-act="sessions"]')?.click();
     assert.deepEqual(views(), ['sessions-head', 'cards']);
-  });
-
-  // jsdom resolves no var(), so the rule text: the scrollers' top padding and
-  // the waiting bar's offset are one figure, declared once on the body.
-  it('starts the waiting bar where the body content starts', () => {
-    const rule = (css: string, selector: string): string => {
-      const clean = css.replace(/\/\*[\s\S]*?\*\//g, '');
-      const at = clean.indexOf(`${selector} {`);
-      return at < 0 ? '' : clean.slice(at, clean.indexOf('}', at) + 1);
-    };
-    const body = rule(shellCss, '#board-body');
-    assert.match(body, /position:\s*relative/);
-    assert.match(body, /--body-pad:\s*\d+px/);
-    assert.match(
-      rule(shellCss, '#board-body > :not(#alert)'),
-      /padding-block:\s*var\(--body-pad\) /
-    );
-    const alert = rule(ticketsCss, '#alert');
-    assert.match(alert, /top:\s*var\(--body-pad\);/);
-  });
-});
-
-describe('the alert bar', () => {
-  const waiting = (pid: number, over = {}) =>
-    cardView({ pid, name: 'w' + pid, status: 'waiting', ...over });
-
-  // The element outlives the paint now that it is the board's own box rather
-  // than one of #cards' children, so "not there" is the hidden attribute and an
-  // empty box — a bar left drawn with stale chips would name sessions that are
-  // no longer blocked, over a board that is.
-  it('is put away while nothing waits', (t) => {
-    const p = openPanel(t);
-    p.push(stateMessage([groupView({ sessions: [cardView({ status: 'busy' })] })]));
-    const alert = p.window.document.getElementById('alert');
-    assert.ok(alert);
-    assert.strictEqual(alert.hidden, true);
-    assert.strictEqual(alert.querySelector('.schip'), null);
-  });
-
-  it('goes away again when the last block is answered', (t) => {
-    const p = openPanel(t);
-    p.push(stateMessage([groupView({ sessions: [waiting(1)] })]));
-    assert.equal(p.window.document.getElementById('alert')?.hidden, false);
-    p.push(stateMessage([groupView({ sessions: [cardView({ pid: 1, status: 'busy' })] })]));
-    const alert = p.window.document.getElementById('alert');
-    assert.ok(alert);
-    assert.strictEqual(alert.hidden, true);
-    assert.strictEqual(alert.querySelector('.schip'), null);
-  });
-
-  it('counts the waiting sessions and names each as a chip', (t) => {
-    const p = openPanel(t);
-    p.push(
-      stateMessage([
-        groupView({ sessions: [waiting(1, { waitingFor: 'permission' }), cardView({ pid: 3 })] }),
-        groupView({ cwd: '/e', sessions: [waiting(2, { needs: 'a decision' })] })
-      ])
-    );
-    const alert = p.window.document.getElementById('alert');
-    assert.equal(alert?.querySelector('.lead')?.textContent, '2 waiting');
-    const chips = alert?.querySelectorAll('.schip') ?? [];
-    assert.equal(chips.length, 2);
-    assert.equal(chips[0]?.textContent, 'w1 · permission');
-    assert.equal(chips[1]?.textContent, 'w2 · a decision');
-  });
-
-  it('selects the session a chip names', (t) => {
-    const p = openPanel(t);
-    p.push(stateMessage([groupView({ sessions: [waiting(9)] })]));
-    p.window.document.querySelector<HTMLElement>('.schip')?.click();
-    assert.deepEqual(p.posted.map(assertedMessageBody), [{ type: 'select', pid: 9 }]);
-    assert.ok(!p.window.document.body.classList.contains('closed'), 'dock did not open');
-  });
-
-  it('caps the chips at eight until "+N more" is clicked', (t) => {
-    const p = openPanel(t);
-    const sessions = Array.from({ length: 10 }, (_, i) => waiting(i + 1));
-    p.push(stateMessage([groupView({ sessions })]));
-    const alert = p.window.document.getElementById('alert');
-    assert.equal(alert?.querySelectorAll('.schip:not(.more)').length, 8);
-    const more = alert?.querySelector<HTMLElement>('.schip.more');
-    assert.equal(more?.textContent, '+2 more');
-    more?.click();
-    assert.equal(p.window.document.querySelectorAll('.schip:not(.more)').length, 10);
-    // Expanded, "+N more" is spent and its slot carries the way back instead.
-    // The bar floats now: without this, an expanded one is up to 40vh of the
-    // board covered until the sessions themselves unblock.
-    assert.equal(p.window.document.querySelector('.schip.more')?.textContent, '\u2212 less');
-  });
-
-  it('collapses again on "less", and keeps the cap after', (t) => {
-    const p = openPanel(t);
-    const sessions = Array.from({ length: 10 }, (_, i) => waiting(i + 1));
-    p.push(stateMessage([groupView({ sessions })]));
-    p.window.document.querySelector<HTMLElement>('.schip.more')?.click();
-    assert.equal(p.window.document.querySelectorAll('.schip:not(.more)').length, 10);
-    p.window.document.querySelector<HTMLElement>('.schip.more')?.click();
-    assert.equal(p.window.document.querySelectorAll('.schip:not(.more)').length, 8);
-    assert.equal(p.window.document.querySelector('.schip.more')?.textContent, '+2 more');
-  });
-
-  // The editor owns the board column whole, so a float over it would be a bar
-  // over cards that are not drawn. It is the one hide path that is not "nothing
-  // is blocked", and the bar is no longer a row of the list the editor empties.
-  it('is put away while the board editor is open, blocked sessions or not', (t) => {
-    const p = openPanel(t);
-    const sessions = [waiting(1), waiting(2)];
-    const workflows = [workflowView()];
-    p.push(stateMessage([groupView({ sessions })], { workflows }));
-    assert.equal(p.window.document.getElementById('alert')?.hidden, false);
-    p.window.document.querySelector<HTMLElement>('#bottomhub .wmore')?.click();
-    p.window.document.querySelector<HTMLElement>('#bottomdrawer-body .wsrow .act.edit')?.click();
-    assert.equal(p.window.document.getElementById('wfeditor')?.hidden, false);
-    p.push(stateMessage([groupView({ sessions })], { workflows }));
-    const alert = p.window.document.getElementById('alert');
-    assert.ok(alert);
-    assert.strictEqual(alert.hidden, true);
-    assert.strictEqual(alert.querySelector('.schip'), null);
   });
 });
 

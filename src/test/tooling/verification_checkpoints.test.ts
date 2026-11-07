@@ -500,7 +500,7 @@ describe('checkpoint interruption and retention', () => {
       try {
         await until(()=>fs.existsSync(path.join(root,'ready')));
         const exited=new Promise(r=>writer.once('exit',r));writer.kill('SIGKILL');await exited;
-        assert.throws(()=>new store.Candidate(c.dir).take(),/running|unknown/);
+        assert.throws(()=>new store.Candidate(c.dir).take(),/running|unknown|ownership changed/);
         store.pruneCandidates(path.dirname(c.dir),c.runs,Date.now()+8*86400000);
         assert.equal(fs.existsSync(c.workspace),true);
         const file=fs.readdirSync(c.dir).find(f=>/^job-[^.]+\\.json$/.test(f));

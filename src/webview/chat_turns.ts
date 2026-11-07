@@ -15,7 +15,8 @@ import * as tokens from '../core/tokens';
 import { isMidTurn } from '../core/model';
 import { pipeLoginCta, signedOutFor } from './accounts';
 import { openLightbox } from './lightbox';
-import { findMentions, labelOf, PILL_CLASS, type MentionHit } from './mention_text';
+import { findMentions } from './mention_text';
+import { mentionPill, restoreTicketText } from './mention_pill';
 import { proseHtml } from './prose';
 import * as fileLinks from '../ui/file_link';
 
@@ -76,6 +77,7 @@ function copyFences(root: HTMLElement): void {
  * so a model pick is a pill whoever wrote it.
  */
 function pillMentions(root: HTMLElement, mine: boolean): void {
+  restoreTicketText(root);
   const skills = mine ? (chats.thread()?.skills ?? []) : [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const found: Text[] = [];
@@ -89,18 +91,11 @@ function pillMentions(root: HTMLElement, mine: boolean): void {
   }
   for (const node of found) {
     const text = node.textContent ?? '';
-    node.replaceWith(...tokens.splice(text, findMentions(text, skills), mentionPill));
+    const hits = findMentions(text, skills).filter(
+      (hit) => hit.kind !== 'ticket' || !node.parentElement?.closest('a, button')
+    );
+    node.replaceWith(...tokens.splice(text, hits, mentionPill));
   }
-}
-
-function mentionPill(hit: MentionHit): HTMLElement {
-  const pill = el(
-    'span',
-    `sref ${PILL_CLASS[hit.kind]}`,
-    labelOf(hit, (pid) => findCard(pid)?.card.name)
-  );
-  pill.dataset.tip = hit.kind === 'session' ? hit.transcript : hit.text;
-  return pill;
 }
 
 /**

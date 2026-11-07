@@ -19,9 +19,8 @@
   <a href="https://x.ai/docs/build/overview"><img alt="Grok" src="https://img.shields.io/badge/Grok-000000?style=flat-square&logo=data:image/svg%2Bxml;base64,PHN2ZyBmaWxsPSJ3aGl0ZSIgZmlsbC1ydWxlPSJldmVub2RkIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI%2BPHBhdGggZD0iTTkuMjcgMTUuMjlsNy45NzgtNS44OTdjLjM5MS0uMjkuOTUtLjE3NyAxLjEzNy4yNzIuOTggMi4zNjkuNTQyIDUuMjE1LTEuNDEgNy4xNjktMS45NTEgMS45NTQtNC42NjcgMi4zODItNy4xNDkgMS40MDZsLTIuNzExIDEuMjU3YzMuODg5IDIuNjYxIDguNjExIDIuMDAzIDExLjU2Mi0uOTUzIDIuMzQxLTIuMzQ0IDMuMDY2LTUuNTM5IDIuMzg4LTguNDJsLjAwNi4wMDdjLS45ODMtNC4yMzIuMjQyLTUuOTI0IDIuNzUtOS4zODMuMDYtLjA4Mi4xMi0uMTY0LjE3OS0uMjQ4bC0zLjMwMSAzLjMwNXYtLjAxTDkuMjY3IDE1LjI5Mk03LjYyMyAxNi43MjNjLTIuNzkyLTIuNjctMi4zMS02LjgwMS4wNzEtOS4xODQgMS43NjEtMS43NjMgNC42NDctMi40ODMgNy4xNjYtMS40MjVsMi43MDUtMS4yNWE3LjgwOCA3LjgwOCAwIDAwLTEuODI5LTFBOC45NzUgOC45NzUgMCAwMDUuOTg0IDUuODNjLTIuNTMzIDIuNTM2LTMuMzMgNi40MzYtMS45NjIgOS43NjQgMS4wMjIgMi40ODctLjY1MyA0LjI0Ni0yLjM0IDYuMDIyLS41OTkuNjMtMS4xOTkgMS4yNTktMS42ODIgMS45MjVsNy42Mi02LjgxNSI%2BPC9wYXRoPjwvc3ZnPg=="></a>
 </p>
 
-Run Claude Code, Codex and Grok sessions from one VS Code panel. See at a
-glance which ones are working and which are waiting on you, grouped by the
-folder each one runs in, then open any conversation to read it or reply.
+Manage Claude Code, Codex, and Grok sessions in your IDE. Let agents delegate
+tasks, review each other’s work, and collaborate across models.
 
 Works in VS Code and editors built on it. Needs macOS for now; Windows support
 is planned.
@@ -164,5 +163,5 @@ Ideas we're working toward, in no particular order:
 - **Workflow v3:** dynamic workflows (model-agnostic), continuous/routine workflows.
 - **Gemini support:** when I have money to get access to Gemini 4...
 - **Implementation of Decision layers:** Jev or other decision models, for workflow routing or automate choices, idk, still early in ideation
-- **Tickets UI rework:** TBD. A better board for your Linear tickets; probably will add basic in-app task tracking as well
+- **Ticket writes and inapp ticketing:** Create and update tickets from the extension. Potentially add a local ticket system for people who don't use Linear, Jira, or similar tools.
 - **Board UI rework:** TBD. Better grouping UI for agent sessions on the board.

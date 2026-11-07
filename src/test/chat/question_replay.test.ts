@@ -356,7 +356,7 @@ describe('a replayed question', () => {
     p.push(stateMessage(groups, { thread: blocked }));
     pill(p)?.click();
     assert.equal(p.window.document.querySelector('#question .cta'), null, 'the record is up');
-    p.window.document.querySelector<HTMLElement>('#alert .schip')?.click();
+    p.window.document.querySelector<HTMLElement>('#bottomhub-waiting .waiting-session')?.click();
     p.push(stateMessage(groups, { thread: blocked }));
     assert.equal(p.window.document.querySelector('#question .cta') !== null, true);
   });

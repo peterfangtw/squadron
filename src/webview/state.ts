@@ -10,7 +10,6 @@ export {
   clearWantThemeIf,
   setWantAsk,
   clearWantAskIf,
-  setAlertExpanded,
   setCols,
   setThreadKeys,
   clearThreadKeys,
@@ -22,7 +21,6 @@ export const vscode = acquireVsCodeApi();
 
 export const cards = $('cards');
 export const nav = $('nav');
-export const alertBar = $('alert');
 export const dock = $('dock');
 export const thread = $('thread');
 export const promptBar = $('prompt-bar');
@@ -37,8 +35,6 @@ export const chatBody = $('chat');
 export const ticketsHead = $('tk-head');
 export const ticketsList = $('tk-list');
 export const saved: PanelState = vscode.getState() ?? {};
-
-export const ALERT_CAP = 8;
 
 /** Image bytes are immutable and content-addressed by transcript ref. */
 export const opened = new Set<string>();

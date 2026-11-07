@@ -10,7 +10,6 @@ type PanelStateBag = {
   boardView: 'sessions' | 'tickets';
   wantTheme: ThemeName | null;
   wantAsk: number | null;
-  alertExpanded: boolean;
   threadKeys: string[];
   cols: number;
 };
@@ -23,7 +22,6 @@ export type PanelUi = {
   readonly boardView: 'sessions' | 'tickets';
   readonly wantTheme: ThemeName | null;
   readonly wantAsk: number | null;
-  readonly alertExpanded: boolean;
   readonly threadKeys: readonly string[];
   readonly cols: number;
 };
@@ -55,7 +53,6 @@ const bag: PanelStateBag = {
   boardView: 'sessions',
   wantTheme: null,
   wantAsk: null,
-  alertExpanded: false,
   threadKeys: [],
   cols: 2
 };
@@ -81,9 +78,6 @@ export const ui: PanelUi = {
   },
   get wantAsk(): number | null {
     return bag.wantAsk;
-  },
-  get alertExpanded(): boolean {
-    return bag.alertExpanded;
   },
   get threadKeys(): readonly string[] {
     return bag.threadKeys;
@@ -134,10 +128,6 @@ export function clearWantAskIf(pid: number): void {
   if (bag.wantAsk === pid) bag.wantAsk = null;
 }
 
-export function setAlertExpanded(on: boolean): void {
-  bag.alertExpanded = on;
-}
-
 export function setCols(n: number): void {
   bag.cols = n;
 }
@@ -175,7 +165,6 @@ export function resetBagForTests(): void {
   bag.boardView = 'sessions';
   bag.wantTheme = null;
   bag.wantAsk = null;
-  bag.alertExpanded = false;
   bag.threadKeys = [];
   bag.cols = 2;
 }

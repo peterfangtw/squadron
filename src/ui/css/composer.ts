@@ -967,6 +967,7 @@ export const css = /* css */ `
   .mnrow .k { width: 7px; height: 7px; border-radius: 2px; flex: none; align-self: center; }
   .mnrow .k.model { background: var(--av-fg-3); }
   .mnrow .k.skill { background: var(--av-green); }
+  .mnrow .k.ticket { background: var(--av-link); }
   .mnrow .k.session { background: var(--av-yellow); }
   /* A billing-gated window: the model picker's dashed ring (.wp.gated in
      css/board.ts), on the window it names, and still pickable. */
