@@ -52,8 +52,7 @@ export function trackerEndpoint(
   scopes:
     { globalValue?: string; workspaceValue?: string; workspaceFolderValue?: string } | undefined
 ): string {
-  const user = scopes?.globalValue?.trim();
-  return user ? user : LINEAR_ENDPOINT;
+  return tickets.configuredEndpoint(scopes, LINEAR_ENDPOINT);
 }
 
 const PAGE_INFO = 'pageInfo { hasNextPage endCursor }';
@@ -196,11 +195,15 @@ export function toOptions(data: unknown, scopeId: string): TicketOptions {
  * fields a card needs are skipped rather than rendered half-blank. Kept separate
  * from the fetch so it can be tested without a network.
  */
-export function toTickets(data: unknown, scopeId: string, sourceId = SOURCE_ID): tickets.Ticket[] {
+export function toTickets(
+  data: unknown,
+  scopeId: string,
+  sourceId = SOURCE_ID
+): (tickets.Ticket & { priority: TicketPriority })[] {
   const nodes = (data as { issues?: { nodes?: unknown[] } })?.issues?.nodes;
   if (!Array.isArray(nodes)) return [];
 
-  const rows: tickets.Ticket[] = [];
+  const rows: (tickets.Ticket & { priority: TicketPriority })[] = [];
   for (const raw of nodes) {
     if (!raw || typeof raw !== 'object') continue;
     const n = raw as {

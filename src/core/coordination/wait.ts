@@ -441,6 +441,53 @@ export function nextDeadline(waits: readonly WaitRecord[], now: number): number 
 }
 
 /**
+ * How long a wake whose send failed waits before it is tried again: the wait
+ * pass's own change debounce (`host/waits.ts`), since a pass builds the board
+ * (a `ps`) and a pipe that keeps failing must not drive one faster than an
+ * ordinary change would.
+ */
+export const WAKE_RETRY_MS = 15_000;
+
+/**
+ * When a resolution covering these waits may next be tried, if a failed send
+ * still holds any of them; `undefined` when none is held. A pass that skips it
+ * gives every wait it covers this same time, because the resolver folds one
+ * requester's waits into one resolution: a wait that expires beside a held one
+ * would otherwise read as overdue and bring the pass back every second.
+ */
+export function heldUntil(
+  waits: readonly WaitRecord[],
+  retryAt: ReadonlyMap<string, number>,
+  now: number
+): number | undefined {
+  const until = Math.max(...waits.map((wait) => retryAt.get(wait.id) ?? -Infinity));
+  return until > now ? until : undefined;
+}
+
+/**
+ * When the pass should run next for the waits it left pending: each wait's own
+ * expiry or workflow recheck, except that one held by a failed send runs at its
+ * retry time instead. A wait that converged before its expiry would otherwise
+ * sleep until that expiry, and an overdue one would come back at once.
+ */
+export function passDeadline(input: {
+  pending: readonly WaitRecord[];
+  retryAt: ReadonlyMap<string, number>;
+  checkAt: (waitId: string) => number | undefined;
+  now: number;
+}): number | undefined {
+  const { pending, retryAt, checkAt, now } = input;
+  const held = pending.filter((wait) => heldUntil([wait], retryAt, now) !== undefined);
+  const free = pending.filter((wait) => !held.includes(wait));
+  const deadlines = [
+    nextDeadline(free, now),
+    ...free.map((wait) => checkAt(wait.id)),
+    ...held.map((wait) => retryAt.get(wait.id))
+  ].filter((at): at is number => at !== undefined);
+  return deadlines.length === 0 ? undefined : Math.min(...deadlines);
+}
+
+/**
  * The one message, in the requester's own vocabulary.
  *
  * **It carries no findings**, by decision: naming N transcripts' worth of

@@ -461,8 +461,9 @@ function wireArrange(grid: HTMLElement, graph: CanvasGraph, handlers: CanvasHand
  * the grid and not per mount: a release outside the webview raises neither of
  * the grid's own terminal events, and a mount comes only from a gesture. So a
  * `dragging-step` left set stays set, and every field on the canvas stays
- * `pointer-events: none` until something remounts it. The board survives the
- * same loss because `renderBoard` runs every second off the ticker.
+ * `pointer-events: none` until a later gesture clears it. The one-second beat
+ * calls `tickStamps`, not `renderBoard`, and `renderBoard` does not clear
+ * `dragging-step`. `dragging-card` is a different class.
  *
  * A flight still up here moved nothing — off its own rows `dragover` takes no
  * drop, so the browser raises `dragend` alone — and the card goes back.

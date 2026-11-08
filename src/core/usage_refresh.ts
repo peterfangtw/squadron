@@ -127,7 +127,7 @@ export class UsageRefresher {
         if (this.abort.signal.aborted) return;
         if (!brand.signedIn) continue;
         try {
-          await usage.walkUsage([brand], {
+          await usage.walkUsage(brand, {
             sessions: this.ports.sessions(),
             now: this.ports.now(),
             signal: this.abort.signal,

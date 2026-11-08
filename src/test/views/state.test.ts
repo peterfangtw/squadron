@@ -12,7 +12,7 @@ import {
   stateKey,
   toWorkflowView
 } from '../../ui/state';
-import { openPanel, stateMessage, threadView } from '../harness';
+import { openPanel, stateMessage } from '../harness';
 import * as warmRows from '../../ui/warm_rows';
 import * as cacheTtl from '../../core/cache_ttl';
 import { DEFAULT_WARM_POLICY, type WarmPolicy } from '../../core/warm_policy';
@@ -65,7 +65,6 @@ const base = (over: Partial<StateInputs> = {}): StateInputs => ({
   folderRoots: new Map(),
   arrangements: new Map(),
   workflowOrder: undefined,
-  thread: undefined,
   machine: undefined,
   cafe: false,
   cafeRemote: false,
@@ -243,12 +242,6 @@ describe('stateKey', () => {
     assert.notEqual(stateKey(two), stateKey(state({ sessions: [] })));
   });
 
-  it('notices the dock moving, which is most of the weight on the wire', () => {
-    const before = state({ thread: threadView({ status: 'idle' }) });
-    const after = state({ thread: threadView({ status: 'busy' }) });
-    assert.notEqual(stateKey(before), stateKey(after));
-  });
-
   it('notices the coffee being refilled', () => {
     // `awake` was the other field that differed on every push, and it was fixed
     // rather than excluded: what rides now is an epoch that moves on a refill.
@@ -405,30 +398,9 @@ describe('buildState', () => {
     assert.equal(message.devServers, true);
     assert.equal(message.theme, 'ink');
     assert.deepEqual(message.groups, []);
-    assert.equal(message.thread, undefined);
     // Mapped arrays, possibly empty — matches refresh()'s post today.
     assert.deepEqual(message.workflows, []);
     assert.deepEqual(message.workflowEdits, []);
-  });
-
-  it('attaches a thread when the host built one', () => {
-    const thread: ThreadView = {
-      pid: 100,
-      name: 'x',
-      fullCwd: '/work/app',
-      status: 'idle',
-      reading: { word: 'idle', tally: 'idle' },
-      canControl: true,
-      startedAt: 0,
-      updatedAt: 0,
-      cacheTtlMs: 60 * 60_000,
-      exchanges: [],
-      canSend: true,
-      canAttach: true,
-      who: 'claude'
-    };
-    const message = buildState(base({ thread }));
-    assert.equal(message.thread, thread);
   });
 
   it('trims workflows to the wire shape', () => {

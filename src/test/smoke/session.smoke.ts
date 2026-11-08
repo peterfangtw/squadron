@@ -969,6 +969,75 @@ section('a session the panel owns, in the real IDE', () => {
     await clearComposer();
   });
 
+  // Fourteen lines pass `#input`'s 10lh ceiling, so the box also scrolls: the
+  // editing root's top is then above the visible box as well as above the caret.
+  step('opens the @ menu against the caret line of a tall, scrolled box', async () => {
+    const box = composer();
+    await box.click();
+    for (let line = 1; line < 14; line += 1) {
+      await box.pressSequentially(`line ${line}`, { delay: 5 });
+      await box.press('Shift+Enter');
+    }
+    await box.pressSequentially('@', { delay: 20 });
+    const menu = panel().locator('#mentionmenu');
+    await menu.waitFor({ state: 'visible', timeout: 30_000 });
+    // One document, one coordinate space: the menu is portalled to this body.
+    const read = await box.evaluate((root) => {
+      const doc = root.ownerDocument;
+      const range = doc.getSelection()?.getRangeAt(0).cloneRange();
+      range?.setStart(range.startContainer, Math.max(0, range.startOffset - 1));
+      const caret = range?.getBoundingClientRect();
+      const menuRect = doc.getElementById('mentionmenu')?.getBoundingClientRect();
+      const host = root.closest('#input');
+      return {
+        caret: caret && { top: caret.top, bottom: caret.bottom },
+        menu: menuRect && { bottom: menuRect.bottom, left: menuRect.left },
+        rootLeft: root.getBoundingClientRect().left,
+        scrolled: (host?.scrollTop ?? 0) > 0,
+        hostTop: host?.getBoundingClientRect().top ?? 0
+      };
+    });
+    assert.ok(read.caret && read.menu, 'no caret or menu rect to compare');
+    assert.ok(read.scrolled, 'the box did not scroll — the fixture is not tall enough');
+    assert.ok(
+      read.caret.top > read.hostTop,
+      `the caret line is not inside the box: caret ${read.caret.top}, box top ${read.hostTop}`
+    );
+    const gap = read.caret.top - read.menu.bottom;
+    assert.ok(
+      gap >= 0 && gap <= 8,
+      `the menu is not against the caret line: menu bottom ${read.menu.bottom}, ` +
+        `caret top ${read.caret.top} (gap ${gap}px)`
+    );
+    assert.ok(
+      Math.abs(read.menu.left - read.rootLeft) <= 1,
+      `the menu left the box's edge: menu ${read.menu.left}, box ${read.rootLeft}`
+    );
+    // Scrolled with the menu open: no edit or caret move, and the caret moves.
+    const moved = await box.evaluate(async (root) => {
+      const doc = root.ownerDocument;
+      const host = root.closest('#input');
+      if (host) host.scrollTop -= 2 * parseFloat(getComputedStyle(host).lineHeight);
+      await new Promise((done) => requestAnimationFrame(() => done(null)));
+      const range = doc.getSelection()?.getRangeAt(0).cloneRange();
+      range?.setStart(range.startContainer, Math.max(0, range.startOffset - 1));
+      return {
+        caretTop: range?.getBoundingClientRect().top ?? 0,
+        menuBottom: doc.getElementById('mentionmenu')?.getBoundingClientRect().bottom ?? 0
+      };
+    });
+    assert.ok(moved.caretTop > read.caret.top + 10, 'the scroll did not move the caret');
+    const after = moved.caretTop - moved.menuBottom;
+    assert.ok(
+      after >= 0 && after <= 8,
+      `the menu stayed behind a scroll: menu bottom ${moved.menuBottom}, ` +
+        `caret top ${moved.caretTop} (gap ${after}px)`
+    );
+    await box.press('Escape');
+    await menu.waitFor({ state: 'hidden', timeout: 10_000 });
+    await clearComposer();
+  });
+
   // jsdom has the walk. This is the round trip — the wire says `the <name>
   // skill` and the turn that comes back draws `@<name>` — and the green that
   // `var(--av-green)` resolves to, which jsdom cannot compute.

@@ -11,7 +11,6 @@ import { OPEN_REQUEST_MS } from '../startup';
 
 import { randomUUID } from 'crypto';
 import * as messageFacts from '../message_facts';
-import * as checkpointRecord from '../checkpoint_record';
 import * as recovery from '../recovery';
 import { WARM_PROMPT, delivered, sentTurns, wrapWarm } from '../coordination/send';
 import { AcpClient, AcpExited, JsonRpcFailure, REQUEST_CANCELLED, type JsonRpcId } from '../acp';
@@ -68,6 +67,7 @@ import { effortOption, eventsFrom, outcomeOf, updatePayload, metaOf } from './re
 import { type Close, GrokTee, type Teed } from './tee';
 import * as projection from './projection';
 import { type Conversation, Thread, readBaseline, recoverBaseline } from '../thread';
+import { TurnCapture } from '../turn_capture';
 import {
   grokTranscriptPath,
   readGrokChrome,
@@ -274,14 +274,12 @@ export class GrokSession implements SessionHandle {
   private closed = false;
   private readonly messageTurns = new messageFacts.MessageTurns();
   private chromeGen = 0;
-  /** `capturing` holds the baseline await. `wasRunning` folds four closers into
-   *  one idle edge. See `tryDrain` for why the other latches cannot substitute. */
+  /** `capturing` holds the baseline await; see `tryDrain` for why the other
+   *  latches cannot substitute. `capture` folds four closers into one idle edge. */
   private readonly checkpoints: TurnCheckpoints;
   private readonly executionRuntime: executionRuntime.ExecutionRuntime;
-  private executionObserver?: execution.ExecutionObserver;
-  private captureWake?: () => void;
+  private readonly capture: TurnCapture<execution.ExecutionObserver>;
   private capturing = false;
-  private wasRunning = false;
   /**
    * A turn we did not release began while `capturing` was held.
    *
@@ -376,6 +374,12 @@ export class GrokSession implements SessionHandle {
         this.executionRuntime.runtime
       ]),
       this.executionRuntime.contextFile
+    );
+    this.capture = new TurnCapture(
+      this.checkpoints,
+      this.executionRuntime.runtime,
+      () => this.memory.current,
+      (observer) => (store, turn) => observer.finish(store, turn)
     );
     this.client = new AcpClient(transport);
     this.client.onNotification((method, params) => this.receive(method, params));
@@ -519,16 +523,7 @@ export class GrokSession implements SessionHandle {
         { stopped: () => this.stopped(), log: start.log }
       );
     });
-    const historyState = recovery.historyState(Boolean(start.resume), recovered);
-    this.thread = {
-      get historyState() {
-        return historyState();
-      },
-      generation: () => this.memory.current.generation,
-      snapshot: () => this.memory.snapshot(),
-      recovered,
-      onChange: (listener) => this.memory.onChange(listener)
-    };
+    this.thread = recovery.threadPort(this.memory, Boolean(start.resume), recovered);
     this.recoveryPending = recovery.recoveryGate(Boolean(start.resume), recovered, () => {
       this.projection.release(this.memory.current);
       void this.tryDrain();
@@ -587,7 +582,7 @@ export class GrokSession implements SessionHandle {
       typeof params.sessionId === 'string' &&
       params.sessionId !== this.grokId;
     if (!this.live.warmTurn && (childSession || !promptId || !this.historicalPrompt(promptId)))
-      this.executionObserver?.take(method, params);
+      this.capture.observer?.take(method, params);
     return Boolean(childSession);
   }
 
@@ -725,9 +720,8 @@ export class GrokSession implements SessionHandle {
     for (const wake of this.pauses) wake();
     // A turn that ended on tools has its line still open; the child is going.
     this.closeLine({ cut: true });
-    if (this.wasRunning && !this.live.warmTurn) {
-      this.endCheckpoint(this.live.cwd);
-    }
+    if (this.capture.running && !this.live.warmTurn)
+      this.capture.ended(this.live.cwd, { warm: false, baselining: this.capturing });
     void this.checkpoints.endExecution(
       this.executionRuntime.runtime,
       this.executionRuntime.contextFile
@@ -1340,9 +1334,11 @@ export class GrokSession implements SessionHandle {
               }
             : undefined
         );
-        this.executionObserver = under
-          ? new execution.ExecutionObserver(under, this.executionRuntime.contextFile)
-          : undefined;
+        this.capture.install(
+          under
+            ? new execution.ExecutionObserver(under, this.executionRuntime.contextFile)
+            : undefined
+        );
       } finally {
         this.capturing = false;
       }
@@ -1354,8 +1350,7 @@ export class GrokSession implements SessionHandle {
       // Discard the baseline: the next idle edge (a wake, Send now or exit)
       // would otherwise diff a window that turn never started in.
       if (this.closed || this.writePending || this.sending || !this.canWrite()) {
-        this.checkpoints.discard();
-        this.executionObserver = undefined;
+        this.capture.discard();
         return;
       }
       // **A wake ran inside the baseline's window.** `canWrite` still lets us
@@ -1373,8 +1368,7 @@ export class GrokSession implements SessionHandle {
       // refuses `exit` and an open ask, so the one way back to `!canDrain` is
       // `running` turning on during the await — which is the latch.
       if (this.baselineDirty) {
-        this.checkpoints.discard();
-        this.executionObserver = undefined;
+        this.capture.discard();
       }
     }
     // See mergeQueued for why the outbox goes as one prompt.
@@ -1384,8 +1378,7 @@ export class GrokSession implements SessionHandle {
       // Dismissed inside the baseline's window: the row this drain took a
       // baseline for is gone, so the baseline is too. `mergeQueued` cannot
       // empty a non-empty outbox, so this is only reachable after the await.
-      this.checkpoints.discard();
-      this.executionObserver = undefined;
+      this.capture.discard();
       return;
     }
     this.writePending = true;
@@ -1398,8 +1391,7 @@ export class GrokSession implements SessionHandle {
       } catch {
         this.writePending = false;
         this.drainingId = undefined;
-        this.checkpoints.discard();
-        this.executionObserver = undefined;
+        this.capture.discard();
         this.refusedTargets.add(head.id);
         this.apply(mergeQueued(this.live, this.refusedTargets));
         await this.tryDrain();
@@ -1408,8 +1400,7 @@ export class GrokSession implements SessionHandle {
       if (this.closed || this.live.queued[0]?.id !== head.id) {
         this.writePending = false;
         this.drainingId = undefined;
-        this.checkpoints.discard();
-        this.executionObserver = undefined;
+        this.capture.discard();
         await this.tryDrain();
         return;
       }
@@ -1427,8 +1418,7 @@ export class GrokSession implements SessionHandle {
       } catch {
         this.writePending = false;
         this.drainingId = undefined;
-        this.checkpoints.discard();
-        this.executionObserver = undefined;
+        this.capture.discard();
         this.refusedTargets.add(head.id);
         this.apply(mergeQueued(this.live, this.refusedTargets));
         await this.tryDrain();
@@ -1437,8 +1427,7 @@ export class GrokSession implements SessionHandle {
       if (this.closed || this.live.queued[0]?.id !== head.id) {
         this.writePending = false;
         this.drainingId = undefined;
-        this.checkpoints.discard();
-        this.executionObserver = undefined;
+        this.capture.discard();
         await this.tryDrain();
         return;
       }
@@ -1870,9 +1859,9 @@ export class GrokSession implements SessionHandle {
    * needs whichever comes first). Four call sites would each have to be
    * idempotent against the other three; one edge computed off the funnel every
    * state change already passes through is the rule `ClaudeSession` proved.
-   * `wasRunning` is what makes the second closer of a turn a no-op —
-   * `applyEvent` never identity-returns on a turn-end, so object identity
-   * cannot do that job.
+   * `TurnCapture.follow`'s remembered edge is what makes the second closer of a
+   * turn a no-op — `applyEvent` never identity-returns on a turn-end, so object
+   * identity cannot do that job.
    *
    * Claude's `drive` also spends a `get_usage` round trip here and asks for a
    * title. Neither is this brand's, and nothing was ported but the edge.
@@ -1884,95 +1873,23 @@ export class GrokSession implements SessionHandle {
     if (this.closed) {
       return;
     }
-    // `next.exit` is deliberately *not* excluded: a child that died mid-turn
-    // still wrote whatever it wrote, and reading that off the tree asks nothing
-    // of a pipe that has gone. An interrupt needs no case of its own either —
-    // `sendNow` and a cancelled prompt result both reach here as a turn-end, so
-    // the turn keeps its writes instead of losing them into the next baseline.
-    // A ping is maintenance: no capture opens or closes on it. Only a warm turn
-    // runs while the latch is set.
-    const warm = next.warmTurn !== undefined;
-    if (this.wasRunning && !next.running && !warm) {
-      this.captureWake?.();
-      this.captureWake = undefined;
-      this.endCheckpoint(next.cwd);
-    }
-    if (
-      !warm &&
-      !this.wasRunning &&
-      next.running &&
-      this.grokId &&
-      (this.capturing || (this.executionObserver && !next.inFlight))
-    ) {
-      this.captureWake = this.checkpoints.uncertainExecution(next.cwd, {
-        owner: identity.conversationKey('grok', this.grokId),
-        runtime: this.executionRuntime.runtime,
-        turn: randomUUID()
-      });
-    }
-    if (
-      !warm &&
-      !this.wasRunning &&
-      next.running &&
-      !this.capturing &&
-      !this.executionObserver &&
-      this.grokId
-    ) {
-      const turn = randomUUID();
-      void this.checkpoints.openUnknown(next.cwd, {
-        owner: identity.conversationKey('grok', this.grokId),
-        runtime: this.executionRuntime.runtime,
-        turn
-      });
-      this.executionObserver = new execution.ExecutionObserver(
-        this.grokId,
-        this.executionRuntime.contextFile
-      );
-    }
-    this.wasRunning = next.running;
-  }
-
-  /**
-   * Rule 1's other end: what this turn did, filed on the turn it belongs to.
-   *
-   * The window goes to the per-tree store **first**. That is the evidence a
-   * *neighbour* subtracts our paths from, and it is what makes rule 2 possible
-   * at all — every owned session on the tree leaves an account of itself,
-   * naming what it touched however it touched it. The `{ck}` note takes a slot
-   * in the thread, after the assistant line the tee has already placed.
-   *
-   * The await is **inside** the build and not in front of it, which holds the
-   * disk behind it for the length of the end capture; memory draws past it.
-   * Moving it out would take the note's
-   * slot only once the diff was in hand, and a drain releasing inside that
-   * window would put the *next* turn's prompt ahead of it — the note folds onto
-   * whatever was written last, so it would land on the wrong turn entirely.
-   *
-   * `this.live.cwd` would answer the same thing at either edge, since Grok
-   * takes its cwd once at `session/new` and no frame moves it. Passed through
-   * anyway, because `TurnCheckpoints.close` re-reads and compares `treeRoot`
-   * against the baseline's, and that guard is what makes the pin honest.
-   */
-  private endCheckpoint(cwd: string): void {
-    // **Not while a drain is baselining.** The baseline on the object then
-    // belongs to a turn that has not been released yet, and `close` consumes
-    // whatever it finds — so an edge landing inside that window would spend the
-    // next turn's baseline on a span that wrote nothing, and the turn that did
-    // the work would find none and skip. Both cannot be served; the one about
-    // to be sent is the one worth serving.
-    if (this.capturing) {
-      return;
-    }
-    // Started here and awaited there. The capture has to consume the baseline
-    // *now*, before a `close` or the child's exit can clear it in the same
-    // tick; what the slot buys is the order the line is written in, which does
-    // not need the diff in hand to be correct.
-    const observer = this.executionObserver;
-    this.executionObserver = undefined;
-    const taken = this.checkpoints.closeExecution(
-      cwd,
-      observer ? (store, turn) => observer.finish(store, turn) : undefined
+    // An interrupt needs no case of its own: `sendNow` and a cancelled prompt
+    // result both reach capture's falling edge as a turn-end.
+    const grokId = this.grokId;
+    this.capture.follow(
+      {
+        running: next.running,
+        warm: next.warmTurn !== undefined,
+        inFlight: next.inFlight !== undefined,
+        cwd: next.cwd
+      },
+      grokId
+        ? {
+            owner: identity.conversationKey('grok', grokId),
+            create: () => new execution.ExecutionObserver(grokId, this.executionRuntime.contextFile)
+          }
+        : undefined,
+      this.capturing
     );
-    checkpointRecord.enqueue(this.memory.current, taken);
   }
 }

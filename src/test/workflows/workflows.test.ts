@@ -637,7 +637,6 @@ describe('readWorkflowIndex', () => {
       workspaceFolder: undefined,
       folderRoots: new Map(),
       arrangements: new Map(),
-      thread: undefined,
       machine: undefined,
       cafe: false,
       cafeRemote: false,

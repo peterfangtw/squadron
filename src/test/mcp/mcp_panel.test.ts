@@ -24,22 +24,40 @@ const accounts = (): AccountView[] => [
   { brand: 'codex', name: 'Codex', mark: 'codex', state: 'coming_soon', detail: 'Coming soon' }
 ];
 
+const actionRef = (
+  brand: BrandId,
+  name = 'linear',
+  root = '/repos/acme-web',
+  key = name === 'linear' ? 'https://mcp.linear.app/mcp' : `https://mcp.${name}.com/mcp`
+): McpActionRef => ({
+  brand,
+  name,
+  key,
+  declaration: { scope: 'project', root },
+  readCwd: root
+});
+
 const cell = (
   brand: BrandId,
   state: McpBrandCell['state'],
   over: Partial<McpBrandCell> = {}
-): McpBrandCell => ({
-  brand,
-  name: over.name ?? 'linear',
-  label: brand === 'claude' ? 'Claude' : brand === 'grok' ? 'Grok' : 'Codex',
-  mark: brand,
-  state,
-  supported: true,
-  // What `mcp_sheet.ts` used to derive. Stamping it here keeps every scenario
-  // written before the flag existed asserting the verb it already asserted.
-  canDisconnect: !over.fromAccount && (state === 'ok' || state === 'broken'),
-  ...over
-});
+): McpBrandCell => {
+  const name = over.name ?? 'linear';
+  const root = over.root ?? '/repos/acme-web';
+  return {
+    brand,
+    name,
+    label: brand === 'claude' ? 'Claude' : brand === 'grok' ? 'Grok' : 'Codex',
+    mark: brand,
+    state,
+    supported: true,
+    // What `mcp_sheet.ts` used to derive. Stamping it here keeps every scenario
+    // written before the flag existed asserting the verb it already asserted.
+    canDisconnect: !over.fromAccount && (state === 'ok' || state === 'broken'),
+    target: actionRef(brand, name, root),
+    ...over
+  };
+};
 
 const group = (over: Partial<McpGroupView> = {}): McpGroupView => ({
   root: '/repos/acme-web',
@@ -336,7 +354,10 @@ describe('mcp servers — the sheet', () => {
       ]
     });
     actOn(cells(sheet)[1])?.click();
-    assert.deepEqual(lastAction(p), { type: 'startMcpLogin', name: 'slack', brand: 'grok' });
+    assert.deepEqual(lastAction(p), {
+      type: 'startMcpLogin',
+      target: actionRef('grok', 'slack', '/repos/acme-web', 'https://mcp.slack.com/mcp')
+    });
   });
 
   it('offers Disconnect on an authorised cell, and nothing to authorise', (t) => {
@@ -359,7 +380,7 @@ describe('mcp servers — the sheet', () => {
     const { p, sheet } = openMcp(t);
     actOn(cells(sheet)[0])?.click();
     actOn(cells(sheet)[0])?.click();
-    assert.deepEqual(lastAction(p), { type: 'mcpLogout', name: 'linear', brand: 'claude' });
+    assert.deepEqual(lastAction(p), { type: 'mcpLogout', target: actionRef('claude') });
   });
 
   it('keeps Disconnect pending until the host has answered', (t) => {
@@ -404,7 +425,7 @@ describe('mcp servers — the sheet', () => {
     assert.notEqual(after, before, 'the body really was replaced');
     assert.equal(after?.textContent, 'Disconnect?', 'still armed');
     after?.click();
-    assert.deepEqual(lastAction(p), { type: 'mcpLogout', name: 'linear', brand: 'claude' });
+    assert.deepEqual(lastAction(p), { type: 'mcpLogout', target: actionRef('claude') });
   });
 
   it('disarms a cell that stops being connected', (t) => {
@@ -572,7 +593,10 @@ describe('mcp servers — the sheet', () => {
     const retry = sheet.querySelector<HTMLButtonElement>('button.ba.fix');
     assert.equal(retry?.textContent, 'Retry');
     retry?.click();
-    assert.deepEqual(lastAction(p), { type: 'startMcpLogin', name: 'notion', brand: 'claude' });
+    assert.deepEqual(lastAction(p), {
+      type: 'startMcpLogin',
+      target: actionRef('claude', 'notion', '/repos/acme-web', 'https://mcp.notion.com/mcp')
+    });
   });
 
   it('drops the button but keeps the state where the host cannot run the login', (t) => {
@@ -624,7 +648,10 @@ describe('mcp servers — the sheet', () => {
       );
 
     sheet.querySelector<HTMLButtonElement>('button.ba.fix')?.click();
-    assert.deepEqual(lastAction(p), { type: 'startMcpLogin', name: 'notion', brand: 'claude' });
+    assert.deepEqual(lastAction(p), {
+      type: 'startMcpLogin',
+      target: actionRef('claude', 'notion', '/repos/acme-web', 'https://mcp.notion.com/mcp')
+    });
 
     const operationId = (p.posted.at(-1) as { operationId: string }).operationId;
     push(busy('Starting…'));
@@ -720,7 +747,12 @@ describe('mcp servers — the sheet', () => {
         key: 'https://mcp.sentry.dev/sse',
         host: 'mcp.sentry.dev',
         projects: ['shop'],
-        brands: [cell('claude', state, note ? { note } : {})]
+        brands: [
+          cell('claude', state, {
+            ...(note ? { note } : {}),
+            target: actionRef('claude', 'sentry', '/repos/acme-web', 'https://mcp.sentry.dev/sse')
+          })
+        ]
       }
     ]
   });
@@ -744,9 +776,7 @@ describe('mcp servers — the sheet', () => {
     actOn(cells(sheet)[0])?.click();
     assert.deepEqual(lastAction(p), {
       type: 'mcpLogout',
-      name: 'linear',
-      brand: 'claude',
-      root: '/Users/x/shop'
+      target: actionRef('claude', 'linear', '/Users/x/shop')
     });
   });
 
@@ -935,9 +965,7 @@ describe('mcp servers — the sheet, cut by repo', () => {
     armedSection.querySelector<HTMLButtonElement>('button.ba.out.arm')?.click();
     assert.deepEqual(lastAction(p), {
       type: 'mcpLogout',
-      name: 'linear',
-      brand: 'claude',
-      root: '/repos/shop'
+      target: actionRef('claude', 'linear', '/repos/shop')
     });
   });
 
@@ -1096,9 +1124,7 @@ describe('mcp servers — Codex', () => {
     actOn(cells(sheet)[0])?.click();
     assert.deepEqual(lastAction(p), {
       type: 'startMcpLogin',
-      name: 'linear',
-      brand: 'codex',
-      root: '/repos/acme-web'
+      target: actionRef('codex', 'linear', '/repos/acme-web')
     });
   });
 
@@ -1111,9 +1137,7 @@ describe('mcp servers — Codex', () => {
     actOn(cells(sheet)[0])?.click();
     assert.deepEqual(lastAction(p), {
       type: 'mcpLogout',
-      name: 'linear',
-      brand: 'codex',
-      root: '/repos/acme-web'
+      target: actionRef('codex', 'linear', '/repos/acme-web')
     });
   });
 
@@ -1199,9 +1223,6 @@ describe('MCP declaration intent', () => {
       if (state === 'ok') actOn(cells(sheet)[0])?.click();
       assert.deepEqual(lastAction(p), {
         type: state === 'needs' ? 'startMcpLogin' : 'mcpLogout',
-        name: 'same',
-        brand: 'grok',
-        root,
         target
       });
     });

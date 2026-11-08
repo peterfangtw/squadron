@@ -391,11 +391,17 @@ export const css = /* css */ `
   .mfoot { display: flex; align-items: baseline; gap: 6px; padding: 6px 8px 4px;
              font-size: var(--av-fs-sm); color: var(--av-fg-3); }
   .mfoot .ver { margin-left: auto; font-variant-numeric: tabular-nums; }
-  #tk-list { flex: 1; min-height: 0; min-width: 0; overflow: auto; display: flex;
-             flex-direction: column; gap: 7px; background: var(--av-bg); }
+  #tk-list { flex: 1; min-height: 0; min-width: 0; overflow: auto; display: grid;
+             grid-template: minmax(0, 1fr) / minmax(0, 1fr); background: var(--av-bg); }
+  #tk-list > * { grid-area: 1 / 1; }
+  #tk-list > .tkempty { z-index: 1; max-width: 480px; justify-self: center; align-self: center; }
+  #tk-list > .tknotice { align-self: end; z-index: 2; }
+  .tkrows { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 7px;
+            padding-bottom: var(--ticket-notice-height, 0px); }
+  .tkrows > .tk { flex: none; }
   /* The gutter is on the children: .tkcolumns scrolls out to the board's edges,
      so padding here would clip tickets short of them. */
-  #tk-list > .tkstale, #tk-list > .tk { margin-inline: var(--board-gutter); }
+  #tk-list > .tkstale, .tkrows > .tk { margin-inline: var(--board-gutter); }
   /* Colour, not opacity: the connect button inside this block is a filled CTA
      and was being faded along with the sentence explaining it. */
   .tkempty { color: var(--av-fg-2); font-size: var(--av-fs-lg); margin: auto; text-align: center; padding: 0 22px;
@@ -414,6 +420,8 @@ export const css = /* css */ `
   .tkclear:focus-visible { outline: 2px solid var(--av-focus); outline-offset: 1px; }
   .tkstale { flex: none; padding: 6px 10px; border-radius: 4px; font-size: var(--av-fs-md);
              color: var(--av-orange); background: var(--av-quote-bg); }
+  .tkstale.tkempty { background: none; color: var(--av-fg-2); padding: 0 22px; }
+  .tkstate-title { font-size: var(--av-fs-lg); }
 
   /* The track owns horizontal scrolling; each column's body scrolls vertically
      so its status and count stay visible without a second rendering loop. */
@@ -446,7 +454,7 @@ export const css = /* css */ `
   .lane.shut > .lhead .lname { min-height: 0; white-space: nowrap; overflow: hidden;
              text-overflow: ellipsis; }
   .lane > .lbody { min-height: 0; overflow-y: auto; display: flex; flex-direction: column;
-             gap: 7px; padding: 2px 2px 7px; }
+             gap: 7px; padding: 2px 2px calc(7px + var(--ticket-notice-height, 0px)); }
   .lane > .lbody > .tk { flex: none; overflow-wrap: anywhere; }
   .lane.shut > .lbody { display: none; }
 

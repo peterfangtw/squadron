@@ -604,7 +604,7 @@ describe('mergeConversations', () => {
   it('returns 20 newest first from 15 Claude and 15 newer Grok, both brands present', () => {
     const claude = Array.from({ length: 15 }, (_, i) => row('claude', i + 1));
     const grok = Array.from({ length: 15 }, (_, i) => row('grok', i + 16));
-    const merged = conversations.mergeConversations([claude, grok], '/dev/app', new Map(), 20);
+    const merged = conversations.mergeConversations([...claude, ...grok], '/dev/app', 20);
     assert.equal(merged.length, 20);
     assert.deepEqual(
       merged.map((r) => r.lastActivity),
@@ -619,51 +619,10 @@ describe('mergeConversations', () => {
     const other = Array.from({ length: 20 }, (_, i) =>
       row('claude', i + 10, { cwd: '/dev/app/apps/web' })
     );
-    const merged = conversations.mergeConversations([here, other], '/dev/app', new Map(), 20);
+    const merged = conversations.mergeConversations([...here, ...other], '/dev/app', 20);
     assert.equal(merged.length, 20);
     assert.equal(merged.filter((r) => r.cwd === '/dev/app').length, 1);
     assert.ok(merged.some((r) => r.sessionId === 'grok-1'));
-  });
-
-  it('overrides a row’s title with the name somebody stated for it', () => {
-    // The one brand-free place picker rows are assembled, so neither brand's
-    // lister has to learn that a stated name exists. What it is for is the
-    // brand with no rename door, whose past would otherwise still be listed
-    // under whatever its first prompt said.
-    const rows = [row('grok', 1, { title: 'read the fold and', titled: false })];
-    const stated = new Map([
-      [
-        mod.conversationKey('grok', 'grok-1'),
-        {
-          schema: 1 as const,
-          brand: 'grok' as const,
-          sessionId: 'grok-1',
-          name: 'Own the stated name',
-          statedAt: 5
-        }
-      ]
-    ]);
-    const [merged] = conversations.mergeConversations([rows], '/dev/app', stated);
-    assert.equal(merged?.title, 'Own the stated name');
-    assert.equal(merged?.titled, true, 'a name somebody typed is not a prompt standing in');
-  });
-
-  it('leaves a row alone when nothing was stated for that conversation', () => {
-    const rows = [row('claude', 1)];
-    const stated = new Map([
-      [
-        mod.conversationKey('grok', 'claude-1'),
-        {
-          schema: 1 as const,
-          brand: 'grok' as const,
-          sessionId: 'claude-1',
-          name: 'another brand’s',
-          statedAt: 5
-        }
-      ]
-    ]);
-    const [merged] = conversations.mergeConversations([rows], '/dev/app', stated);
-    assert.equal(merged?.title, 'claude 1');
   });
 
   it('keys a live session by brand and id, so the same id on two brands is two rows', () => {

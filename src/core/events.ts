@@ -146,30 +146,3 @@ export type SessionEvent = Sourced &
     | { kind: 'title'; title: string }
     | { kind: 'exit'; code: number | null; signal: string | null; source?: ExitSource }
   );
-
-/*
- * Two mappings, sketched. Neither adapter exists yet; these are here so the
- * kinds above were chosen against two real wires rather than one.
- *
- * Claude `result` (`core/frames.ts`) → the turn is over:
- *
- *   { kind: 'turn-end',
- *     outcome: frame.subtype === 'error_during_execution' ? 'interrupted' : 'done',
- *     raw: { source: 'claude', nativeType: 'result', payload: value } }
- *
- * `error_during_execution` is the CLI's word for interrupted rather than for a
- * failure to report as one (`core/live.ts`), which is the whole reason
- * `TurnOutcome` separates the two.
- *
- * Grok `_x.ai/sessions/changed` (`docs/reference/cli_state/grok/protocol.md`, 1.0.4) →
- * the roster's activity word for this session:
- *
- *   { kind: 'status',
- *     status: row.activity === 'working' ? 'busy' : 'idle',
- *     raw: { source: 'grok', nativeType: '_x.ai/sessions/changed', payload: value } }
- *
- * The roster carries every session the agent holds, so an adapter picks its own
- * row out first. `pending_interaction.kind: "permission"` on that row is a
- * `waiting` event and not a third status word — `waiting` is the reducer's to
- * derive from the open list, exactly as it is for Claude.
- */

@@ -1489,6 +1489,13 @@ describe('selected team toolbar', () => {
     $(p, '#board-tickets')?.click();
     assert.match($(p, '#tk-list')?.textContent ?? '', /<b>Denied<\/b>/);
     assert.equal($(p, '#tk-list b'), null);
+    assert.equal(
+      p.window.document.querySelectorAll('#tk-list > *').length,
+      1,
+      'a failed first load should have one error state, without a second empty message'
+    );
+    assert.equal($(p, '#tk-list .tkcolumns'), null);
+    assert.equal($(p, '#tk-list [role="alert"]')?.textContent?.includes('<b>Denied</b>'), true);
     $(p, '[data-act="retryTickets"]')?.click();
     assert.deepEqual(p.posted.at(-1), {
       type: 'refreshTickets',

@@ -43,7 +43,6 @@ import { onSessionState } from './watch';
 import type { RemoteHost } from './remote';
 
 import {
-  RunHost,
   killListener,
   openRunPicker,
   reanswerRunPicker,
@@ -131,6 +130,7 @@ import { sameSessionStart } from '../core/model';
 import * as backlog from '../core/backlog';
 import * as tickets from '../core/tickets';
 import * as linear from '../core/tickets/linear';
+import * as github from '../core/tickets/github';
 import { webUri } from '../core/web';
 import { accountsNotAdded, allowlistNotSaved, remoteStateView } from '../ui/remote_view';
 import {
@@ -177,6 +177,7 @@ const HIDDEN_POLL_MS = 15_000;
 
 /** SecretStorage key for the Linear personal API token. */
 const LINEAR_KEY = 'squadron.linear.apiKey';
+const GITHUB_KEY = 'squadron.github.connection';
 
 /**
  * Where the tracker's GraphQL lives. Linear's own unless the reader has written
@@ -193,6 +194,12 @@ const LINEAR_KEY = 'squadron.linear.apiKey';
 function linearEndpoint(): string {
   return linear.trackerEndpoint(
     vscode.workspace.getConfiguration('squadron').inspect<string>('linear.endpoint')
+  );
+}
+function githubEndpoint(): string {
+  return tickets.configuredEndpoint(
+    vscode.workspace.getConfiguration('squadron').inspect<string>('github.endpoint'),
+    github.ENDPOINT
   );
 }
 
@@ -382,9 +389,6 @@ const EXTENSION_PAGES: Record<
   issue: 'https://forms.gle/LMVrVNRGYb7SuzSQ6'
 };
 
-/** Keep this module-level RunHost so the offersFor mtime cache survives requests. */
-const NO_PANEL: RunHost = { runners: new Map(), refresh: () => Promise.resolve() };
-
 export class OverviewPanel {
   readonly confirmations = new Confirmations((message) => this.post(message));
   private static current: OverviewPanel | undefined;
@@ -442,13 +446,9 @@ export class OverviewPanel {
     );
   }
 
-  /**
-   * Use the open panel rather than fill a second cache in this process: that
-   * copy would never be disposed, while the panel's is. Before any panel
-   * opens, activation serves requests through NO_PANEL.
-   */
-  static runHost(): RunHost {
-    return OverviewPanel.current ?? NO_PANEL;
+  /** Redraw the open panel. Skill discovery has nothing to redraw before one exists. */
+  static refreshOpen(): void {
+    void OverviewPanel.current?.refresh();
   }
 
   /**
@@ -457,7 +457,7 @@ export class OverviewPanel {
    */
   static async connectLinear(): Promise<void> {
     const panel = OverviewPanel.current;
-    const epoch = panel?.linearEpoch;
+    const epoch = panel?.ticketEpoch;
     const identity = panel?.tickets.identity();
     const key = await vscode.window.showInputBox({
       title: 'Connect Linear',
@@ -472,10 +472,114 @@ export class OverviewPanel {
     }
     if (
       OverviewPanel.current !== panel ||
-      (panel && (panel.linearEpoch !== epoch || (identity && !panel.tickets.accepts(identity))))
+      (panel && (panel.ticketEpoch !== epoch || (identity && !panel.tickets.accepts(identity))))
     )
       return;
     await OverviewPanel.secrets?.store(LINEAR_KEY, trimmed);
+    OverviewPanel.current?.resetTickets();
+  }
+
+  static async connectTicketSource(provider?: string): Promise<void> {
+    const panel = OverviewPanel.current;
+    const epoch = panel?.ticketEpoch;
+    const identity = panel?.tickets.identity();
+    const current = (): boolean =>
+      OverviewPanel.current === panel &&
+      (!panel || (epoch === panel.ticketEpoch && (!identity || panel.tickets.accepts(identity))));
+    if (!provider || provider === 'choose') {
+      const choice = await vscode.window.showQuickPick(
+        [
+          { label: 'Linear', id: linear.SOURCE_ID },
+          { label: 'GitHub Projects', id: github.SOURCE_ID }
+        ],
+        { title: 'Connect a ticket source' }
+      );
+      if (!choice || !current()) return;
+      provider = choice.id;
+    }
+    if (provider === linear.SOURCE_ID) {
+      if (current()) await OverviewPanel.connectLinear();
+      return;
+    }
+    if (provider !== github.SOURCE_ID) return;
+    const setup = await vscode.window.showQuickPick(
+      [
+        {
+          label: 'Create a classic token for private repository issues',
+          detail:
+            'Select read:project and the top-level repo scope to read private issues. GitHub bundles write, deployment and invitation access into repo; Squadron only reads projects and issues.',
+          scopes: 'read:project,repo'
+        },
+        {
+          label: 'Create a classic token for public repository issues',
+          detail:
+            'Select only read:project to read projects and public issues. No repo scope is needed; private issues will stay hidden.',
+          scopes: 'read:project'
+        },
+        {
+          label: 'I have a classic token',
+          detail:
+            'Needs read:project; add the top-level repo scope only for private issues. No separate deployment or invitation scopes are needed. Authorize organization SSO if required.',
+          scopes: undefined
+        }
+      ],
+      {
+        title: 'Connect GitHub Projects — token setup',
+        placeHolder:
+          'Use a personal access token (classic). Choose a link to create one, or continue with yours.',
+        ignoreFocusOut: true
+      }
+    );
+    if (!setup || !current()) return;
+    if (setup.scopes) {
+      await vscode.env.openExternal(
+        vscode.Uri.parse(
+          'https://github.com/settings/tokens/new?description=Squadron&scopes=' +
+            encodeURIComponent(setup.scopes)
+        )
+      );
+      if (!current()) return;
+    }
+    const owner = await vscode.window.showInputBox({
+      title: 'Connect GitHub Projects',
+      prompt: 'GitHub organization or user login whose projects to list.',
+      ignoreFocusOut: true,
+      validateInput: (value) =>
+        /^[a-z\d](?:[a-z\d-]{0,38})$/i.test(value.trim())
+          ? undefined
+          : 'Enter an organization or user login.'
+    });
+    if (!owner?.trim() || !current()) return;
+    const token = await vscode.window.showInputBox({
+      title: 'Connect GitHub Projects',
+      prompt:
+        'Paste a classic token with read:project; add the top-level repo scope only for private issues. Squadron only reads projects and issues. Kept in the OS keychain.',
+      password: true,
+      ignoreFocusOut: true,
+      validateInput: (value) =>
+        value.trim().startsWith('github_pat_')
+          ? 'Use a personal access token (classic), not a fine-grained token.'
+          : value.trim()
+            ? undefined
+            : 'Enter your classic token.'
+    });
+    if (!token?.trim() || !current()) return;
+    await OverviewPanel.secrets?.store(
+      GITHUB_KEY,
+      JSON.stringify({ owner: owner.trim(), token: token.trim() })
+    );
+    OverviewPanel.current?.resetTickets();
+  }
+
+  static async disconnectTicketSource(provider: string): Promise<void> {
+    const key =
+      provider === github.SOURCE_ID
+        ? GITHUB_KEY
+        : provider === linear.SOURCE_ID
+          ? LINEAR_KEY
+          : undefined;
+    if (!key) return;
+    await OverviewPanel.secrets?.delete(key);
     OverviewPanel.current?.resetTickets();
   }
 
@@ -745,12 +849,18 @@ export class OverviewPanel {
           void this.setSound(msg.level);
         } else if (msg.type === 'connectTicketSource') {
           if (
-            msg.generation === this.linearEpoch &&
-            (!this.configuredTickets
+            msg.generation === this.ticketEpoch &&
+            (!this.configuredTickets?.length
               ? msg.selectionSeq === 0 && msg.scopeId === undefined
               : this.tickets.accepts(msg))
           )
-            void OverviewPanel.connectLinear();
+            void OverviewPanel.connectTicketSource(
+              msg.provider ??
+                this.tickets.state(this.configuredTickets).status?.sourceId ??
+                linear.SOURCE_ID
+            );
+        } else if (msg.type === 'disconnectTicketSource') {
+          if (this.tickets.accepts(msg)) void OverviewPanel.disconnectTicketSource(msg.provider);
         } else if (msg.type === 'ticketsOpen') {
           // Refresh on opening so the reader need not wait for the poll. Fetching
           // also serves the badge while closed, and the TTL still gates the network.
@@ -759,7 +869,7 @@ export class OverviewPanel {
           }
         } else if (msg.type === 'refreshTickets') {
           if (!this.tickets.accepts(msg)) return;
-          this.tickets.refetch();
+          this.tickets.refetchCatalog();
           void this.refresh();
         } else if (msg.type === 'refreshMcpHealth') {
           void refreshMcpHealthNow(this).then(() => this.refresh());
@@ -880,7 +990,7 @@ export class OverviewPanel {
       ...(OverviewPanel.secrets
         ? [
             OverviewPanel.secrets.onDidChange((e) => {
-              if (e.key === LINEAR_KEY) {
+              if (e.key === LINEAR_KEY || e.key === GITHUB_KEY) {
                 this.linearKeyHeld = false;
                 this.resetTickets();
               }
@@ -903,7 +1013,10 @@ export class OverviewPanel {
           void forceAuth(this);
         }
         // Filter settings change the query, so its cached list and options no longer apply.
-        if (e.affectsConfiguration('squadron.linear')) {
+        if (
+          e.affectsConfiguration('squadron.linear') ||
+          e.affectsConfiguration('squadron.github')
+        ) {
           this.resetTickets();
         }
         // The Settings UI, or another window, also changes these. Refresh now,
@@ -985,7 +1098,7 @@ export class OverviewPanel {
   /** Undefined can mean no key. linearKeyHeld separates that from unread. */
   private linearKeyCache: string | undefined;
   private linearKeyHeld = false;
-  private linearEpoch = 0;
+  private ticketEpoch = 0;
   /** The `order` of the last held-session reading posted (`publishable`). */
   private publishedRead = 0;
   private ownedKey: string | undefined;
@@ -1037,7 +1150,7 @@ export class OverviewPanel {
    * Ticket state belongs in core/backlog.ts. Supply the host-only keychain
    * key, settings defaults and panel lifetime here.
    */
-  private configuredTickets: tickets.ConfiguredSource | undefined;
+  private configuredTickets: tickets.ConfiguredSource[] | undefined;
 
   private readonly tickets = new backlog.TicketStore({
     onDetailClosed: (requestId) => {
@@ -1514,7 +1627,7 @@ export class OverviewPanel {
   }
 
   private async refreshOnce(): Promise<void> {
-    const linearEpoch = this.linearEpoch;
+    const ticketEpoch = this.ticketEpoch;
     const claims = await readClaims();
     const heads: HeadPass = new Map();
     // Owned sessions come from frames, so enrich their git fields here.
@@ -1590,26 +1703,46 @@ export class OverviewPanel {
     // pass. Login refreshes directly through forceAuth.
     this.models = this.gatherModels();
     const linearKey = await this.linearKey();
-    // Reject an old poll's unlinked answer after a connect changes the epoch.
-    if (linearEpoch !== this.linearEpoch) {
+    const githubRaw = this.configuredTickets
+      ? undefined
+      : await OverviewPanel.secrets?.get(GITHUB_KEY);
+    if (ticketEpoch !== this.ticketEpoch) {
       this.boardRequests.add('ui');
       return;
     }
-    if (linearKey && !this.configuredTickets) {
+    if (!this.configuredTickets) {
       const cfg = vscode.workspace.getConfiguration('squadron');
-      this.configuredTickets = {
-        sourceId: linear.SOURCE_ID,
-        generation: this.linearEpoch,
-        source: new linear.LinearSource(linearKey, linearEndpoint()),
-        presentation: linear.PRESENTATION,
-        legacyTeamKey: cfg.get<string>('linear.team') || undefined
-      };
+      this.configuredTickets = [];
+      if (linearKey)
+        this.configuredTickets.push({
+          sourceId: linear.SOURCE_ID,
+          generation: this.ticketEpoch,
+          source: new linear.LinearSource(linearKey, linearEndpoint()),
+          presentation: linear.PRESENTATION,
+          legacyTeamKey: cfg.get<string>('linear.team') || undefined
+        });
+      if (githubRaw) {
+        try {
+          const connection = JSON.parse(githubRaw) as { owner?: unknown; token?: unknown };
+          if (typeof connection.owner === 'string' && typeof connection.token === 'string') {
+            this.configuredTickets.push({
+              sourceId: github.SOURCE_ID,
+              generation: this.ticketEpoch,
+              source: new github.GithubSource(connection.token, connection.owner, githubEndpoint()),
+              presentation: github.PRESENTATION,
+              refreshMs: github.REFRESH_MS
+            });
+          }
+        } catch {
+          /* An unreadable credential record leaves the source disconnected. */
+        }
+      }
     }
-    const ticketState = this.tickets.state(linearKey ? this.configuredTickets : undefined);
+    const ticketState = this.tickets.state(this.configuredTickets);
     const ticketSource: TicketSourceStatus = ticketState.status ?? {
       linked: false,
       sourceId: linear.SOURCE_ID,
-      generation: this.linearEpoch,
+      generation: this.ticketEpoch,
       selectionSeq: 0,
       presentation: linear.PRESENTATION
     };
@@ -1695,7 +1828,6 @@ export class OverviewPanel {
       scratchRoot,
       folderRoots,
       arrangements,
-      thread: undefined,
       accounts,
       ...(accounts ? {} : { usageWindows: waitingUsageWindows() }),
       onboardingDone,
@@ -1737,7 +1869,7 @@ export class OverviewPanel {
       now: Date.now()
     });
     if (this.disposed) return;
-    if (linearEpoch !== this.linearEpoch) {
+    if (ticketEpoch !== this.ticketEpoch) {
       this.boardRequests.add('ui');
       return;
     }
@@ -1853,9 +1985,9 @@ export class OverviewPanel {
    */
   private async linearKey(): Promise<string | undefined> {
     if (!this.linearKeyHeld) {
-      const epoch = this.linearEpoch;
+      const epoch = this.ticketEpoch;
       const key = await OverviewPanel.secrets?.get(LINEAR_KEY);
-      if (epoch !== this.linearEpoch) return this.linearKey();
+      if (epoch !== this.ticketEpoch) return this.linearKey();
       this.linearKeyCache = key;
       this.linearKeyHeld = true;
     }
@@ -1881,7 +2013,7 @@ export class OverviewPanel {
 
   /** Drop everything and start over — the key or the query itself changed. */
   private resetTickets(): void {
-    this.linearEpoch++;
+    this.ticketEpoch++;
     // Drop the key cache too. connectLinear stores then calls this in the same
     // turn; onDidChange is for other windows and is not guaranteed to have
     // fired before the refresh below reads the key. The smoke host's in-memory

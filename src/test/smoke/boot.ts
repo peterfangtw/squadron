@@ -419,6 +419,37 @@ export const ticketTracker: {
   requests: { query: string; variables: Record<string, unknown> }[];
 } = { requests: [] };
 
+function githubTrackerReply(query: string): unknown {
+  const page = (nodes: unknown[]) => ({ nodes, pageInfo: { hasNextPage: false, endCursor: null } });
+  const item = {
+    id: 'project-item',
+    isArchived: false,
+    project: { id: 'project' },
+    fieldValues: page([]),
+    content: {
+      __typename: 'Issue',
+      id: 'github-issue',
+      title: 'Project issue',
+      number: 12,
+      body: 'GitHub description',
+      url: 'https://github.com/acme/web/issues/12',
+      repository: { nameWithOwner: 'acme/web' },
+      assignees: page([
+        { id: 'one', login: 'alex' },
+        { id: 'two', login: 'sam' }
+      ])
+    }
+  };
+  if (query.includes('GithubOwner'))
+    return { repositoryOwner: { id: 'owner', __typename: 'Organization' }, viewer: { id: 'one' } };
+  if (query.includes('GithubProjects'))
+    return { node: { projectsV2: page([{ id: 'project', number: 1, title: 'Engineering' }]) } };
+  if (query.includes('GithubFields')) return { node: { fields: page([]) } };
+  if (query.includes('GithubItems')) return { node: { items: page([item]) } };
+  if (query.includes('GithubDetail')) return { node: item };
+  throw new Error('Unexpected GitHub fixture query');
+}
+
 /** The real host reaches this scoped GraphQL fixture over HTTP, without an account. */
 async function fakeTracker(): Promise<{ server: http.Server; endpoint: string }> {
   const server = http.createServer((req, res) => {
@@ -431,6 +462,11 @@ async function fakeTracker(): Promise<{ server: http.Server; endpoint: string }>
       if (query.includes('TicketDetail') && ticketTracker.holdDetail) {
         res.on('close', () => ticketTracker.detailCancelled?.());
         ticketTracker.detailRequested?.();
+        return;
+      }
+      if (query.includes('Github')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ data: githubTrackerReply(query) }));
         return;
       }
       const catalog = query.includes('TicketScopes');
@@ -904,6 +940,7 @@ before(async () => {
     'squadron.codexPath': codexShim,
     'squadron.grokPath': grokShim,
     'squadron.linear.endpoint': served.endpoint,
+    'squadron.github.endpoint': served.endpoint,
     // The servers line is behind an experiment switch and off by default, so
     // two scenario files would drive a board that draws no chips at all. On
     // here rather than flipped per scenario: it is read at launch, like every

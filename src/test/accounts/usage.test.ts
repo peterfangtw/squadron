@@ -151,22 +151,16 @@ const claudePort = (): import('../../core/adapter').UsageSource => ({
  * calling what ships. A hand-rolled copy of it is what let two bugs through the
  * first review: it drifted from the walk it stood for.
  *
- * The walk hands a row the brand's windows when there is no figure, so a
- * signed-in account draws a dash per window. These scenarios ask the older
- * question — is there a reading at all — so a record with no figure in it comes
- * back as nothing.
+ * The figure is the stored reading `usageFor` paints. These scenarios ask
+ * whether there is a reading at all, so a record with no figure comes back
+ * as nothing.
  */
 
 async function pass(sessions: Session[] = [], everyMs = 0): Promise<RateLimits | undefined> {
-  const view = await store.walkUsage(
-    [{ brand: 'claude', source: { ...claudePort(), everyMs }, signedIn: true }],
-    {
-      sessions,
-
-      now: Date.now()
-    }
-  );
-  const got = view.get('claude');
+  const source = { ...claudePort(), everyMs };
+  const now = Date.now();
+  await store.walkUsage({ brand: 'claude', source, signedIn: true }, { sessions, now });
+  const got = await store.usageFor('claude', source, { now });
   return got?.windows.some((window) => typeof window.pct === 'number') ? got : undefined;
 }
 
@@ -1099,12 +1093,14 @@ describe('one pass of the walk', () => {
     // running and answering on their pipes, so a walk that folded them in would
     // put the old account's figure straight back on disk, one poll after the
     // forget cleared it.
-    const view = await store.walkUsage([{ brand: 'claude', source, signedIn: false }], {
-      sessions: [reporting(31)],
+    await store.walkUsage(
+      { brand: 'claude', source, signedIn: false },
+      {
+        sessions: [reporting(31)],
 
-      now: Date.now()
-    });
-    assert.equal(view.get('claude'), undefined);
+        now: Date.now()
+      }
+    );
     assert.equal(await store.readStoredUsage('claude'), undefined);
     assert.equal(reads, 0);
   });
@@ -1125,11 +1121,14 @@ describe('one pass of the walk', () => {
       { everyMs: 60 * 60 * 1000 }
     );
     const walk = (sessions: Session[], now = Date.now()) =>
-      store.walkUsage([{ brand: 'claude', source, signedIn: true }], {
-        sessions,
+      store.walkUsage(
+        { brand: 'claude', source, signedIn: true },
+        {
+          sessions,
 
-        now
-      });
+          now
+        }
+      );
 
     await walk([{ pid: 7, status: 'busy' } as Session]);
     assert.equal(reads, 1, 'the first ask is always due');
@@ -1156,11 +1155,14 @@ describe('one pass of the walk', () => {
       { everyMs: 60 * 60 * 1000 }
     );
     const walk = (status: Session['status']) =>
-      store.walkUsage([{ brand: 'claude', source, signedIn: true }], {
-        sessions: [{ pid: 7, status } as Session],
+      store.walkUsage(
+        { brand: 'claude', source, signedIn: true },
+        {
+          sessions: [{ pid: 7, status } as Session],
 
-        now: Date.now()
-      });
+          now: Date.now()
+        }
+      );
 
     await walk('busy');
     assert.equal(reads, 1, 'the first ask is always due');
@@ -1174,44 +1176,28 @@ describe('one pass of the walk', () => {
   it('stamps a reading its source did not date', async () => {
     const source = port(() => Promise.resolve(reading(50)));
     const now = Date.now() - 30 * SECOND;
-    await store.walkUsage([{ brand: 'claude', source, signedIn: true }], {
-      sessions: [],
+    await store.walkUsage(
+      { brand: 'claude', source, signedIn: true },
+      {
+        sessions: [],
 
-      now
-    });
+        now
+      }
+    );
     // The pass's clock, so a source that answers with a bare figure is ranked
     // like every other reading rather than losing to all of them.
     assert.equal((await store.readStoredUsage('claude'))?.at, now);
   });
 
-  it('says which windows a brand has when it has no figure for them', async () => {
-    const source = port(() => Promise.resolve(undefined));
-    const view = await store.walkUsage([{ brand: 'claude', source, signedIn: true }], {
-      sessions: [],
-
-      now: Date.now()
-    });
-    // What draws `5h - · wk -` rather than an empty slot.
-    assert.deepEqual(view.get('claude')?.windows, [
-      { id: 'session', short: '5h' },
-      { id: 'weekly', short: 'wk' }
-    ]);
-  });
-
-  it('keeps what a throwing brand held, and finishes the pass', async () => {
+  it('keeps what a throwing brand held, and still walks the next brand', async () => {
     const boom = port(() => Promise.reject(new Error('no socket')));
     const fine = port(() => Promise.resolve(reading(12)));
     await store.noteReading('claude', reading(40));
-    const view = await store.walkUsage(
-      [
-        { brand: 'claude', source: boom, signedIn: true },
-        { brand: 'grok', source: fine, signedIn: true }
-      ],
-      { sessions: [], now: Date.now() }
-    );
-    assert.equal(win(view.get('claude'), 'session')?.pct, 40);
-    // A figure on a chip may not take the rest of the message down with it.
-    assert.equal(win(view.get('grok'), 'session')?.pct, 12);
+    const now = Date.now();
+    await store.walkUsage({ brand: 'claude', source: boom, signedIn: true }, { sessions: [], now });
+    await store.walkUsage({ brand: 'grok', source: fine, signedIn: true }, { sessions: [], now });
+    assert.equal(win(await store.readStoredUsage('claude'), 'session')?.pct, 40);
+    assert.equal(win(await store.readStoredUsage('grok'), 'session')?.pct, 12);
     await store.forgetUsageFor('grok');
   });
 });

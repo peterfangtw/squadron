@@ -29,7 +29,7 @@ const card = (pid: number, startedAt: number): CardView => ({
   cacheTtlMs: 60 * 60_000
 });
 
-const state = (cards: CardView[], thread?: ThreadView): StateMessage => ({
+const state = (cards: CardView[]): StateMessage => ({
   type: 'state',
   groups: [
     {
@@ -54,9 +54,29 @@ const state = (cards: CardView[], thread?: ThreadView): StateMessage => ({
   theme: 'follow',
   model: '',
   efforts: {},
-  models: [],
-  ...(thread ? { thread } : {})
+  models: []
 });
+
+/** The ordered channel `ChatState.takeThread` reads. A new selection each call,
+ * so a later view does not have to outrun an earlier sequence. */
+const land = (chats: ChatState, view: ThreadView): boolean => {
+  const activated = chats.activateSession(view.pid, view.startedAt);
+  const active = chats.active();
+  if (
+    activated === undefined ||
+    active?.kind !== 'session' ||
+    active.pid !== view.pid ||
+    active.startedAt !== view.startedAt
+  )
+    return false;
+  return chats.takeThread({
+    type: 'thread',
+    selection: chats.requestSelection(),
+    generation: 1,
+    sequence: 1,
+    thread: view
+  });
+};
 
 const thread = (pid: number, startedAt: number): ThreadView => ({
   ...card(pid, startedAt),
@@ -231,10 +251,12 @@ describe('ChatState', () => {
 
   it('retires state and ignores stale threads and file results after pid reuse', () => {
     const chats = new ChatState();
-    chats.observe(state([card(1, 1000)], thread(1, 1000)));
+    chats.observe(state([card(1, 1000)]));
+    assert.equal(land(chats, thread(1, 1000)), true);
     const pick = chats.beginFilePick({ kind: 'session', pid: 1, startedAt: 1000 });
     assert.ok(pick);
-    chats.observe(state([card(1, 20_000)], thread(1, 1000)));
+    chats.observe(state([card(1, 20_000)]));
+    assert.equal(land(chats, thread(1, 1000)), false);
     assert.equal(chats.session(1)?.thread, undefined);
     // The id alone is the address now, and it still finds nothing: the reused
     // pid got a fresh record whose set never held it.
@@ -312,11 +334,13 @@ describe('ChatState', () => {
 
   it('does not reconcile a fresh send against an identical historical turn', () => {
     const chats = new ChatState();
-    chats.observe(
-      state([card(1, 1000)], {
+    chats.observe(state([card(1, 1000)]));
+    assert.equal(
+      land(chats, {
         ...thread(1, 1000),
         exchanges: [{ role: 'user', text: 'same', blocks: [{ prose: 'same' }] }]
-      })
+      }),
+      true
     );
     const sent = chats.beginSend(1, {
       delivered: 'same',
@@ -351,7 +375,8 @@ describe('ChatState', () => {
 
   it('rejects an older reveal and merges a matching state-before-reveal record', () => {
     const chats = new ChatState();
-    chats.observe(state([card(1, 20_000)], thread(1, 20_000)));
+    chats.observe(state([card(1, 20_000)]));
+    assert.equal(land(chats, thread(1, 20_000)), true);
     const stale = chats.openDraft('/stale');
     chats.edit({ kind: 'draft', cwd: stale.cwd }, { doc: box('old') });
     const staleId = chats.beginDraftStart(stale.cwd, 1);
@@ -359,7 +384,8 @@ describe('ChatState', () => {
     assert.equal(chats.bindSession(staleId, 1, 1000), undefined);
     assert.equal(chats.session(1)?.identity.startedAt, 20_000);
     assert.equal(wordsOf(chats.draftFor(stale.cwd)?.doc), 'old');
-    chats.observe(state([card(1, 1000)], thread(1, 1000)));
+    chats.observe(state([card(1, 1000)]));
+    assert.equal(land(chats, thread(1, 1000)), false);
     assert.equal(chats.session(1)?.identity.startedAt, 20_000);
 
     const current = chats.openDraft('/current');
@@ -440,7 +466,8 @@ describe('ChatState', () => {
         steps: [{ id: 'build', label: 'Build', status: 'in_progress' as const }]
       }
     };
-    chats.observe(state([card(1, 1000)], view));
+    chats.observe(state([card(1, 1000)]));
+    assert.equal(land(chats, view), true);
     chats.activateSession(1);
     const anchors = [{ key: 'turn-1', index: 0, delta: 4 }];
     chats.saveAnchors(1, anchors);
@@ -577,7 +604,7 @@ describe('ChatState', () => {
     chats.holdSubmit(owner, payload('hello', 10));
     const id = chats.beginDraftStart(draft.cwd, 1);
     assert.ok(id);
-    chats.observe(state([card(8, 8000)], thread(8, 8000)));
+    chats.observe(state([card(8, 8000)]));
     chats.activateSession(8, 8000);
     chats.edit({ kind: 'session', pid: 8, startedAt: 8000 }, { doc: box('on the card') });
     const bound = chats.bindSession(id, 8, 8000);
@@ -795,7 +822,7 @@ describe('ChatState with the editor document', () => {
     const id = chats.beginDraftStart('/proj', 1);
     assert.ok(id);
     assert.ok(chats.bindSession(id, 8, 8000));
-    chats.observe(state([card(8, 8000)], { ...thread(8, 8000), skills: ['review'] }));
+    chats.observe(state([card(8, 8000)]));
     assert.deepEqual(chats.session(8)?.compose.doc, picked);
   });
 
@@ -806,7 +833,7 @@ describe('ChatState with the editor document', () => {
     chats.edit(owner, { doc: doc(para(text('use '), skill)) });
     const id = chats.beginDraftStart('/proj', 1);
     assert.ok(id);
-    chats.observe(state([card(8, 8000)], { ...thread(8, 8000), skills: ['review'] }));
+    chats.observe(state([card(8, 8000)]));
     chats.edit(
       { kind: 'session', pid: 8, startedAt: 8000 },
       { doc: doc(para(text('on the card'))) }
@@ -832,7 +859,7 @@ describe('ChatState with the editor document', () => {
       chats.edit(owner, { doc: doc(para(chip('image', '[Image #1]', mine)), last) });
       const id = chats.beginDraftStart('/proj', 1);
       assert.ok(id);
-      chats.observe(state([card(8, 8000)], thread(8, 8000)));
+      chats.observe(state([card(8, 8000)]));
       const card8 = { kind: 'session' as const, pid: 8, startedAt: 8000 };
       const theirs = chats.attach(card8, { kind: 'image', image: png('S') });
       assert.ok(theirs);

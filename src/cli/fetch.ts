@@ -32,7 +32,6 @@ const RENAMED: args.Renamed<typeof FLAGS> = {
 type Options = args.Flags<typeof FLAGS>;
 const USAGE =
   'usage: squadron-fetch-file --conversation-id <original conversation> --message-id <message correlation> --file-id <file ID>';
-const REPLY_MS = 60_000;
 export type FetchPlan =
   | { ok: true; identity: FetchFileIdentity; admission: IncomingAdmission; file: IncomingFile }
   | { ok: false; code: 1 | 2 | 3 | 4 | 5; reason: string };
@@ -190,12 +189,12 @@ async function main(): Promise<void> {
     ...plan.identity
   });
   if (!file) die(askExit({ kind: 'unwritable' }), 'could not submit the fetch request');
-  const { reply, invalid } = await requests.awaitReplyDetailed(file, REPLY_MS);
+  const { reply, invalid } = await requests.awaitReplyDetailed(file, requests.REPLY_MS.fetchFile);
   if (invalid) die(askExit({ kind: 'unexpected' }), 'the holder returned a malformed reply');
   if (!reply)
     die(
       askExit({ kind: 'silent' }),
-      `the holder did not answer request ${requests.requestIdOf(file)} within 60 s; retry`
+      `the holder did not answer request ${requests.requestIdOf(file)} within ${requests.REPLY_MS.fetchFile / 1000} s; retry`
     );
   const fetched = incoming.readFetchFileReply(reply.fetchFile);
   if (

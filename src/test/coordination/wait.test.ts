@@ -441,6 +441,78 @@ describe('the one clock', () => {
   });
 });
 
+describe('a wake whose send failed', () => {
+  // Measured against the first cut (2026-11-07 review): retrying off
+  // `nextDeadline` slept a converged wait until its expiry, ten minutes away,
+  // and a global floor pushed an unrelated two-second expiry to fifteen.
+  const none = () => undefined;
+
+  it('retries a wait that converged early at its retry time, not its expiry', () => {
+    const converged = registered([201], { expiresAt: NOW + 600_000 });
+    const retryAt = new Map([[converged.id, NOW + wait.WAKE_RETRY_MS]]);
+    assert.equal(
+      wait.passDeadline({ pending: [converged], retryAt, checkAt: none, now: NOW }),
+      NOW + wait.WAKE_RETRY_MS
+    );
+  });
+
+  it('does not delay an unrelated earlier deadline', () => {
+    const failed = registered([201], { expiresAt: NOW - 1_000 });
+    const other = registered([202], { expiresAt: NOW + 2_000 });
+    const retryAt = new Map([[failed.id, NOW + wait.WAKE_RETRY_MS]]);
+    assert.equal(
+      wait.passDeadline({ pending: [failed, other], retryAt, checkAt: none, now: NOW }),
+      NOW + 2_000
+    );
+  });
+
+  it('does not bring an overdue held wait back at once', () => {
+    const failed = registered([201], { expiresAt: NOW - 1_000 });
+    const retryAt = new Map([[failed.id, NOW + wait.WAKE_RETRY_MS]]);
+    assert.equal(
+      wait.passDeadline({ pending: [failed], retryAt, checkAt: () => NOW, now: NOW }),
+      NOW + wait.WAKE_RETRY_MS
+    );
+  });
+
+  it('holds the wake through a pass that comes back early, then frees it', () => {
+    // A change callback already queued runs the pass whatever was scheduled.
+    const failed = registered([201]);
+    const retryAt = new Map([[failed.id, NOW + wait.WAKE_RETRY_MS]]);
+    assert.equal(wait.heldUntil([failed], retryAt, NOW + 1_000), NOW + wait.WAKE_RETRY_MS);
+    assert.equal(wait.heldUntil([failed], retryAt, NOW + wait.WAKE_RETRY_MS), undefined);
+    assert.equal(wait.heldUntil([registered([202])], retryAt, NOW + 1_000), undefined);
+  });
+
+  it('holds a wait folded beside a held one until the same time', () => {
+    // One requester: A failed at NOW, B expires at NOW + 2 s, and the resolver
+    // folds both into one resolution at that pass (review round 2).
+    const a = registered([201]);
+    const b = registered([202], { expiresAt: NOW + 2_000 });
+    const folded = wait.resolveWaits({
+      waits: [a, b],
+      board: [],
+      workflowStates: new Map(),
+      processes: 'complete',
+      running: new Set(),
+      retired: new Set(),
+      records: 'complete',
+      reports: [],
+      now: NOW + 2_000
+    } as unknown as Parameters<typeof wait.resolveWaits>[0]);
+    assert.equal(folded.length, 1);
+    assert.equal(folded[0]?.waits.length, 2);
+    const retryAt = new Map([[a.id, NOW + wait.WAKE_RETRY_MS]]);
+    const until = wait.heldUntil(folded[0]?.waits ?? [], retryAt, NOW + 2_000);
+    assert.equal(until, NOW + wait.WAKE_RETRY_MS);
+    for (const one of folded[0]?.waits ?? []) retryAt.set(one.id, until);
+    assert.equal(
+      wait.passDeadline({ pending: [a, b], retryAt, checkAt: () => undefined, now: NOW + 2_000 }),
+      NOW + wait.WAKE_RETRY_MS
+    );
+  });
+});
+
 describe('a member’s report rides its wait', () => {
   const said = (pid: number, at: number, payload: string) => ({
     id: `r-${pid}-${at}`,

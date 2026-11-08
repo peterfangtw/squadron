@@ -85,9 +85,10 @@ src/
                  before disposing the cache warmer, Café, WAIT, then the runtime
                  backstop
     request_host.ts  one activation's request dispatch and incoming-launch ledger;
-                 guarded Remote starts, serialized agent admission, held reports
-                 and their shutdown witness. Activation owns the poll and supplies
-                 late Remote/attachment reads; core modules retain the rules
+                 guarded Remote starts, the agent `send`/`answer` handed to
+                 core/coordination/admit.ts over this window's port, and the
+                 held reports' shutdown witness. Activation owns the poll and
+                 supplies late Remote/attachment reads; core modules retain the rules
     panel.ts     webview host: board polling/dispatch, serialized board gathers
                  and independent selected-thread snapshots/patches, with an explicit full recorded-history view. Activity-only clocks
                  do not invalidate discovery; conversation generations do.
@@ -166,8 +167,10 @@ src/
                  independent of panel visibility. No CLI method names here
     warm.ts      `cacheWarmer()`: core/warmer.ts's `CacheWarmer` on this
                  window's registry and the warm settings
-    waits.ts     resolving the registered waits: read them, run the rule, send
-                 the one message, delete the record. Panel-free; timing is
+    waits.ts     resolving the registered waits: read them, run the rule, hand
+                 the one message to core/coordination/admit.ts, then delete the
+                 record (delivered), mark it failed (refused), or retry no sooner
+                 than the change debounce (undelivered). Panel-free; timing is
                  core/reconcile.ts, ordinary-wait rules core/coordination/wait.ts,
                  workflow waits core/workflows/wait.ts. One table serves its
                  discovery and says whether that pass's process evidence was
@@ -394,12 +397,14 @@ src/
                    Fixed-kind discovery/proof/control keeps its existing policy;
                    origin grants no authority. Wait is local, never a file origin;
                    `warm` is a fixed-kind request like `rename` and carries none
-      serve_owned.ts  the window-side arms of every kind that acts on a pipe
-                   this window holds — the composer `send`, `close`, Remote's
-                   three and its `open` — moved out of `host/extension.ts` so
-                   the two-window test drives the code a window runs. A kind
-                   with no arm fails the build here, and an unknown one answers
-                   "older Squadron"
+      serve_owned.ts  window-side arms for a session this window drives when
+                   the request needs no setting and no actions store.
+                   `isClassifiedOwned` admits composer-send, remote-send,
+                   remote-open, remote-interrupt, remote-deny, remote-answer,
+                   remote-start-files, evidence, close, and unknown. Moved
+                   out of `host/extension.ts` so the two-window test drives
+                   the code a window runs. A kind with no arm fails the build
+                   here, and an unknown one answers "older Squadron"
       claims.ts    reads the per-window claim files, so panel and CLI agree on
                    which windows are alive. `brands` is still parsed and no
                    longer read. Also the cwd tiers, `windowForCwd`: the
@@ -450,6 +455,13 @@ src/
                    Pure — the reads and delivery are host/waits.ts; timing is
                    core/reconcile.ts
       reports.ts   reports parked against a wait before convergence
+      admit.ts     admitting one session's message to another, the one copy of
+                   its order: preconditions, guard, re-check after each await,
+                   park or deliver (routed), record, then the interrupt after
+                   the send chain releases. Verb `send`, `answer` and a wait's
+                   wake (`settle` runs inside the chain) all go through it;
+                   `release` puts held reports out oldest first, stopping at a
+                   refusal without dropping what was not sent
       ask.ts       request outcomes and shim exit codes
       route.ts     a pid to this window's handle, wrapped so a thrown verb
                    becomes a sentence, or a refusal. Explicit interrupt reads
@@ -908,6 +920,11 @@ src/
     checkpoint_attribution.ts pure rewrite suppression and neighbor subtraction
     checkpoint_record.ts reserves an ordered thread slot and serializes the
                  captured checkpoint after writing its neighbor window
+    turn_capture.ts `TurnCapture`, one owned session's turn capture for every
+                 brand: the native observer it holds, the uncertain wake, the
+                 running edge (`follow`, for Claude and Grok) and the end
+                 checkpoint's slot. The drain's `capturing` latch stays native;
+                 Codex calls `opened`/`ended` from its notifications
     prune.ts     the age sweep the per-session files need, since nothing that
                  writes them ever removes them
     arrange.ts   where the reader put the cards: one file per group, holding the
@@ -968,8 +985,9 @@ src/
                  selected-thread read. End asks the same memory after recovery. The record
                  is written behind in that order and read once, on a resume,
                  to recover what came before the pipe
-    recovery.ts  resume history state and first-send latch for owned adapters; each brand
-                 keeps its baseline reader and recovery-completion hook
+    recovery.ts  resume history state, first-send latch and the owned
+                 `SessionHandle.thread` port (`threadPort`) for every brand; each
+                 brand keeps its baseline reader and recovery-completion hook
     record_index.ts record-owned ephemeral byte offsets and true note targets;
                  cold chunk scan, append-only updates and bounded page reads.
                  No durable index. readRecordPage uses it, and readBaseline
@@ -1008,6 +1026,8 @@ src/
                  a model id was seen to answer in outlives the window that saw
                  it: `models.claude.json`, beside the usage store
     tickets.ts   shared ticket source contract, scoped keys, individual detail reads and view projection
+    tickets/github.ts GitHub ProjectV2 GraphQL reads, exact single-select field
+                 resolution, nested pagination and issue-backed item identities
     tickets/linear.ts Linear GraphQL transport, native field translation,
                  team/member/state pagination and provider presentation metadata
     hooks.ts     removing the hooks older builds installed in the CLI's

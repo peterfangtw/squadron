@@ -29,10 +29,13 @@ export type MentionChange = 'edit' | 'move' | 'compose';
 
 /** What the menu needs of a box. */
 export interface MentionTarget {
-  /** Where its keys land, and what the menu is placed against. */
+  /** Where its keys land, and the edge the menu's left aligns to. */
   readonly node: HTMLElement;
   /** Where the caret is, or null for a range. */
   caret(): number | null;
+  /** The caret's line in viewport coordinates, which the menu opens against;
+   *  null for a range. */
+  caretLine(): { top: number; bottom: number } | null;
   /** Text in the box's positions, with boundaries for blocks and non-text leaves. */
   text(from: number, to: number): string;
   /** The whole `@query` run around the caret, or null: none there, or a range
@@ -152,6 +155,15 @@ function ensureMenu(): HTMLElement {
   node.addEventListener('mousedown', (e) => {
     if ((e.target as Element | null)?.closest('.mnrow')) e.preventDefault();
   });
+  // The caret moves under a scroll or a resize with no edit or caret move to
+  // redraw on, and the menu is anchored to it. Capture: scroll does not bubble,
+  // and the box that scrolls is any ancestor of the caret.
+  const follow = (): void => {
+    const box = menuOwner();
+    if (box) place(box, node);
+  };
+  document.addEventListener('scroll', follow, { capture: true, passive: true });
+  window.addEventListener('resize', follow, { passive: true });
   document.body.append(node);
   menu = node;
   return node;
@@ -229,23 +241,25 @@ function paintRow(): void {
 }
 
 /**
- * Park the menu against its box: above by default, below when there is no room.
- * A step field is anywhere in a scrolling column, and a `max-height: 40vh` menu
- * opened upward off the first step goes off the top of the panel. Rects are all
- * zero under jsdom, so the smoke case carries geometry and opens the menu on
- * the first step.
+ * Park the menu against the caret's line, at the box's left edge: above by
+ * default, below when there is no room. Not the box's own rect: a multi-line
+ * box's top is lines above the caret, and above the visible box once it
+ * scrolls. A step field is anywhere in a scrolling column, and a
+ * `max-height: 40vh` menu opened upward off the first step goes off the top of
+ * the panel. Rects are all zero under jsdom, so the smoke cases carry geometry.
  */
 function place(box: MentionTarget, node: HTMLElement): void {
   const rect = box.node.getBoundingClientRect();
+  const line = box.caretLine() ?? rect;
   node.style.left = `${Math.round(rect.left)}px`;
-  const room = rect.top - 8;
-  if (node.offsetHeight > room && window.innerHeight - rect.bottom > room) {
-    node.style.top = `${Math.round(rect.bottom + 4)}px`;
+  const room = line.top - 8;
+  if (node.offsetHeight > room && window.innerHeight - line.bottom > room) {
+    node.style.top = `${Math.round(line.bottom + 4)}px`;
     node.style.bottom = 'auto';
     return;
   }
   node.style.top = 'auto';
-  node.style.bottom = `${Math.round(window.innerHeight - rect.top + 4)}px`;
+  node.style.bottom = `${Math.round(window.innerHeight - line.top + 4)}px`;
 }
 
 /**

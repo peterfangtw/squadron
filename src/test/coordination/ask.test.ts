@@ -30,7 +30,7 @@ function fail(result: AskResult): Extract<AskResult, { ok: false }> {
   return result;
 }
 
-async function claimSoon(windowId: string, reply: Reply): Promise<void> {
+async function claimSoon(windowId: string, reply: Reply | Promise<Reply>): Promise<void> {
   for (let i = 0; i < 40; i++) {
     await new Promise((resolve) => setTimeout(resolve, 50));
     const names = await fs.readdir(dir()).catch(() => [] as string[]);
@@ -64,6 +64,28 @@ describe('ask', () => {
     assert.equal(askMod.askExit(result), 4);
     assert.equal(result.reason, askMod.UNANSWERED);
     assert.ok(result.file.endsWith('.request.json'));
+  });
+
+  it('waits for a slow start without a caller-supplied timeout', async () => {
+    const pending = askMod.ask({ kind: 'open', windowId: 'w1', cwd: home, prompt: 'start' });
+    const reply = new Promise<Reply>((resolve) =>
+      setTimeout(() => resolve({ ok: true, pid: 7, startedAt: 70_000 }), 3_200)
+    );
+    await claimSoon('w1', reply);
+    const result = await pending;
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.reply.pid, 7);
+  });
+
+  it('honours a shorter caller timeout even when the kind allows a slow start', async () => {
+    const pending = askMod.ask({ kind: 'open', windowId: 'w1', cwd: home }, 200);
+    const reply = new Promise<Reply>((resolve) =>
+      setTimeout(() => resolve({ ok: true, pid: 7 }), 500)
+    );
+    await claimSoon('w1', reply);
+    const result = fail(await pending);
+    assert.equal(result.kind, 'silent');
   });
 
   it('names a negative reply as refused', async () => {

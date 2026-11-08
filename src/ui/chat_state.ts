@@ -577,11 +577,6 @@ export class ChatState {
         replaced.push({ kind: 'session', pid: card.pid, startedAt: card.startedAt });
       }
     }
-    if (msg.thread) {
-      if (msg.threadPublication)
-        this.takeThread({ type: 'thread', ...msg.threadPublication, thread: msg.thread });
-      else if (!this.publication) this.observeThread(msg.thread);
-    }
     return replaced;
   }
 

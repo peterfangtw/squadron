@@ -131,11 +131,14 @@ for (const brand of ['claude', 'codex'] as const) {
                 options
               )
       };
-      const pending = store.walkUsage([{ brand, source, signedIn: true }], {
-        sessions: [],
-        now: Date.now(),
-        clock: Date.now
-      });
+      const pending = store.walkUsage(
+        { brand, source, signedIn: true },
+        {
+          sessions: [],
+          now: Date.now(),
+          clock: Date.now
+        }
+      );
       await response;
       await new Promise((resolve) => setTimeout(resolve, 20));
       const at = Date.now();

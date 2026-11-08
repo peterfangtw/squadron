@@ -16,7 +16,7 @@ import type { SessionAddr, Watched } from '../bridge/model';
 import * as words from '../bridge/words';
 import type { SignalEnd } from '../control';
 import { UNANSWERED, type AskResult } from '../coordination/ask';
-import { OPEN_REPLY_MS, type Reply, type RequestBody } from '../coordination/requests';
+import type { Reply, RequestBody } from '../coordination/requests';
 import { isRefused, routeTo, type Act } from '../coordination/route';
 import {
   GONE,
@@ -29,6 +29,9 @@ import type { QueuedMessage } from '../live';
 import { isMidTurn, sameSessionStart, type WindowClaim } from '../model';
 import { readRecord } from '../record';
 import { lastAnswer, unanswered } from '../transcript';
+
+// Launch/delivery evidence may republish required receipts before answering.
+const EVIDENCE_REPLY_MS = 20_000;
 
 export type VerbPort = {
   /** This window, which holds Remote: what every guarded request names. */
@@ -143,7 +146,7 @@ export function remoteVerbs(port: VerbPort): SessionVerbs {
                 challenge,
                 query
               },
-              OPEN_REPLY_MS
+              EVIDENCE_REPLY_MS
             );
       const evidence = incoming.readIncomingEvidence(
         raw && 'reply' in raw ? raw.reply.incomingEvidence : raw
@@ -176,7 +179,7 @@ export function remoteVerbs(port: VerbPort): SessionVerbs {
             : { incomingAccess: capability })
         };
       }
-      const result = await port.ask({ kind: 'models', windowId }, OPEN_REPLY_MS);
+      const result = await port.ask({ kind: 'models', windowId });
       if (!result.ok && result.kind === 'refused' && result.reason === NOT_HERE)
         return { models: { brands: [], models: [] } };
       if (!result.ok || !result.reply.models)
@@ -273,10 +276,12 @@ async function start(
     const result =
       input.windowId === port.windowId
         ? await port.startFiles?.(what)
-        : await port.ask(
-            { ...what, kind: 'remoteStartFilesV1', origin: 'remote', windowId: input.windowId },
-            OPEN_REPLY_MS
-          );
+        : await port.ask({
+            ...what,
+            kind: 'remoteStartFilesV1',
+            origin: 'remote',
+            windowId: input.windowId
+          });
     if (!result) return { ok: false, reason: 'Incoming starts are unavailable.', notStarted: true };
     const reply: Reply = 'reply' in result ? result.reply : result;
     if (!reply.ok)
@@ -315,17 +320,14 @@ async function start(
     ...(input.selection === undefined ? {} : { selection: input.selection })
   };
   if (input.windowId === port.windowId) return port.start(what);
-  const result = await port.ask(
-    {
-      kind: 'open',
-      origin: 'remote',
-      windowId: input.windowId,
-      ...what,
-      via: 'remote',
-      remote: port.windowId
-    },
-    OPEN_REPLY_MS
-  );
+  const result = await port.ask({
+    kind: 'open',
+    origin: 'remote',
+    windowId: input.windowId,
+    ...what,
+    via: 'remote',
+    remote: port.windowId
+  });
   if (!result.ok)
     return {
       ok: false,

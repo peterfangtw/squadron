@@ -1,9 +1,9 @@
 /**
- * The CLI brand seam: one registry entry and one directory implementing these types.
- * Adapters contain CLI spellings so ui/ can work in Session, LiveState, Model
- * and Exchange without brand checks (root AGENTS.md).
+ * The CLI brand seam. Adapters contain CLI spellings so ui/ can work in
+ * Session, LiveState, Model and Exchange without brand checks (root AGENTS.md).
  * These are ports, not wire formats: no adapter is asked to serialise them.
  * No two adapters talk to each other; the host calls them by name.
+ * `BRANDS` in `core/brands.ts` is a second list. Each brand is its own package.
  */
 
 import { BRANDS, isBrand, sessionBrand } from './brands';
@@ -590,8 +590,8 @@ export type CliAdapter = {
 
 /**
  * A record rather than register calls makes the brand list independent of
- * import order (reference/learnings/agent_flow.md §2). One registry line plus
- * one directory adds a brand.
+ * import order (`docs/reference/learnings/agent_flow.md` §2). `BRANDS` in
+ * `core/brands.ts` is a second list, and each brand is its own package.
  */
 const ADAPTERS: { readonly [B in BrandId]: CliAdapter & { readonly brand: B } } = {
   claude: claudeAdapter,

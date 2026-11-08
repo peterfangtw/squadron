@@ -325,7 +325,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     skills.startSkillDiscovery(
       reconcileSkill(context.extensionPath, OverviewPanel.version),
-      () => void OverviewPanel.runHost().refresh(),
+      () => OverviewPanel.refreshOpen(),
       log
     )
   );

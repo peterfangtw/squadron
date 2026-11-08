@@ -16,15 +16,41 @@ import {
   searchBox
 } from './kit';
 import { Picker, picker, SortDir } from './picker';
-import { linearMark } from './mcp_marks';
+import { linearMark, githubMark } from './mcp_marks';
 
-const sourceMarks: Record<TicketSourceMarkId, () => HTMLElement> = { linear: linearMark };
+const sourceMarks: Record<TicketSourceMarkId, () => HTMLElement> = {
+  linear: linearMark,
+  github: githubMark
+};
 let sourceGeneration: string | undefined;
 let refreshScopeChoices: ((source: TicketSourceStatus) => void) | undefined;
+let observedNotice: HTMLElement | null = null;
+const noticeResize =
+  typeof ResizeObserver === 'function'
+    ? new ResizeObserver(() => {
+        if (observedNotice)
+          $('tk-list').style.setProperty(
+            '--ticket-notice-height',
+            `${Math.ceil(observedNotice.getBoundingClientRect().height) + 8}px`
+          );
+      })
+    : undefined;
+
+function paintTicketList(nodes: HTMLElement[]): void {
+  const root = $('tk-list');
+  morph(root, nodes);
+  const notice = root.querySelector<HTMLElement>('.tknotice');
+  if (notice === observedNotice) return;
+  noticeResize?.disconnect();
+  observedNotice = notice;
+  root.style.removeProperty('--ticket-notice-height');
+  if (notice) noticeResize?.observe(notice);
+}
 
 function token(): TicketSelectionToken {
   const source = ui.state.ticketSource;
   return {
+    ...(source?.boards ? { sourceId: source.sourceId } : {}),
     generation: source?.generation ?? -1,
     selectionSeq: source?.selectionSeq ?? 0,
     ...(source?.scopeId ? { scopeId: source.scopeId } : {})
@@ -33,6 +59,7 @@ function token(): TicketSelectionToken {
 function current(was: TicketSelectionToken): boolean {
   const now = token();
   return (
+    now.sourceId === was.sourceId &&
     now.generation === was.generation &&
     now.selectionSeq === was.selectionSeq &&
     now.scopeId === was.scopeId
@@ -57,7 +84,16 @@ export function fenceTicketState(message: StateMessage): void {
 function scopePicker(source: TicketSourceStatus): HTMLElement {
   refreshScopeChoices = undefined;
   const rendered = token();
-  const selected = source.scopes?.find((scope) => scope.id === source.scopeId);
+  const boards = (value: TicketSourceStatus): TicketBoard[] | undefined =>
+    value.boards ??
+    value.scopes?.map((scope) => ({
+      ...scope,
+      sourceId: value.sourceId,
+      presentation: value.presentation
+    }));
+  const selected = boards(source)?.find(
+    (scope) => scope.id === source.scopeId && scope.sourceId === source.sourceId
+  );
   const control = dropdownTrigger(selected?.label ?? 'Choose a board');
   control.wrap.classList.add('scope-wrap');
   control.button.classList.add('scope-button');
@@ -65,34 +101,38 @@ function scopePicker(source: TicketSourceStatus): HTMLElement {
   if (source.presentation.mark) control.button.prepend(sourceMarks[source.presentation.mark]());
   const menu = opensMenu(control.wrap, control.button, 'start', (body) => {
     const rows = el('div', 'fscroll');
-    let catalog = source.scopes;
+    let catalog = boards(source);
     const paint = (needle: string): void => {
       const scopes = (catalog ?? []).filter((scope) =>
-        (source.presentation.label + ' / ' + scope.label).toLowerCase().includes(needle)
+        (scope.presentation.label + ' / ' + scope.label).toLowerCase().includes(needle)
       );
       rows.replaceChildren(
         ...scopes.map((scope) =>
           menuItem(
-            source.presentation.label + ' / ' + scope.label,
-            scope.id === source.scopeId,
+            scope.presentation.label + ' / ' + scope.label,
+            scope.id === source.scopeId && scope.sourceId === source.sourceId,
             'one',
             () => {
               if (!current(rendered)) return;
               closeMenu();
               if (
                 scope.id === source.scopeId &&
+                scope.sourceId === source.sourceId &&
                 ui.state.tickets !== undefined &&
                 !ui.state.ticketSource?.stale
               )
                 return;
               const next = {
                 ...rendered,
+                ...(source.boards ? { sourceId: scope.sourceId } : {}),
                 selectionSeq: rendered.selectionSeq + 1,
                 scopeId: scope.id
               };
               ui.state.ticketSource = {
                 ...source,
                 ...next,
+                sourceId: scope.sourceId,
+                presentation: scope.presentation,
                 options: undefined,
                 filter: { assignee: 'anyone', states: [], priorities: [] },
                 loading: true,
@@ -114,12 +154,57 @@ function scopePicker(source: TicketSourceStatus): HTMLElement {
     };
     const search = searchBox('Find a board…', paint);
     refreshScopeChoices = (next) => {
-      if (JSON.stringify(catalog) === JSON.stringify(next.scopes)) return;
-      catalog = next.scopes;
+      if (JSON.stringify(catalog) === JSON.stringify(boards(next))) return;
+      catalog = boards(next);
       paint(search.value.trim().toLowerCase());
     };
     paint('');
     body.append(search, rows);
+    if (source.connections) {
+      const divider = el('div', 'fsep');
+      divider.setAttribute('role', 'separator');
+      body.append(divider);
+    }
+    for (const connection of source.connections ?? []) {
+      if (!connection.error) continue;
+      const recovery = menuItem(
+        connection.presentation.label + ': ' + connection.error,
+        false,
+        'one',
+        () => {
+          closeMenu();
+          vscode.postMessage({
+            type: connection.failure === 'credentials' ? 'connectTicketSource' : 'refreshTickets',
+            ...rendered,
+            ...(connection.failure === 'credentials'
+              ? { provider: connection.sourceId }
+              : { catalog: true })
+          });
+        }
+      );
+      body.append(recovery);
+    }
+    for (const connection of source.connections ?? []) {
+      const label = connection.presentation.disconnectLabel;
+      if (!label) continue;
+      body.append(
+        menuItem(label, false, 'one', () => {
+          closeMenu();
+          vscode.postMessage({
+            type: 'disconnectTicketSource',
+            ...rendered,
+            provider: connection.sourceId
+          });
+        })
+      );
+    }
+    if (source.connections)
+      body.append(
+        menuItem('Connect a ticket source…', false, 'one', () => {
+          closeMenu();
+          vscode.postMessage({ type: 'connectTicketSource', ...rendered, provider: 'choose' });
+        })
+      );
   });
   control.wrap.append(menu);
   return control.wrap;
@@ -134,10 +219,11 @@ function ticketCard(t: TicketView): HTMLElement {
   node.dataset.key = 'tk:' + t.key;
 
   const idRow = el('span', 'tkid');
-  idRow.append(dot('tone-' + t.priority.tone));
+  if (t.priority) idRow.append(dot('tone-' + t.priority.tone));
   const key = el('span', 'tkkey', t.identifier);
   key.dataset.key = 'tkkey:' + t.key;
-  idRow.append(key, el('span', null, '· ' + t.priority.label));
+  idRow.append(key);
+  if (t.priority) idRow.append(el('span', null, '· ' + t.priority.label));
 
   const title = el('span', 'tktitle', t.title);
   title.dataset.key = 'tktitle:' + t.key;
@@ -217,6 +303,25 @@ export function settleFilter(): void {
     sortDir = null;
     const root = $('tk-filter');
     if (heldOpen(root) || heldOpen($('tk-source'))) closeMenu();
+  }
+  const options = source?.options;
+  if (!source?.loading && options) {
+    if (options.unavailable?.priorities) sortDir = null;
+    if (wantFilter) {
+      wantFilter = {
+        ...wantFilter,
+        assignee:
+          options.assigneesComplete &&
+          !['anyone', 'unassigned', 'me'].includes(wantFilter.assignee) &&
+          !options.assignees.some((person) => person.id === wantFilter?.assignee)
+            ? 'anyone'
+            : wantFilter.assignee,
+        states: wantFilter.states.filter((id) => options.states.some((s) => s.value === id)),
+        priorities: wantFilter.priorities.filter((id) =>
+          options.priorities.some((p) => p.value === id)
+        )
+      };
+    }
   }
   const echo = source?.filter;
   if (!wantFilter || !echo) return;
@@ -332,7 +437,10 @@ function renderTicketFilter(root: HTMLElement): void {
       value: filter.priorities,
       select: 'many',
       summary: (n) => `${n} priorities`,
-      sort: { dir: sortDir, asc: 'Most urgent first', desc: 'Least urgent first' },
+      sort: {
+        dir: sortDir,
+        ...(options.prioritySort ?? { asc: 'Most urgent first', desc: 'Least urgent first' })
+      },
       onChange: ({ value, dir }) => {
         // Both halves are settled before anything repaints. A Clear changes the
         // two at once, and a repaint between them showed the pill its own stale
@@ -358,6 +466,26 @@ function renderTicketFilter(root: HTMLElement): void {
   }
 
   root.append(...pills);
+  for (const [facet, label] of [
+    ['states', 'Any status'],
+    ['priorities', 'Any priority']
+  ] as const) {
+    const explanation = options.unavailable?.[facet];
+    if (!explanation) continue;
+    const wrap = el('span', 'fwrap');
+    wrap.tabIndex = 0;
+    wrap.setAttribute('role', 'group');
+    wrap.setAttribute('aria-disabled', 'true');
+    wrap.setAttribute('aria-label', label + '. ' + explanation);
+    wrap.dataset.tip = explanation;
+    const button = el('button', 'fpill', label);
+    button.setAttribute('disabled', '');
+    button.style.pointerEvents = 'none';
+    wrap.append(button);
+    if (facet === 'states' && options.priorities.length)
+      root.insertBefore(wrap, pills.at(-1) ?? null);
+    else root.append(wrap);
+  }
 }
 
 /** The ticket backlog, or the connect / empty / stale states. */
@@ -383,7 +511,7 @@ export function renderTickets(): void {
     filterEl.replaceChildren();
     const pending = el('div', 'tkempty', 'Loading tickets…');
     pending.dataset.key = 'loading';
-    morph(listEl, [pending]);
+    paintTicketList([pending]);
     return;
   }
   if (!(ui.state.ticketSource?.linked ?? false)) {
@@ -408,8 +536,12 @@ export function renderTickets(): void {
       connect.dataset.act = 'connect';
       connect.dataset.key = 'connect';
       empty.append(connect);
+      const another = el('button', 'tkclear', 'Connect a ticket source…');
+      another.dataset.act = 'connectChoose';
+      another.dataset.key = 'connectChoose';
+      empty.append(another);
     }
-    morph(listEl, [empty]);
+    paintTicketList([empty]);
     return;
   }
 
@@ -444,14 +576,32 @@ export function renderTickets(): void {
   }
 
   const nodes: HTMLElement[] = [];
-  // Keyed, both of them: the banner comes and goes with a failed fetch at the
-  // top of the list, and neither it nor an empty-state line may be morphed into
-  // the other or into a row.
+  const tickets = ui.state.tickets;
+  const accessWarning = source?.options?.accessWarning;
+  if (accessWarning && !source?.stale) {
+    const warning = el('div', tickets?.length ? 'tkstale tknotice' : 'tkstale tkempty');
+    warning.dataset.key = 'access-warning';
+    warning.setAttribute('role', 'status');
+    warning.append(el('div', null, accessWarning));
+    if (presentation?.reconfigureLabel) {
+      const recovery = el('button', 'tkconnect', 'Update credentials');
+      recovery.dataset.act = 'connect';
+      warning.append(recovery);
+    }
+    nodes.push(warning);
+  }
   if (ui.state.ticketSource?.stale) {
-    const banner = el('div', 'tkstale');
+    const banner = el('div', tickets?.length ? 'tkstale tknotice' : 'tkstale tkempty');
     banner.dataset.key = 'stale';
-    if (ui.state.tickets) banner.append(el('div', null, 'Showing the last good list.'));
-    banner.append(el('div', null, source?.error ?? 'Could not load tickets.'));
+    banner.setAttribute('role', 'alert');
+    banner.append(
+      el(
+        'div',
+        'tkstate-title',
+        tickets?.length ? 'Showing the last good list.' : 'Could not load tickets.'
+      )
+    );
+    if (source?.error) banner.append(el('div', null, source.error));
     const recovery = el(
       'button',
       'tkconnect',
@@ -465,7 +615,6 @@ export function renderTickets(): void {
     banner.append(recovery);
     nodes.push(banner);
   }
-  const tickets = ui.state.tickets;
   const blank = (text: string): HTMLElement => {
     const node = el('div', 'tkempty', text);
     node.dataset.key = 'blank';
@@ -474,20 +623,20 @@ export function renderTickets(): void {
   if (tickets === undefined) {
     // Nothing cached. Stale as well means the fetch failed and there is no last
     // good list to fall back on — saying "Loading…" forever would be a lie.
-    nodes.push(
-      blank(
-        ui.state.ticketSource?.stale
-          ? 'Could not load tickets.'
-          : source?.scopes && !source.scopeId
+    if (!source?.stale)
+      nodes.push(
+        blank(
+          source?.scopes && !source.scopeId
             ? source.scopes.length
               ? 'Choose a board to see its tickets.'
               : 'No accessible boards.'
             : 'Loading tickets…'
-      )
-    );
+        )
+      );
   } else {
-    if (!tickets.length) {
+    if (!tickets.length && !accessWarning && !source?.stale) {
       const none = blank('No tickets match the current filter.');
+      none.setAttribute('role', 'status');
       // One click, where the sentence used to be a dead end.
       //
       // Status and priority only, which is why the label names them: the assignee
@@ -503,21 +652,28 @@ export function renderTickets(): void {
       }
       nodes.push(none);
     }
-    if (tickets.length || source?.options?.states.length) {
+    if (tickets.length || source?.options?.states.length || source?.options?.noStatusLane) {
       // Sorting reorders the fetched page locally without another network request.
       const rows =
         sortDir === null
           ? tickets
-          : [...tickets].sort((a, b) =>
-              sortDir === 'asc'
+          : [...tickets].sort((a, b) => {
+              if (!a.priority) return b.priority ? 1 : 0;
+              if (!b.priority) return -1;
+              return sortDir === 'asc'
                 ? a.priority.order - b.priority.order
-                : b.priority.order - a.priority.order
-            );
+                : b.priority.order - a.priority.order;
+            });
       // Laned by status once the options that order the lanes have arrived; a flat
       // list until then, which is the same first-paint rule the filter bar keeps.
-      const states = ui.state.ticketSource?.options?.states;
+      const states = ui.state.ticketSource?.options?.noStatusLane
+        ? [{ value: '', label: 'No status', order: 0 }]
+        : ui.state.ticketSource?.options?.states;
       if (!states?.length) {
-        nodes.push(...rows.map(ticketCard));
+        const list = el('div', 'tkrows');
+        list.dataset.key = 'rows';
+        list.append(...rows.map(ticketCard));
+        nodes.push(list);
       } else {
         const columns = el('div', 'tkcolumns');
         columns.dataset.key = 'columns';
@@ -540,7 +696,7 @@ export function renderTickets(): void {
   // while the tab is up, and a row rebuilt between a mousedown and a mouseup
   // takes the click with it — the press dispatches on `#tk-list`, where the
   // delegated listener below finds no `[data-act]` and returns.
-  morph(listEl, nodes);
+  paintTicketList(nodes);
 }
 
 /**
@@ -558,6 +714,10 @@ $('tk-list').addEventListener('click', (e) => {
   const target = e.target instanceof Element ? e.target : null;
   const acted = target?.closest<HTMLElement>('[data-act]');
   if (!acted) return;
+  if (acted.dataset.act === 'connectChoose') {
+    vscode.postMessage({ type: 'connectTicketSource', ...token(), provider: 'choose' });
+    return;
+  }
   if (acted.dataset.act === 'connect') {
     vscode.postMessage({ type: 'connectTicketSource', ...token() });
     return;

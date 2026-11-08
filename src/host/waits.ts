@@ -31,24 +31,19 @@ import { scanProcesses } from '../core/scan';
 import * as vscode from 'vscode';
 import * as reconcile from '../core/reconcile';
 import { waitBoard, type WaitBoard } from '../core/coordination/wait_board';
-import { readActions, serializeSends, writeAction } from '../core/coordination/actions';
-import { checkResolution, wrapMessage, wrapWait } from '../core/coordination/send';
+import type { SessionHandle } from '../core/adapter';
+import * as admit from '../core/coordination/admit';
 import {
-  WaitReport,
   WaitResolution,
   dropWait,
-  nextDeadline,
+  WAKE_RETRY_MS,
+  passDeadline,
+  heldUntil,
   readWaits,
   resolveWaits,
   writeWait
 } from '../core/coordination/wait';
-import {
-  ParkedReport,
-  dropReport,
-  orphaned,
-  readReports,
-  releaseAuthor
-} from '../core/coordination/reports';
+import { ParkedReport, dropReport, orphaned, readReports } from '../core/coordination/reports';
 import { readWorkflowWaitStates } from '../core/workflows/wait';
 import { ownedSession, ownedSessions, ownedTarget } from './sessions';
 
@@ -69,7 +64,16 @@ const CHANGE_DEBOUNCE_MS = 15_000;
 
 export class WaitResolver implements vscode.Disposable {
   private disposed = false;
+  /** Wait id → when a wake whose send failed may be tried again. */
+  private readonly retryAt = new Map<string, number>();
   readonly registration: reconcile.CheckRegistration;
+  private readonly admission: admit.AdmissionPort = {
+    owned: ownedSession,
+    target: ownedTarget,
+    windowId: vscode.env.sessionId,
+    // A wake is the window's own message, not an agent's: no switch gates it.
+    orchestrators: () => true
+  };
 
   constructor(
     runtime: reconcile.Reconciler,
@@ -137,20 +141,44 @@ export class WaitResolver implements vscode.Disposable {
       now: Date.now()
     });
     const gone = new Set(resolved.flatMap((one) => one.waits.map((wait) => wait.id)));
+    for (const id of this.retryAt.keys()) {
+      if (!waits.some((wait) => wait.id === id)) this.retryAt.delete(id);
+    }
     for (const resolution of resolved) {
       if (this.disposed) {
         return;
       }
-      await this.deliver(resolution);
+      // A failed send waits out its delay even when a change brings the pass
+      // back sooner.
+      const until = heldUntil(resolution.waits, this.retryAt, Date.now());
+      if (until !== undefined) {
+        for (const wait of resolution.waits) {
+          gone.delete(wait.id);
+          this.retryAt.set(wait.id, until);
+        }
+        continue;
+      }
+      const outcome = await this.deliver(resolution);
+      for (const wait of resolution.waits) {
+        if (outcome.kind === 'undelivered') {
+          gone.delete(wait.id);
+          this.retryAt.set(wait.id, Date.now() + WAKE_RETRY_MS);
+        } else {
+          this.retryAt.delete(wait.id);
+        }
+      }
     }
-    // Schedule from what remains: the earliest expiry or workflow recheck
-    // sets this registration's next deadline.
+    // Schedule from what remains: the earliest expiry, workflow recheck or
+    // retry sets this registration's next deadline.
     const pending = mine.filter((wait) => !gone.has(wait.id));
-    const deadlines = [
-      nextDeadline(pending, Date.now()),
-      ...pending.map((wait) => workflowStates.get(wait.id)?.checkAt)
-    ].filter((at): at is number => at !== undefined);
-    this.registration.schedule(deadlines.length === 0 ? undefined : Math.min(...deadlines));
+    this.registration.schedule(
+      passDeadline({
+        pending,
+        retryAt: this.retryAt,
+        checkAt: (id) => workflowStates.get(id)?.checkAt,
+        now: Date.now()
+      })
+    );
   }
 
   /**
@@ -198,59 +226,45 @@ export class WaitResolver implements vscode.Disposable {
   /**
    * One message to one requester, and then the records are gone.
    *
-   * **A resolution obeys the send guards with no carve-out**, `force` aside:
-   * the stale and context guards on the requester, and the window's burst
-   * shared with verb sends. `WAIT_TTL_MS` is derived to keep expiry inside the
-   * stale bound; what is left is a requester too cold or too full to be told,
-   * a real failure written onto the wait rather than hidden.
-   *
-   * `from` is the **window's** `env.sessionId`, not any session's: nothing
-   * composed this but this extension host. `core/coordination/actions.ts` has why that is
-   * its own record kind.
+   * Admission is `core/coordination/admit.ts`'s: the guards (no `force`; a
+   * refusal is written onto the wait), the record, and the chain this settles
+   * inside, so no verb send lands between a wake and the reports it releases.
+   * `WAIT_TTL_MS` is derived to keep expiry inside the stale bound; what is
+   * left is a requester too cold or too full to be told, a real failure
+   * written onto the wait rather than hidden.
    */
-  private async deliver(resolution: WaitResolution): Promise<void> {
-    return serializeSends(() => this.deliverNow(resolution));
+  private deliver(resolution: WaitResolution): Promise<admit.WakeOutcome> {
+    return admit.admit(
+      { kind: 'wait', resolution, settle: (outcome) => this.settle(resolution, outcome) },
+      this.admission,
+      this.log
+    );
   }
 
-  private async deliverNow(resolution: WaitResolution): Promise<void> {
+  private async settle(resolution: WaitResolution, outcome: admit.WakeOutcome): Promise<void> {
     const pid = resolution.requesterPid;
-    const owned = ownedSession(pid);
-    // A session with no `messages` capability is a refusal like any other, not
-    // a silent return: §5.7's whole requirement is that a wait which could not
-    // be delivered is visible rather than quiet.
+    if (outcome.kind === 'refused') {
+      await this.markFailed(resolution, outcome.reason, outcome.handle);
+      return;
+    }
+    if (outcome.kind === 'undelivered') {
+      this.log(`wait for ${pid} not delivered, retrying: ${outcome.reason}`);
+      return;
+    }
     const carried = resolution.members.flatMap((member) => member.reports ?? []).length;
-    const messages = owned?.messages;
-    if (!messages) {
-      await this.markFailed(resolution, 'that session cannot be sent to from here');
-      return;
-    }
-    const refusal = await this.refused(resolution);
-    if (refusal !== undefined) {
-      await this.markFailed(resolution, refusal);
-      return;
-    }
-
-    // `resolution.text` is the payload, so what names the turn is the message
-    // rather than the tag around it — the same reason `serve` passes one.
-    await messages.send(wrapWait(resolution.text), [], resolution.text, false);
-    // Awaited, and after the send that is the accept: a record written later
-    // than the next pass reads is a record the counters do not have.
-    await writeAction({
-      schema: 1,
-      kind: 'wait',
-      windowId: vscode.env.sessionId,
-      from: vscode.env.sessionId,
-      toPid: pid,
-      toSessionId: owned.state.sessionId,
-      at: Date.now()
-    });
     this.log(
       `wait resolved for ${pid}: ${resolution.members.map((m) => `${m.pid} ${m.state}`).join(', ')}` +
         (carried === 0 ? '' : `, carrying ${carried} report${carried === 1 ? '' : 's'}`)
     );
     // **Released before the records go**, so a `dropWait` cannot orphan the very
-    // reports this resolution failed to carry.
-    await this.release(resolution.unattached, pid, messages, 'too long for the convergence');
+    // reports this resolution failed to carry. One a refusal stopped stays on
+    // disk and is `rescue`'s once its wait is gone.
+    await admit.release(
+      resolution.unattached,
+      outcome.handle,
+      `${pid}: too long for the convergence`,
+      this.log
+    );
     // **Only what the message actually carried.** A report the text did not
     // render is somebody's undelivered words, and deleting it here because its
     // wait happened to resolve is the silent loss this whole feature is shaped
@@ -260,30 +274,22 @@ export class WaitResolver implements vscode.Disposable {
     await Promise.all(resolution.waits.map((wait) => dropWait(wait.id)));
   }
 
-  private async refused(resolution: WaitResolution): Promise<string | undefined> {
-    const verdict = checkResolution({
-      windowId: vscode.env.sessionId,
-      target: ownedTarget(resolution.requesterPid),
-      text: resolution.text,
-      now: Date.now(),
-      actions: await readActions()
-    });
-    return verdict.ok ? undefined : verdict.reason;
-  }
-
   /** Marked rather than deleted, so the one party that cannot be told still
    *  leaves something a reader can see. `WaitRecord.failed` has the argument. */
-  private async markFailed(resolution: WaitResolution, reason: string): Promise<void> {
+  private async markFailed(
+    resolution: WaitResolution,
+    reason: string,
+    handle: SessionHandle | undefined
+  ): Promise<void> {
     this.log(`wait for ${resolution.requesterPid} not delivered: ${reason}`);
     // **Before the mark, and this ordering is the whole of S4.** A `failed`
     // record is never evaluated again — `WaitRecord.failed` says so — so a
     // report still parked behind one after this line would never move again.
     // The parent then pays the N wakes it pays today, which is the outcome this
     // feature exists to improve on and is still far better than silence.
-    const messages = ownedSession(resolution.requesterPid)?.messages;
     const held = [...resolution.attached, ...resolution.unattached];
-    if (messages) {
-      await this.release(held, resolution.requesterPid, messages, reason);
+    if (handle?.messages) {
+      await admit.release(held, handle, `${resolution.requesterPid}: ${reason}`, this.log);
     } else if (held.length > 0) {
       // The one branch that can neither attach nor release: there is no pipe
       // here to put anything on, and there never will be for this session.
@@ -305,52 +311,6 @@ export class WaitResolver implements vscode.Disposable {
         `wait for ${resolution.requesterPid} could not be marked; it will be evaluated again`
       );
     }
-  }
-
-  /**
-   * Held reports put on the pipe as ordinary messages, because no convergence
-   * can carry them.
-   *
-   * **The guards are deliberately not re-run.** The stale and context refusals
-   * are facts about the *requester*, so having just been refused for one, every
-   * one of these would be refused for the same reason, and
-   * `PRD_shipped_wait_report_attachment.md` S4's promise that they arrive as N
-   * wakes could never be kept.
-   *
-   * What makes it legitimate rather than a hole: **the guards decide admission,
-   * and admission already happened.** Each of these passed `checkVerbSend` at
-   * send time and has an `actions/` record witnessing it — under today's
-   * behaviour the words would already be on this session's pipe. Releasing
-   * completes a delivery that was accepted; it does not make a new one. It is
-   * bounded by `REPORTS_PER_MEMBER` times the members, and it is the only such
-   * path in the feature.
-   *
-   * Wrapped here under each report's own sender, from the raw payload the store
-   * keeps — which is why the store keeps it raw. A stored *wrapped* text
-   * embedded in a convergence would have been refused by `checkSend`'s own
-   * forgery guard.
-   */
-  private async release(
-    reports: readonly WaitReport[],
-    toPid: number,
-    messages: NonNullable<ReturnType<typeof ownedSession>>['messages'],
-    why: string
-  ): Promise<void> {
-    if (reports.length === 0 || !messages) {
-      return;
-    }
-    // Oldest first, always. A correction read before the thing it corrects is
-    // worse than either of them arriving alone.
-    for (const report of [...reports].sort((a, b) => a.at - b.at)) {
-      await messages.send(
-        wrapMessage(report.payload, releaseAuthor(report)),
-        [],
-        report.payload,
-        false
-      );
-      await dropReport(report.id);
-    }
-    this.log(`released ${reports.length} held report(s) to ${toPid}: ${why}`);
   }
 
   /**
@@ -389,11 +349,11 @@ export class WaitResolver implements vscode.Disposable {
       ]);
     }
     for (const [pid, held] of byRequester) {
-      const messages = ownedSession(pid)?.messages;
-      if (!messages) {
+      const handle = ownedSession(pid);
+      if (!handle?.messages) {
         continue;
       }
-      await this.release(held, pid, messages, 'its wait ended without carrying it');
+      await admit.release(held, handle, `${pid}: its wait ended without carrying it`, this.log);
     }
   }
 

@@ -59,6 +59,17 @@ export function openPanel(t: TestContext, saved?: PanelState): Panel {
 
   const posted: WebviewMessage[] = [];
   let state: PanelState | undefined = saved;
+  let dispatch: (msg: PanelMessage) => void = () => {};
+  const deliverCarried = (msg: StateMessage): void => {
+    const thread = carriedThread.get(msg);
+    if (!thread) return;
+    const select = [...posted].reverse().find((row) => row.type === 'select');
+    if (select?.type === 'select' && select.pid === thread.pid) {
+      dispatch(orderedThread(posted, select.selection, thread));
+      return;
+    }
+    pendingThread.set(posted, thread);
+  };
   const dom = new JSDOM(panelDocument(TEST_VERSION), {
     url: 'https://squadron.test/',
     runScripts: 'dangerously',
@@ -75,6 +86,11 @@ export function openPanel(t: TestContext, saved?: PanelState): Panel {
         // window's prototypes, and deepStrictEqual compares prototypes.
         postMessage: (message) => {
           posted.push(structuredClone(message));
+          if (message.type !== 'select') return;
+          const thread = pendingThread.get(posted);
+          if (!thread || thread.pid !== message.pid) return;
+          pendingThread.delete(posted);
+          dispatch(orderedThread(posted, message.selection, thread));
         },
         getState: () => state,
         setState: (next) => {
@@ -88,6 +104,15 @@ export function openPanel(t: TestContext, saved?: PanelState): Panel {
       // the rest of the repaint with it. A no-op is what a browser would do for
       // a row already on screen, which is every row in a window with no size.
       window.Element.prototype.scrollIntoView = function scrollIntoView(): void {};
+      // Absent the same way on Range, and ProseMirror's `coordsAtPos` (the @
+      // menu's caret line) calls both. A zero rect is what every element here
+      // already reports; placement against a real caret is smoke's.
+      window.Range.prototype.getClientRects = function getClientRects(): DOMRectList {
+        return window.document.body.getClientRects();
+      };
+      window.Range.prototype.getBoundingClientRect = function getBoundingClientRect(): DOMRect {
+        return window.document.body.getBoundingClientRect();
+      };
       // jsdom has no viewport. Real intersection delivery is covered in smoke.
       window.IntersectionObserver = class {
         observe(): void {}
@@ -121,11 +146,18 @@ export function openPanel(t: TestContext, saved?: PanelState): Panel {
   // The document has run by now — jsdom parses synchronously here — so anything
   // in `posted` is the bundle announcing itself rather than a scenario acting.
   const onLoad = posted.splice(0, posted.length);
+  dispatch = (msg) =>
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: msg }));
   return {
     window: dom.window,
     posted,
     onLoad,
-    push: (msg) => dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: msg })),
+    push: (msg) => {
+      if (msg.type === 'thread' || msg.type === 'threadPatch')
+        noteThreadSequence(posted, msg.selection, msg.sequence);
+      dispatch(msg);
+      if (msg.type === 'state') deliverCarried(msg);
+    },
     saved: () => state
   };
 }
@@ -506,12 +538,44 @@ export const remoteStateView = (
   };
 };
 
+/** Thread views tests still pass beside board state. `push` posts them on the
+ * ordered channel; they are not fields of `StateMessage`. */
+const carriedThread = new WeakMap<StateMessage, ThreadView>();
+const pendingThread = new WeakMap<WebviewMessage[], ThreadView>();
+const threadSequence = new WeakMap<WebviewMessage[], Map<string, number>>();
+
+const noteThreadSequence = (
+  posted: WebviewMessage[],
+  selection: string,
+  sequence: number
+): void => {
+  const seen = threadSequence.get(posted) ?? new Map<string, number>();
+  threadSequence.set(posted, seen);
+  const prior = seen.get(selection) ?? 0;
+  if (sequence > prior) seen.set(selection, sequence);
+};
+
+const orderedThread = (
+  posted: WebviewMessage[],
+  selection: string,
+  thread: ThreadView
+): ThreadMessage => {
+  const seen = threadSequence.get(posted) ?? new Map<string, number>();
+  threadSequence.set(posted, seen);
+  const sequence = (seen.get(selection) ?? 0) + 1;
+  seen.set(selection, sequence);
+  return { type: 'thread', selection, generation: 0, sequence, thread };
+};
+
 export const stateMessage = (
   groups: GroupView[],
-  over: Partial<Omit<StateMessage, 'type' | 'groups'>> & { usage?: UsageView } = {}
+  over: Partial<Omit<StateMessage, 'type' | 'groups'>> & {
+    usage?: UsageView;
+    thread?: ThreadView;
+  } = {}
 ): StateMessage => {
-  const { usage, ...rest } = over;
-  return {
+  const { usage, thread, ...rest } = over;
+  const message: StateMessage = {
     type: 'state',
     groups,
     defaultCwd: undefined,
@@ -535,6 +599,8 @@ export const stateMessage = (
     ...(usage && !rest.accounts ? { accounts: withUsage(usage) } : {}),
     ...rest
   };
+  if (thread) carriedThread.set(message, thread);
+  return message;
 };
 
 /** Open the panel, select the thread's card, and deliver the thread. */

@@ -319,7 +319,7 @@ export async function noteSessionUsage(
 }
 
 export async function walkUsage(
-  brands: readonly BrandUsage[],
+  entry: BrandUsage,
   opts: {
     sessions: readonly Session[];
     now: number;
@@ -327,73 +327,59 @@ export async function walkUsage(
     signal?: AbortSignal;
     clock?: () => number;
   }
-): Promise<Map<BrandId, RateLimits>> {
-  const view = new Map<BrandId, RateLimits>();
-  for (const { brand, source, signedIn, generation } of brands) {
-    if (!signedIn) continue;
-    await coordination.settle(brand, opts.home);
-    const epoch = generation ?? (await coordination.generation(brand, opts.home));
-    const store = { home: opts.home, refreshMs: source.everyMs, generation: epoch };
-    await noteSessionUsage(
-      { brand, source, signedIn, generation: epoch },
-      opts.sessions,
-      opts.home
-    );
-    const raw = await hydrate(brand, opts.home);
-    const state = await coordination.readState(brand, opts.home);
-    if (state?.generation !== epoch || opts.signal?.aborted) continue;
-    if (Math.max(state.notBefore, state.attempt?.checkAfter ?? 0) > opts.now + source.everyMs) {
-      state.notBefore = await coordination.mutate(brand, opts.home, (current) => {
-        current.notBefore = Math.min(current.notBefore, opts.now + source.everyMs);
-        if (current.attempt?.checkAfter !== undefined) {
-          current.attempt.checkAfter = Math.min(
-            current.attempt.checkAfter,
-            opts.now + source.everyMs
-          );
-          state.attempt = current.attempt;
-        }
-        return current.notBefore;
-      });
-    }
-    const freshUntil = (raw?.at ?? 0) + source.everyMs;
-    if (Math.max(freshUntil, state.notBefore, state.attempt?.checkAfter ?? 0) <= opts.now) {
-      const attempt = await coordination.admit(brand, opts.home, opts.now, source.everyMs, epoch);
-      if (attempt) {
-        try {
-          const read = await source.read(undefined, {
-            signal: opts.signal,
-            starting: () => coordination.starting(brand, opts.home, attempt),
-            remember: (members) => coordination.remember(brand, opts.home, attempt, members)
-          });
-          if (read && !opts.signal?.aborted) {
-            await noteReading(brand, stampWindows(read, read.at ?? opts.clock?.() ?? opts.now), {
-              ...store,
-              generation: attempt.generation,
-              from: 'read'
-            });
-          }
-        } catch {
-          /* Preserve the last reading; the durable attempt bounds the next try. */
-        } finally {
-          await coordination.complete(
-            brand,
-            opts.home,
-            attempt,
-            opts.clock?.() ?? opts.now,
-            source.everyMs
-          );
-        }
+): Promise<void> {
+  const { brand, source, signedIn, generation } = entry;
+  if (!signedIn) return;
+  await coordination.settle(brand, opts.home);
+  const epoch = generation ?? (await coordination.generation(brand, opts.home));
+  const store = { home: opts.home, refreshMs: source.everyMs, generation: epoch };
+  await noteSessionUsage({ brand, source, signedIn, generation: epoch }, opts.sessions, opts.home);
+  const raw = await hydrate(brand, opts.home);
+  const state = await coordination.readState(brand, opts.home);
+  if (state?.generation !== epoch || opts.signal?.aborted) return;
+  if (Math.max(state.notBefore, state.attempt?.checkAfter ?? 0) > opts.now + source.everyMs) {
+    state.notBefore = await coordination.mutate(brand, opts.home, (current) => {
+      current.notBefore = Math.min(current.notBefore, opts.now + source.everyMs);
+      if (current.attempt?.checkAfter !== undefined) {
+        current.attempt.checkAfter = Math.min(
+          current.attempt.checkAfter,
+          opts.now + source.everyMs
+        );
+        state.attempt = current.attempt;
       }
-    }
-    // A failed or deferred read does not invalidate the figure already held.
-    view.set(
-      brand,
-      (await usageFor(brand, source, { home: opts.home, now: opts.now })) ?? {
-        windows: source.windows.map((window) => ({ ...window }))
-      }
-    );
+      return current.notBefore;
+    });
   }
-  return view;
+  const freshUntil = (raw?.at ?? 0) + source.everyMs;
+  if (Math.max(freshUntil, state.notBefore, state.attempt?.checkAfter ?? 0) <= opts.now) {
+    const attempt = await coordination.admit(brand, opts.home, opts.now, source.everyMs, epoch);
+    if (attempt) {
+      try {
+        const read = await source.read(undefined, {
+          signal: opts.signal,
+          starting: () => coordination.starting(brand, opts.home, attempt),
+          remember: (members) => coordination.remember(brand, opts.home, attempt, members)
+        });
+        if (read && !opts.signal?.aborted) {
+          await noteReading(brand, stampWindows(read, read.at ?? opts.clock?.() ?? opts.now), {
+            ...store,
+            generation: attempt.generation,
+            from: 'read'
+          });
+        }
+      } catch {
+        /* Preserve the last reading; the durable attempt bounds the next try. */
+      } finally {
+        await coordination.complete(
+          brand,
+          opts.home,
+          attempt,
+          opts.clock?.() ?? opts.now,
+          source.everyMs
+        );
+      }
+    }
+  }
 }
 
 /** The newest observation of a brand's quota this host can see: the stored

@@ -12,7 +12,6 @@
  * pinned `-p 3001` in the script itself, which is why the flag goes last.
  */
 
-import { createHash } from 'crypto';
 import * as platform from '../platform';
 
 /**
@@ -244,19 +243,4 @@ const toList = (runner: Runner | undefined): Runner[] => (runner ? [runner] : []
 /** `${port}` in a command line, wherever the reader put it. */
 export function substitute(command: string, port: number | undefined): string {
   return port === undefined ? command : command.replaceAll('${port}', String(port));
-}
-
-/**
- * A runner's command, as something two windows can compare without either
- * sending the other a command to run.
- *
- * `squadron.run.commands` is per-workspace, so one `runnerId` can name a
- * different command in each window. When a start is routed, the addressed
- * window resolves the id under its own settings and checks this against the
- * asking window's — a mismatch is refused, and the start goes back to the
- * window whose reader chose it. Unsubstituted, since the port is chosen per
- * start and is not what is being compared.
- */
-export function commandHash(command: string): string {
-  return createHash('sha256').update(command).digest('hex').slice(0, 16);
 }

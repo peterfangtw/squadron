@@ -108,8 +108,19 @@ section('Tickets beside persistent chat, in the real IDE', () => {
         optionsOnly: true
       };
       try {
+        const head = panel().locator('.lane .lhead').first();
+        const before = await head.boundingBox();
         await panel().locator('#tk-actions .refresh').click();
         await panel().locator('.tkstale', { hasText: 'Team access denied <literal>' }).waitFor();
+        const after = await head.boundingBox();
+        assert.equal(after?.y, before?.y, 'the error notice moved the column header');
+        const notice = await panel().locator('.tkstale').boundingBox();
+        const hub = await panel().locator('#bottomhub').boundingBox();
+        assert.ok(notice && hub);
+        assert.ok(
+          notice.y + notice.height <= hub.y,
+          'the error notice overlaps the bottom controls'
+        );
         assert.equal(await panel().locator('#tk-list .tk').count(), 1);
         assert.equal(await panel().locator('[data-act="retryTickets"]').innerText(), 'Retry');
         ticketTracker.failure = undefined;
@@ -484,7 +495,7 @@ section('Tickets beside persistent chat, in the real IDE', () => {
             window.dispatchEvent(new MessageEvent('message', { data }));
           }, firstPaint);
         await panel().locator('#board-tickets').click();
-        for (const selector of ['#tk-list > .tkstale', '#tk-list > .tk']) {
+        for (const selector of ['#tk-list > .tkstale', '#tk-list .tkrows > .tk']) {
           const inset = await panel()
             .locator(selector)
             .first()
@@ -620,6 +631,37 @@ section('Tickets beside persistent chat, in the real IDE', () => {
           'expansion lost the ticket scroll position'
         );
         assert.deepEqual(await panel().locator('#dock').boundingBox(), dock);
+        await panel()
+          .locator('body')
+          .evaluate(
+            (_, data) => {
+              window.dispatchEvent(new MessageEvent('message', { data }));
+            },
+            {
+              ...state,
+              ticketSource: {
+                ...state.ticketSource!,
+                stale: true,
+                failure: 'service',
+                error: 'Connection failed. Retry to refresh these tickets.'
+              }
+            }
+          );
+        const notice = panel().locator('#tk-list .tknotice');
+        await notice.waitFor();
+        // The list's room for the notice is a ResizeObserver write, a frame after the notice mounts.
+        await panel().locator('#tk-list[style*="--ticket-notice-height"]').waitFor();
+        await body.evaluate((node) => {
+          node.scrollTop = node.scrollHeight;
+        });
+        const finalTicket = await body.locator('.tk').last().boundingBox();
+        const noticeBox = await notice.boundingBox();
+        assert.ok(finalTicket && noticeBox);
+        assert.ok(
+          finalTicket.y + finalTicket.height <= noticeBox.y,
+          'the floating error notice covers the final ticket at maximum scroll'
+        );
+        assert.deepEqual(await head.boundingBox(), heading, 'the error notice moved the header');
         await panel()
           .locator('body')
           .evaluate(

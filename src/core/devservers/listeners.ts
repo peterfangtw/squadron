@@ -21,11 +21,10 @@
  * lsof -a -p <the 16> -d cwd -Fpn                    ->  12ms
  * ```
  *
- * **The unbounded reading is the cheaper one**, which is why the block is
- * optional. The second reading is per *pid*, so it scales with how many things
- * listen rather than with how many ports were asked about — and the first pays
- * for a range filter it does not need. A board holding four worktrees of one
- * repo would otherwise cost four spawn pairs to learn less.
+ * The machine-wide reading was the cheaper one. The second reading is per
+ * *pid*, so it scales with how many things listen, and a ranged first reading
+ * paid for a filter the board does not use. A board holding four worktrees of
+ * one repo would otherwise cost four spawn pairs to learn less.
  *
  * The `cwd` came back as `/Users/…/acme-web/apps/web`, which is
  * `RunningServer.cwd` verbatim, and is how a swept record of ours is recognised.
@@ -41,12 +40,8 @@
  * The **server picker does not use this file at all**, and that is deliberate
  * rather than an omission — a bind test says whether a port is *takeable*, which
  * is the picker's question, and `lsof` says who is *there*, which is the line's.
- * So the block form below has no caller but its test. It is kept because the
- * question it answers is the picker's if that ever changes, and because deleting
- * a parameter is cheaper than rediscovering the range syntax.
  */
 
-import { PortBlock } from './ports';
 import { type Session, sameSessionStart } from '../model';
 import * as platform from '../platform';
 import type { Socket } from '../platform/listeners';
@@ -68,15 +63,11 @@ export async function processCwds(pids: readonly number[]): Promise<Map<number, 
 }
 
 /**
- * Every listener on a block, by port — or on the whole machine, with no block.
+ * Every listener on the machine, by port.
  *
- * Keyed by port because that is what every caller has in hand — a picker tile, a
- * registry record's `port`.
- *
- * The two callers want different halves. A picker asks about one repo's ten
- * ports, because that is the question the sheet is drawing. The board asks about
- * everything, because it holds several repos at once and a listener outside every
- * block is still a listener it can attribute.
+ * Keyed by port because that is what every caller has in hand — a registry
+ * record's `port`. The board holds several repos at once, and a listener
+ * outside any one of them is still a listener it can attribute.
  *
  * **One port keeps one listener, and a second pid on it is dropped.** Usually
  * they are the same process twice, a server binding both families. But a child
@@ -90,20 +81,19 @@ export async function processCwds(pids: readonly number[]): Promise<Map<number, 
  * produces no entry at all. `free()` still reports the port as taken, which is
  * what a picker draws.
  *
- * An empty map is the honest answer to an idle block, a machine with no `lsof`,
- * and a reading that failed — no caller may read it as "nothing is bound", which
- * is `free()`'s question and is asked of the socket layer instead.
+ * An empty map is the honest answer to a machine with nothing listening, no
+ * `lsof`, and a reading that failed — no caller may read it as "nothing is
+ * bound", which is `free()`'s question and is asked of the socket layer instead.
  */
-export async function listeners(block?: PortBlock): Promise<Map<number, Listener>> {
-  const byPort: Map<number, Listener> = await sockets(block);
+export async function listeners(): Promise<Map<number, Listener>> {
+  const byPort: Map<number, Listener> = await sockets();
   if (byPort.size === 0) {
     return byPort;
   }
 
-  // One spawn for every pid rather than one each: `-p` takes a list. A block
-  // bounds that list by its span; the machine-wide form does not bound it at
-  // all, which is why the second reading is measured per pid (12ms for 16 of
-  // them) rather than assumed small.
+  // One spawn for every pid rather than one each: `-p` takes a list. The
+  // machine-wide reading does not bound that list, which is why the second
+  // reading is measured per pid (12ms for 16 of them) rather than assumed small.
   const pids = [...new Set([...byPort.values()].map((listener) => listener.pid))];
   const dirs = await processCwds(pids);
   for (const [port, listener] of byPort) {
@@ -116,8 +106,8 @@ export async function listeners(block?: PortBlock): Promise<Map<number, Listener
 }
 
 /** The first half of `listeners`, for a caller with no use for a directory. */
-export async function sockets(block?: PortBlock): Promise<Map<number, Socket>> {
-  const reading = await platform.listeners.read(block);
+export async function sockets(): Promise<Map<number, Socket>> {
+  const reading = await platform.listeners.read();
   if (!reading.supported || reading.status !== 'ok') return new Map();
   const byPort = new Map<number, Socket>();
   for (const listener of reading.value) {

@@ -711,7 +711,7 @@ interface TicketView {
   key: string;
   identifier: string;
   title: string;
-  priority: TicketPriority;
+  priority?: TicketPriority;
   state: TicketField;
   url: string;
 }
@@ -723,6 +723,7 @@ interface TicketDetail {
   title: string;
   url: string;
   assignee: AssigneeOption | null;
+  assignees?: AssigneeOption[];
   state: TicketField;
   description: string;
 }
@@ -745,6 +746,11 @@ type StateOption = TicketState;
 type PriorityOption = TicketPriority;
 
 interface TicketOptions {
+  accessWarning?: string;
+  assigneesComplete?: boolean;
+  unavailable?: { states?: string; priorities?: string };
+  prioritySort?: { asc: string; desc: string };
+  noStatusLane?: boolean;
   scopeId: string;
   /** Native person ID, when the source can identify the authenticated viewer. */
   viewerId?: string;
@@ -761,7 +767,7 @@ interface TicketFilterView {
   priorities: string[];
 }
 
-type TicketSourceMarkId = 'linear';
+type TicketSourceMarkId = 'linear' | 'github';
 
 interface TicketSourcePresentation {
   label: string;
@@ -769,6 +775,7 @@ interface TicketSourcePresentation {
   connectLabel: string;
   connectHint: string;
   reconfigureLabel?: string;
+  disconnectLabel?: string;
 }
 
 interface TicketScope {
@@ -777,13 +784,28 @@ interface TicketScope {
   label: string;
 }
 
+interface TicketBoard extends TicketScope {
+  sourceId: string;
+  presentation: TicketSourcePresentation;
+}
+
+interface TicketConnection {
+  sourceId: string;
+  presentation: TicketSourcePresentation;
+  error?: string;
+  failure?: 'credentials' | 'service';
+}
+
 interface TicketSelectionToken {
+  sourceId?: string;
   generation: number;
   selectionSeq: number;
   scopeId?: string;
 }
 
 interface TicketSourceStatus {
+  boards?: TicketBoard[];
+  connections?: TicketConnection[];
   linked: boolean;
   sourceId: string;
   generation: number;
@@ -891,7 +913,7 @@ interface McpBrandCell {
   /** Exact selected declaration; absence cannot authorize a host action. */
   target?: McpActionRef;
   brand: BrandId;
-  /** This brand's configured name — what `startMcpLogin` / `mcpLogout` post. */
+  /** This brand's configured name. Paint and cell identity; the action posts `target`. */
   name: string;
   /** Presentation section only; target retains the original declaration cwd. */
   root?: string;
@@ -1481,10 +1503,6 @@ type StateMessage = {
    * Independent of session directories and the repo roots used to group cards. */
   defaultCwd?: string;
   defaultSkillsByBrand?: Partial<Record<BrandId, string[]>>;
-  /** Combined recovery snapshots may carry the same publication fence. Omission
-   * preserves the selected thread; select/close are the explicit clear paths. */
-  thread?: ThreadView;
-  threadPublication?: ThreadPublication;
   /**
    * Machine-wide accounts list (Claude and Grok live; Codex coming soon). Absent
    * until the first auth status poll lands — nav keeps usage-only behaviour
@@ -2710,14 +2728,15 @@ type WebviewMessage =
   | { type: 'setWarmSetting'; key: string; minutes: number }
   | { type: 'setTheme'; theme: ThemeName }
   | { type: 'setSound'; level: SoundLevel }
-  | ({ type: 'connectTicketSource' } & TicketSelectionToken)
+  | ({ type: 'connectTicketSource'; provider?: string } & TicketSelectionToken)
   /**
    * Whether the backlog is on screen: the tickets tab up *and* the dock open.
    * Gates nothing — an opening flip only asks the host to refresh now instead
    * of at the end of the current poll. Sent on the flip, never on a repaint.
    */
   | { type: 'ticketsOpen'; open: boolean }
-  | ({ type: 'refreshTickets' } & TicketSelectionToken)
+  | ({ type: 'disconnectTicketSource'; provider: string } & TicketSelectionToken)
+  | ({ type: 'refreshTickets'; catalog?: boolean } & TicketSelectionToken)
   /**
    * The sheet was opened, so it is worth asking the CLI what actually works.
    *
@@ -2792,9 +2811,6 @@ type WebviewMessage =
    */
   | {
       type: 'startMcpLogin';
-      name: string;
-      brand: BrandId;
-      root?: string;
       target?: McpActionRef;
       operationId?: string;
     }
@@ -2807,9 +2823,6 @@ type WebviewMessage =
    */
   | {
       type: 'mcpLogout';
-      name: string;
-      brand: BrandId;
-      root?: string;
       target?: McpActionRef;
       operationId?: string;
     };

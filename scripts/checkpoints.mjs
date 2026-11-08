@@ -1076,19 +1076,6 @@ async function job(file) {
   if (!process.connected || !exactJob(file, value) || !authorityCurrent(value))
     throw new Error('verification launch authority changed');
   const invocation = program(value.command, value.args);
-  const child = cp.spawn(invocation.command, invocation.args, {
-    cwd: value.cwd,
-    env: process.env,
-    stdio: 'inherit',
-    shell: value.shell
-  });
-  const result = new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('close', (c, s) => resolve(c ?? 128 + (os.constants.signals[s] ?? 0)));
-  });
-  const launched = processes.snapshot();
-  const commandIdentity = processes.identity(child.pid, launched);
-  save('running', launched);
   let interrupted = false;
   const handlers = ['SIGINT', 'SIGTERM', 'SIGHUP'].map((s) => {
     const fn = () => {
@@ -1111,6 +1098,19 @@ async function job(file) {
     process.on(s, fn);
     return [s, fn];
   });
+  const child = cp.spawn(invocation.command, invocation.args, {
+    cwd: value.cwd,
+    env: process.env,
+    stdio: 'inherit',
+    shell: value.shell
+  });
+  const result = new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', (c, s) => resolve(c ?? 128 + (os.constants.signals[s] ?? 0)));
+  });
+  const launched = processes.snapshot();
+  const commandIdentity = processes.identity(child.pid, launched);
+  save('running', launched);
   try {
     process.exitCode = await result;
     save(interrupted ? 'interrupted' : 'finished');

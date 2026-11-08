@@ -57,9 +57,20 @@ const push = (sessions: CardView[], selected?: ThreadView, models: ModelView[] =
     theme: 'follow',
     model: '',
     efforts: {},
-    models,
-    ...(selected ? { thread: selected } : {})
+    models
   });
+  if (!selected) return;
+  assert.equal(chats.activateSession(selected.pid, selected.startedAt) !== undefined, true);
+  assert.equal(
+    chats.takeThread({
+      type: 'thread',
+      selection: chats.requestSelection(),
+      generation: 1,
+      sequence: 1,
+      thread: selected
+    }),
+    true
+  );
 };
 
 describe('panel bag', () => {

@@ -2,10 +2,8 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { conversationKey } from './identity';
 import { readCheckout, readWorktrees, type HeadPass, type Worktree } from './git';
 import type { BrandId } from './model';
-import type { StatedName } from './names';
 import * as platform from './platform';
 import * as catalog from './conversation_catalog';
 
@@ -79,27 +77,13 @@ async function belongsToFamily(
   }
 }
 
-/**
- * Newest first, asked-cwd floor, then a single page cut.
- *
- * `stated` is applied here rather than while records are read: the reader owns
- * what the transcript said, while this is the one brand-free place picker rows
- * are assembled. A name somebody typed is a real title rather than a prompt
- * standing in, so the overlay also moves `titled` to true.
- */
+/** Newest first, asked-cwd floor, then a single page cut. */
 export function mergeConversations(
-  groups: readonly Conversation[][],
+  rows: readonly Conversation[],
   cwd: string,
-  stated: ReadonlyMap<string, StatedName> = new Map(),
   cap = 20
 ): Conversation[] {
-  const settled = groups
-    .flat()
-    .map((row) => {
-      const ours = stated.get(conversationKey(row.brand, row.sessionId));
-      return ours ? { ...row, title: ours.name, titled: true } : row;
-    })
-    .sort((a, b) => b.lastActivity - a.lastActivity);
+  const settled = [...rows].sort((a, b) => b.lastActivity - a.lastActivity);
   const floor = Math.ceil(cap / 2);
   const asked = platform.paths.key(cwd);
   const here = (row: Conversation) => platform.paths.key(row.cwd) === asked;

@@ -16,7 +16,7 @@ import { readClaims } from '../core/coordination/claims';
 import { LINEAGE_DIR, STARTUPS_DIR } from '../core/paths';
 import { readPublished } from '../core/published';
 import { ask, askExit } from '../core/coordination/ask';
-import { OPEN_REPLY_MS, requestIdOf } from '../core/coordination/requests';
+import { requestIdOf } from '../core/coordination/requests';
 import type { BrandId } from '../core/model';
 
 /**
@@ -143,44 +143,41 @@ export async function openSession(request: OpenSessionRequest): Promise<OpenSess
     return { ok: false, code: 3, reason: 'no IDE window is running with Squadron installed' };
   }
 
-  const result = await ask(
-    {
-      kind: 'open',
-      origin: 'agent',
-      windowId: window.id,
-      cwd: request.cwd,
-      prompt: request.prompt,
-      // What the card calls the session. Passed through rather than derived here:
-      // the window is where the flag is finally written, and one derivation there
-      // covers this shim, an older one, and the panel's own spawns alike.
-      name: request.name,
-      parentSessionId: request.parentSessionId,
-      // The fan-out, which is not the parent: a chain of spawns all name the
-      // session it opened at, so the board boxes the four of them together even
-      // after a generation in the middle has gone.
-      originSessionId: request.originSessionId,
-      from: request.from,
-      // The ticket this work came from, when the spawn is a hand-off. Recorded
-      // beside the parent because the spawn is the only moment both are in hand.
-      ticketRef: request.ticketRef,
-      // The workflow the child is to run. Checked by the window, against the
-      // child's cwd — a refusal comes back as exit 2.
-      workflowId: request.workflowId,
-      // Which CLI to start. Absent, with no model either, means inherit at
-      // the window — this shim does not know the parent's model. Sending
-      // `claude` would hide the inherit case from a new window and be a
-      // spelling only new windows read.
-      brand: request.brand,
-      // Same bargain as brand: absent, not defaulted. An older window
-      // ignores the field and falls back to the gear — same as `brand`.
-      model: request.model,
-      ...(request.window === undefined ? {} : { window: request.window }),
-      // Checked at the window, not here: only it knows an inherited model and
-      // a live Codex row, and it answers a value the model lacks with exit 2.
-      effort: request.effort
-    },
-    OPEN_REPLY_MS
-  );
+  const result = await ask({
+    kind: 'open',
+    origin: 'agent',
+    windowId: window.id,
+    cwd: request.cwd,
+    prompt: request.prompt,
+    // What the card calls the session. Passed through rather than derived here:
+    // the window is where the flag is finally written, and one derivation there
+    // covers this shim, an older one, and the panel's own spawns alike.
+    name: request.name,
+    parentSessionId: request.parentSessionId,
+    // The fan-out, which is not the parent: a chain of spawns all name the
+    // session it opened at, so the board boxes the four of them together even
+    // after a generation in the middle has gone.
+    originSessionId: request.originSessionId,
+    from: request.from,
+    // The ticket this work came from, when the spawn is a hand-off. Recorded
+    // beside the parent because the spawn is the only moment both are in hand.
+    ticketRef: request.ticketRef,
+    // The workflow the child is to run. Checked by the window, against the
+    // child's cwd — a refusal comes back as exit 2.
+    workflowId: request.workflowId,
+    // Which CLI to start. Absent, with no model either, means inherit at
+    // the window — this shim does not know the parent's model. Sending
+    // `claude` would hide the inherit case from a new window and be a
+    // spelling only new windows read.
+    brand: request.brand,
+    // Same bargain as brand: absent, not defaulted. An older window
+    // ignores the field and falls back to the gear — same as `brand`.
+    model: request.model,
+    ...(request.window === undefined ? {} : { window: request.window }),
+    // Checked at the window, not here: only it knows an inherited model and
+    // a live Codex row, and it answers a value the model lacks with exit 2.
+    effort: request.effort
+  });
   if (!result.ok) {
     if (
       result.kind === 'silent' ||

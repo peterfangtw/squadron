@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
 import { MaybePosted, type ConversationPlace } from '../../core/bridge/model';
-import * as rules from '../../core/remote/attach';
+import { REPLY_MS } from '../../core/coordination/requests';
 import * as api from '../../core/slack/api';
 import * as files from '../../core/slack/files';
 import * as fx from '../fixtures/slack_replies';
@@ -194,7 +194,7 @@ describe('uploadFile', () => {
   }
 
   it('gives up on the whole upload before the shim gives up on the holder, with room for the holder around it', () => {
-    assert.ok(files.UPLOAD_MS + 15_000 <= rules.ATTACH_REPLY_MS);
+    assert.ok(files.UPLOAD_MS + 15_000 <= REPLY_MS.attach);
   });
 
   it('gives up on an upload that never answers after UPLOAD_MS', async () => {

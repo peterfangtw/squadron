@@ -53,10 +53,13 @@ describe('hourly usage freshness', () => {
       brand: 'claude',
       rateLimits: { at: now, windows: [{ id: 'weekly', short: 'wk', pct: 12, at: now }] }
     } as Session;
-    await store.walkUsage([{ brand: 'claude', source: port, signedIn: true }], {
-      sessions: [session],
-      now
-    });
+    await store.walkUsage(
+      { brand: 'claude', source: port, signedIn: true },
+      {
+        sessions: [session],
+        now
+      }
+    );
     assert.equal(reads, 0);
   });
 
@@ -68,10 +71,13 @@ describe('hourly usage freshness', () => {
       return Promise.reject(new Error('offline'));
     });
     const pass = (at: number) =>
-      store.walkUsage([{ brand: 'claude', source: port, signedIn: true }], {
-        sessions: [],
-        now: at
-      });
+      store.walkUsage(
+        { brand: 'claude', source: port, signedIn: true },
+        {
+          sessions: [],
+          now: at
+        }
+      );
     await pass(now);
     store.invalidate();
 
@@ -90,10 +96,13 @@ describe('hourly usage freshness', () => {
     await store.noteReading('claude', reading(now));
     const snapshot = { pid: 17, brand: 'claude', rateLimits: reading(now + HOUR / 2) } as Session;
     const pass = (at: number) =>
-      store.walkUsage([{ brand: 'claude', source: port, signedIn: true }], {
-        sessions: [snapshot],
-        now: at
-      });
+      store.walkUsage(
+        { brand: 'claude', source: port, signedIn: true },
+        {
+          sessions: [snapshot],
+          now: at
+        }
+      );
     await pass(now + HOUR);
     assert.equal(reads, 0);
     await pass(now + HOUR * 1.5 - 1);
@@ -115,10 +124,13 @@ describe('hourly usage freshness', () => {
     });
     const now = at + 2 * HOUR;
     const pass = (when: number) =>
-      store.walkUsage([{ brand: 'claude', source: port, signedIn: true }], {
-        sessions: [],
-        now: when
-      });
+      store.walkUsage(
+        { brand: 'claude', source: port, signedIn: true },
+        {
+          sessions: [],
+          now: when
+        }
+      );
     await pass(now);
     await pass(now + HOUR - 1);
     assert.equal(reads, 1);
@@ -140,10 +152,13 @@ describe('hourly usage freshness', () => {
         finish = resolve;
       });
     });
-    const pending = store.walkUsage([{ brand: 'claude', source: port, signedIn: true }], {
-      sessions: [],
-      now
-    });
+    const pending = store.walkUsage(
+      { brand: 'claude', source: port, signedIn: true },
+      {
+        sessions: [],
+        now
+      }
+    );
     await entered;
     await store.noteReading('claude', {
       at: now,
@@ -170,7 +185,7 @@ describe('hourly usage freshness', () => {
     });
     const now = Date.now();
     const pending = store.walkUsage(
-      [{ brand: 'claude', source: port, signedIn: true, generation }],
+      { brand: 'claude', source: port, signedIn: true, generation },
       { sessions: [], now }
     );
     await started;
@@ -186,7 +201,7 @@ describe('hourly usage freshness', () => {
       usageGeneration: generation
     } as Session;
     await store.walkUsage(
-      [{ brand: 'claude', source: source(() => Promise.resolve(undefined)), signedIn: true }],
+      { brand: 'claude', source: source(() => Promise.resolve(undefined)), signedIn: true },
       {
         sessions: [session],
         now: Date.now()
@@ -205,7 +220,7 @@ describe('hourly usage freshness', () => {
         windows: [{id:'weekly',short:'wk'}], everyMs: ${HOUR}, noResetMs: ${7 * 24 * HOUR},
         read: async () => { await fs.appendFile(${JSON.stringify(marker)}, 'x'); await new Promise(r=>setTimeout(r,150)); return undefined; }
       };
-      usage.walkUsage([{brand:'claude',source,signedIn:true}],{sessions:[],now:Date.now()}).catch(e=>{console.error(e);process.exitCode=1});
+      usage.walkUsage({brand:'claude',source,signedIn:true},{sessions:[],now:Date.now()}).catch(e=>{console.error(e);process.exitCode=1});
     `;
     const run = () =>
       promisify(execFile)(process.execPath, ['-e', code], {
@@ -222,16 +237,14 @@ describe('hourly usage freshness', () => {
     let reads = 0;
     await assert.rejects(
       store.walkUsage(
-        [
-          {
-            brand: 'claude',
-            source: source(() => {
-              reads++;
-              return Promise.resolve(undefined);
-            }),
-            signedIn: true
-          }
-        ],
+        {
+          brand: 'claude',
+          source: source(() => {
+            reads++;
+            return Promise.resolve(undefined);
+          }),
+          signedIn: true
+        },
         {
           sessions: [],
           now: Date.now()
@@ -257,10 +270,13 @@ describe('hourly usage freshness', () => {
     });
     const now = Date.now();
     const pass = (at: number) =>
-      store.walkUsage([{ brand: 'claude', source: port, signedIn: true }], {
-        sessions: [],
-        now: at
-      });
+      store.walkUsage(
+        { brand: 'claude', source: port, signedIn: true },
+        {
+          sessions: [],
+          now: at
+        }
+      );
     await assert.rejects(pass(now), /persist usage cooldown/);
     failing = false;
     await pass(now + 1000);
@@ -337,10 +353,13 @@ describe('hourly usage freshness', () => {
       return Promise.resolve(undefined);
     });
     const pass = (at: number) =>
-      store.walkUsage([{ brand: 'claude', source: port, signedIn: true }], {
-        sessions: [],
-        now: at
-      });
+      store.walkUsage(
+        { brand: 'claude', source: port, signedIn: true },
+        {
+          sessions: [],
+          now: at
+        }
+      );
     await pass(now);
     await pass(now + 1000);
     assert.equal(reads, 0);
@@ -654,11 +673,14 @@ describe('hourly usage freshness', () => {
         finish = () => resolve({ windows: [{ id: 'weekly', short: 'wk', pct: 23 }] });
       });
     });
-    const pending = store.walkUsage([{ brand: 'claude', source: port, signedIn: true }], {
-      sessions: [],
-      now: Date.now(),
-      clock: Date.now
-    });
+    const pending = store.walkUsage(
+      { brand: 'claude', source: port, signedIn: true },
+      {
+        sessions: [],
+        now: Date.now(),
+        clock: Date.now
+      }
+    );
     await entered;
     await store.forgetUsageFor('grok');
     finish();

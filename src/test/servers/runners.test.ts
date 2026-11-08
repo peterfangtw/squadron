@@ -2,7 +2,6 @@ import * as assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   candidateRunners,
-  commandHash,
   detectRunner,
   devHostRunner,
   resolveRunners,
@@ -260,22 +259,5 @@ describe('substitute', () => {
       substitute('npm run compile && code --extensionDevelopmentPath=.', undefined),
       'npm run compile && code --extensionDevelopmentPath=.'
     );
-  });
-});
-
-describe('commandHash', () => {
-  it('agrees with itself and disagrees with anything else', () => {
-    assert.equal(commandHash('npm run dev'), commandHash('npm run dev'));
-    assert.notEqual(commandHash('npm run dev'), commandHash('pnpm dev'));
-  });
-
-  /** The whole point: same id, same label, different command in each window. */
-  it('separates a named command from the detected one it shadows', () => {
-    assert.notEqual(commandHash('pnpm dev --port ${port}'), commandHash('npm run dev'));
-  });
-
-  it('carries no part of the command into what it publishes', () => {
-    const hash = commandHash('npm run dev -- --secret token');
-    assert.match(hash, /^[0-9a-f]{16}$/);
   });
 });

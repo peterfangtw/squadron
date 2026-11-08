@@ -20,12 +20,9 @@ export { sessionLabel, takeImage } from './chat_turns';
 export { dockDrag } from './chat_scroll';
 
 /**
- * Whether the tab is describing a session, derived from the selection and never
- * from the caller. Every paint of the chat goes through one of the three below,
- * so a repaint the dock did not ask for cannot leave the class disagreeing with
- * `ui.selected` — which a bare add/remove per call site did: `renderThread` runs
- * ungated from nine places (a `sendResult` landing after a close is one), and
- * each of those would have taken the class off with nothing selected.
+ * Whether the tab is describing a session. Empty, loading, and start come from
+ * the selection and the draft. `renderThread` returns before painting when the
+ * thread is not the active session, and `renderActive` is what calls it.
  */
 const syncEmpty = (): void => {
   const chat = $('chat');

@@ -34,7 +34,7 @@ async function main(): Promise<void> {
     windows.originWindow(process.env, await published.readPublished())
   );
   if (!window) die(3, 'no IDE window is running with Squadron installed');
-  const result = await ask.ask({ kind: 'models', windowId: window.id }, 20_000);
+  const result = await ask.ask({ kind: 'models', windowId: window.id });
   if (!result.ok) {
     die(ask.askExit(result), result.reason);
   }

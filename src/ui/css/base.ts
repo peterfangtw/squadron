@@ -168,7 +168,7 @@ export const css = /* css */ `
 
        --av-warn-border takes the same step, and had to: it resolves through the
        same --vscode-inputValidation-warningBorder and is the *same colour* as
-       --av-orange in all nine places either is declared. Fixing one and not the
+       --av-orange wherever either is declared. Fixing one and not the
        other split a single amber in two on a light host and left the six sites
        that spend warn-border as a *label* rather than a boundary — the two in
        css/composer.ts and four in css/bottom_drawer.ts — on the 2.71:1 value this

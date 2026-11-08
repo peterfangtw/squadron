@@ -143,13 +143,8 @@ describe('independent selected transcript publication', () => {
     assert.equal(p.window.document.querySelectorAll('#thread .turn.user').length, 1);
     assert.equal(p.window.document.querySelector('#thread .turn.sending'), null);
     publish(1, { queued: [row], pending: [askRequest()] });
-    p.push(
-      stateMessage(groups, {
-        thread: { ...thread, pending: [askRequest()] },
-        threadPublication: { selection: select.selection, generation: 1, sequence: 2 }
-      })
-    );
-    p.push(stateMessage(groups, { thread: { ...thread, pending: [askRequest()] } }));
+    p.push(stateMessage(groups));
+    p.push(stateMessage(groups));
     assert.equal(p.window.document.querySelector('#question .qblock'), null);
     assert.equal(p.window.document.querySelectorAll('#thread .turn.user').length, 1);
     newDraft(p);

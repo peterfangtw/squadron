@@ -24,7 +24,7 @@ const card = (pid: number, over: Partial<CardView> = {}): CardView =>
   cardView({ pid, status: 'busy', ...over });
 const state = (
   sessions: CardView[],
-  over: Partial<Omit<StateMessage, 'type' | 'groups'>> = {}
+  over: Partial<Omit<StateMessage, 'type' | 'groups'>> & { thread?: ThreadView } = {}
 ): StateMessage => stateMessage([groupView({ sessions })], { mascot: true, ...over });
 const DONE = { word: 'done', tally: 'done' } as unknown as CardReading;
 

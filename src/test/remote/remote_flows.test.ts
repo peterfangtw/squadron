@@ -24,7 +24,6 @@ let awake: typeof import('../../core/awake');
 let scan: typeof import('../../core/scan');
 let transcript: typeof import('../../core/transcript');
 let attachCli: typeof import('../../cli/attach');
-let rules: typeof import('../../core/remote/attach');
 let served: typeof import('../../core/remote/serve_attach');
 let claims: typeof import('../../core/coordination/claims');
 let asking: typeof import('../../core/coordination/ask');
@@ -49,7 +48,6 @@ before(async () => {
   scan = await import('../../core/scan');
   transcript = await import('../../core/transcript');
   attachCli = await import('../../cli/attach');
-  rules = await import('../../core/remote/attach');
   served = await import('../../core/remote/serve_attach');
   claims = await import('../../core/coordination/claims');
   asking = await import('../../core/coordination/ask');
@@ -396,7 +394,7 @@ async function agentAttaches(
   const plan = await attachCli.readPlan(opts, sessions, planted(live), cwd);
   assert.ok(plan.ok, plan.ok ? '' : plan.reason);
   await between?.();
-  const result = await asking.ask(plan.body, rules.ATTACH_REPLY_MS);
+  const result = await asking.ask(plan.body);
   if (result.ok || result.kind === 'refused') return { plan, reply: result.reply };
   throw new Error(result.reason);
 }
@@ -915,18 +913,15 @@ for (const brand of BRANDS) {
       await t.a.pass();
       const before = t.a.messenger.posts().length;
 
-      const result = await asking.ask(
-        {
-          kind: 'attach',
-          windowId: t.a.id,
-          pid: root.pid,
-          startedAt: root.startedAt,
-          sessionWindowId: t.b.id,
-          path: paths.HOLDER_FILE,
-          from: root.sessionId
-        },
-        rules.ATTACH_REPLY_MS
-      );
+      const result = await asking.ask({
+        kind: 'attach',
+        windowId: t.a.id,
+        pid: root.pid,
+        startedAt: root.startedAt,
+        sessionWindowId: t.b.id,
+        path: paths.HOLDER_FILE,
+        from: root.sessionId
+      });
       assert.equal(result.ok, false);
       assert.equal(result.ok ? '' : result.kind, 'refused');
       assert.match(result.ok ? '' : result.reason, /is inside .*, which is never sent$/);

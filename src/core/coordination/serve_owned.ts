@@ -1,11 +1,12 @@
 /**
  * The window-side arms the Remote host relies on: what a window does with a
  * request about a session it drives, when the request needs no setting and no
- * actions store. The composer `send`, `close`, Remote's three kinds and an
- * `open` from Remote live here, so a test of a second window runs the code a
- * real window runs; `host/request_host.ts`'s `serve` keeps the verb `send`,
- * `answer`, `rename`, `warm`, `models` and the agent `open`, and hands `attach` to
- * `core/remote/serve_attach.ts`.
+ * actions store. `isClassifiedOwned` admits composer-send, remote-send,
+ * remote-open, remote-interrupt, remote-deny, remote-answer,
+ * remote-start-files, evidence, close, and unknown, so a test of a second window runs the code a
+ * real window runs; `host/request_host.ts`'s `serve` hands the verb `send` and
+ * `answer` to `admit.ts`, keeps `rename`, `warm`, `models` and the agent `open`,
+ * and hands `attach` to `core/remote/serve_attach.ts`.
  */
 
 import * as incoming from '../incoming';
@@ -318,7 +319,14 @@ function remoteKind(
     case 'deny':
     case 'personAnswer':
       return true;
+    case 'send':
+    case 'close':
+    case 'open':
+    case 'remoteStartFilesV1':
+    case 'incomingEvidenceV1':
+      return false;
     default:
+      request satisfies never;
       return false;
   }
 }

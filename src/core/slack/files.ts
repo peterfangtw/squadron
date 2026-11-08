@@ -22,7 +22,7 @@ export const FILE_MAX = 1_000_000_000;
  * How long the whole upload may take before it is abandoned (a duration): the
  * URL, the bytes and the share under one deadline, since each call's own
  * limit (`api.CALL_MS`) sums past the shim's wait. A file at M3's cap over the
- * uplink `ATTACH_REPLY_MS` assumes, with 15 s of that wait left for the
+ * uplink `REPLY_MS.attach` assumes, with 15 s of that wait left for the
  * holder's pass, checks and read before it and its answer after. Unbounded, a
  * half-open upload holds the engine's chain — every inbound event and pass,
  * and turn-off, a rebuild and the holder's release behind them — for as long

@@ -89,9 +89,7 @@ export const ui: PanelUi = {
 
 export function applyState(msg: StateMessage): import('./chat_state').SessionIdentity[] {
   const retired = chats.observe(msg);
-  const panel = { ...msg };
-  delete panel.thread;
-  bag.state = panel;
+  bag.state = msg;
   bag.ready = true;
   return retired;
 }

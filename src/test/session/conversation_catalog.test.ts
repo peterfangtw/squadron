@@ -34,7 +34,7 @@ async function write(id: string, cwd: string, at = NOW): Promise<void> {
 async function read(reader: InstanceType<Conversations['ConversationReader']>, cwd: string) {
   const prepared = await reader.read(cwd, NOW);
   await prepared.maintain();
-  return conversations.mergeConversations([prepared.rows], cwd);
+  return conversations.mergeConversations(prepared.rows, cwd);
 }
 
 describe('transcript catalog storage', () => {
@@ -243,7 +243,7 @@ describe('catalog-backed conversation reads', () => {
     await assert.rejects(fs.stat(paths.CATALOG_FILE), { code: 'ENOENT' });
     await cold.maintain();
     const warm = await read(reader, cwd);
-    assert.deepEqual(warm, conversations.mergeConversations([cold.rows], cwd));
+    assert.deepEqual(warm, conversations.mergeConversations(cold.rows, cwd));
     const stamp = await fs.stat(paths.CATALOG_FILE);
     await read(reader, cwd);
     const unchanged = await fs.stat(paths.CATALOG_FILE);
@@ -296,7 +296,7 @@ describe('catalog-backed conversation reads', () => {
     const reader = new conversations.ConversationReader();
     const cold = await reader.read(cwd, NOW);
     assert.deepEqual(
-      conversations.mergeConversations([cold.rows], cwd).map((r) => r.sessionId),
+      conversations.mergeConversations(cold.rows, cwd).map((r) => r.sessionId),
       Array.from({ length: 20 }, (_, i) => `reversed-${i}`)
     );
     assert.equal(cold.rows.length, 45);
@@ -543,8 +543,8 @@ describe('catalog-backed conversation reads', () => {
     await warm.maintain();
     assert.equal(calls, 30, 'the next read discovered every header again');
     assert.deepEqual(
-      conversations.mergeConversations([warm.rows], cwd),
-      conversations.mergeConversations([cold.rows], cwd)
+      conversations.mergeConversations(warm.rows, cwd),
+      conversations.mergeConversations(cold.rows, cwd)
     );
     reader.dispose();
   });

@@ -86,7 +86,10 @@ export async function resolveOwnedSelf(): Promise<OwnedSelf> {
       code: askExit({ kind: 'unwritable' }),
       reason: 'could not submit the receiver challenge'
     };
-  const { reply, invalid } = await requests.awaitReplyDetailed(file);
+  const { reply, invalid } = await requests.awaitReplyDetailed(
+    file,
+    requests.REPLY_MS.incomingEvidenceV1
+  );
   if (invalid)
     return {
       ok: false,

@@ -76,11 +76,7 @@ export const STALE_MS = 10_000;
 export const CLAIMED_REPLY_MS = Math.max(1_000, STALE_MS - 2_000);
 
 /**
- * How long to wait for the window's answer to an `open`, against `awaitReply`'s
- * 3000 ms default: `squadron-spawn`, `squadron-step` and the Remote host's
- * start (`core/remote/verbs.ts`) all wait this long.
- *
- * The default is shorter than the thing it waits for. The window claims the
+ * Starts outlast the transport's 3000 ms default. The window claims the
  * request on a 500 ms poll (`host/extension.ts`), hands it to `startOwned`,
  * and only writes the reply once that returns — and starting a CLI child is
  * measured at ~3 s in this repo (`src/test/AGENTS.md`). So a spawn that worked
@@ -91,7 +87,31 @@ export const CLAIMED_REPLY_MS = Math.max(1_000, STALE_MS - 2_000);
  * (`STALE_MS`), so past that only a slow start is still coming, and this
  * leaves ~6x the measured start for one.
  */
-export const OPEN_REPLY_MS = 20_000;
+const OPEN_REPLY_MS = 20_000;
+
+// Required for every kind, so a new slow operation cannot inherit the transport's 3 s wait.
+export const REPLY_MS: Readonly<Record<RequestBody['kind'], number>> = {
+  open: OPEN_REPLY_MS,
+  models: OPEN_REPLY_MS,
+  remoteStartFilesV1: OPEN_REPLY_MS,
+  incomingEvidenceV1: 3_000,
+  fetchFile: 60_000,
+  send: 3_000,
+  answer: 3_000,
+  rename: 3_000,
+  warm: 3_000,
+  close: 3_000,
+  interrupt: 3_000,
+  deny: 3_000,
+  personAnswer: 3_000,
+  /**
+   * A file at the 10 MiB cap over an uplink of at least 2 Mbit/s takes about
+   * 42 s, plus messenger calls. The messenger's upload deadline stays below
+   * this so the caller hears the outcome. Past STALE_MS deliberately: uploads
+   * read only whether a reply came, never the claimed verdict.
+   */
+  attach: 60_000
+};
 
 /** The refusal for a request file whose fields are not its kind's. */
 export const MALFORMED = 'That request could not be read.';

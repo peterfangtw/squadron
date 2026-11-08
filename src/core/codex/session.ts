@@ -4,7 +4,6 @@ import * as usage from './usage';
 
 import { randomUUID } from 'crypto';
 import * as messageFacts from '../message_facts';
-import * as checkpointRecord from '../checkpoint_record';
 import * as recovery from '../recovery';
 import * as checkpoint from '../checkpoint';
 import * as executionRuntime from '../execution';
@@ -63,6 +62,7 @@ import { permissionWord, sandboxType, startMode } from './permissions';
 import { CodexTee } from './tee';
 import * as projection from './projection';
 import { Thread, readBaseline, recoverBaseline, type History } from '../thread';
+import { TurnCapture } from '../turn_capture';
 import {
   activeTranscriptReader,
   askLine,
@@ -198,10 +198,9 @@ export class CodexSession implements SessionHandle {
   private readonly messageTurns = new messageFacts.MessageTurns();
   private readonly checkpoints: checkpoint.TurnCheckpoints;
   private readonly executionRuntime: executionRuntime.ExecutionRuntime;
-  private executionObserver?: execution.ExecutionObserver;
+  private readonly capture: TurnCapture<execution.ExecutionObserver>;
   /** Native children proven by a spawn, so a later turn's follow-up can admit them. */
   private readonly nativeChildren = new Set<string>();
-  private captureWake?: () => void;
   private capturing = false;
   readonly opening: Promise<{ ok: true } | { ok: false; reason: string }>;
   /** The conversation in memory, named once the thread has opened, and
@@ -271,6 +270,12 @@ export class CodexSession implements SessionHandle {
     this.tee = new CodexTee(start.cwd);
     this.projection = new projection.CodexProjection(this.tee);
     this.memory = new Thread({ cwd: start.cwd, brand: 'codex' });
+    this.capture = new TurnCapture(
+      this.checkpoints,
+      this.executionRuntime.runtime,
+      () => this.memory.current,
+      (observer) => () => observer.finish()
+    );
     this.client = new CodexClient(transport, requestMs);
     this.client.onNotification((method, params) => this.receive(method, params, Date.now()));
     this.client.onRequest((id, method, params) => {
@@ -315,7 +320,11 @@ export class CodexSession implements SessionHandle {
         'agent'
       );
       if (this.capturing) this.checkpoints.discard();
-      else if (!this.live.warmTurn) this.endCheckpoint();
+      else
+        this.capture.ended(this.live.cwd, {
+          warm: this.live.warmTurn !== undefined,
+          baselining: false
+        });
       void this.checkpoints.endExecution(
         this.executionRuntime.runtime,
         this.executionRuntime.contextFile
@@ -333,16 +342,7 @@ export class CodexSession implements SessionHandle {
         { stopped: () => this.closed || this.live.exit !== undefined, log: start.log }
       );
     });
-    const historyState = recovery.historyState(Boolean(start.resume), recovered);
-    this.thread = {
-      get historyState() {
-        return historyState();
-      },
-      generation: () => this.memory.current.generation,
-      snapshot: () => this.memory.snapshot(),
-      recovered,
-      onChange: (listener) => this.memory.onChange(listener)
-    };
+    this.thread = recovery.threadPort(this.memory, Boolean(start.resume), recovered);
     this.recoveryPending = recovery.recoveryGate(Boolean(start.resume), recovered, () => {
       void this.tryDrain();
     });
@@ -384,7 +384,11 @@ export class CodexSession implements SessionHandle {
     this.apply(messageFacts.abandon(this.live));
     this.closed = true;
     if (this.capturing) this.checkpoints.discard();
-    else if (!this.live.warmTurn) this.endCheckpoint();
+    else
+      this.capture.ended(this.live.cwd, {
+        warm: this.live.warmTurn !== undefined,
+        baselining: false
+      });
     void this.checkpoints.endExecution(
       this.executionRuntime.runtime,
       this.executionRuntime.contextFile
@@ -498,7 +502,7 @@ export class CodexSession implements SessionHandle {
       return;
     }
     if (!this.threadId || !isRecord(params) || params.threadId !== this.threadId) {
-      this.executionObserver?.take(method, params);
+      this.capture.observer?.take(method, params);
       return;
     }
     const turnId = notificationTurnId(params);
@@ -529,7 +533,7 @@ export class CodexSession implements SessionHandle {
         break;
     }
     // Observing before admission attributes a completed turn's command to the next turn.
-    this.executionObserver?.take(method, params);
+    this.capture.observer?.take(method, params);
     const maintenance = admission.nativeWarm || warming(this.live);
     const cut = maintenance && admission.events.some(reachesForTool);
     if (method === 'turn/started' && turnId) {
@@ -537,13 +541,11 @@ export class CodexSession implements SessionHandle {
     } else if (method === 'turn/completed' && turnId) {
       this.completeNotificationTurn(turnId, admission.completion);
     }
-    if (
-      method !== 'turn/completed' &&
-      admission.events.some((event) => event.kind === 'turn-end') &&
-      !this.capturing &&
-      !this.live.warmTurn
-    )
-      this.endCheckpoint();
+    if (method !== 'turn/completed' && admission.events.some((event) => event.kind === 'turn-end'))
+      this.capture.ended(this.live.cwd, {
+        warm: this.live.warmTurn !== undefined,
+        baselining: this.capturing
+      });
     this.applyNotification(method, turnId, admission, maintenance, at);
     if (cut) this.cutWarm(at);
     if (admission.events.some((event) => event.kind === 'text')) {
@@ -619,24 +621,21 @@ export class CodexSession implements SessionHandle {
     // A ping is maintenance: no capture opens on it, not even the
     // fallback a self-started turn takes.
     if (maintenance) this.rememberWarm(turnId);
-    else if (
-      (this.capturing || (this.executionObserver && !this.live.inFlight)) &&
-      !this.captureWake
-    )
-      this.captureWake = this.checkpoints.uncertainExecution(this.live.cwd, {
-        owner: identity.conversationKey('codex', threadId),
-        runtime: this.executionRuntime.runtime,
-        turn: turnId
-      });
-    if (!this.executionObserver && !this.capturing && !maintenance) {
-      void this.checkpoints.openUnknown(this.live.cwd, {
-        owner: identity.conversationKey('codex', threadId),
-        runtime: this.executionRuntime.runtime,
-        turn: turnId
-      });
-      this.executionObserver = new execution.ExecutionObserver(threadId, this.nativeChildren);
-      this.executionObserver.take('turn/started', params);
-    }
+    else
+      this.capture.opened(
+        {
+          cwd: this.live.cwd,
+          owner: identity.conversationKey('codex', threadId),
+          id: turnId,
+          inFlight: this.live.inFlight !== undefined,
+          baselining: this.capturing
+        },
+        () => {
+          const observer = new execution.ExecutionObserver(threadId, this.nativeChildren);
+          observer.take('turn/started', params);
+          return observer;
+        }
+      );
     this.currentTurnId = turnId;
     this.latestTurnId = turnId;
   }
@@ -656,9 +655,11 @@ export class CodexSession implements SessionHandle {
     if (admission === 'drop') return;
     this.currentTurnId = undefined;
     this.unechoed?.();
-    this.captureWake?.();
-    this.captureWake = undefined;
-    if (!this.capturing && !this.live.warmTurn) this.endCheckpoint();
+    this.capture.releaseWake();
+    this.capture.ended(this.live.cwd, {
+      warm: this.live.warmTurn !== undefined,
+      baselining: this.capturing
+    });
   }
 
   private applyNotification(
@@ -910,18 +911,17 @@ export class CodexSession implements SessionHandle {
         return;
       }
       const observer = new execution.ExecutionObserver(under, this.nativeChildren);
-      this.executionObserver = observer;
+      this.capture.install(observer);
       const { input, refs } = await this.inputFor(head);
       if (
         this.closed ||
         this.sending ||
         this.currentTurnId ||
         !canDrain(this.live) ||
-        this.executionObserver !== observer ||
+        this.capture.observer !== observer ||
         this.live.queued[0]?.id !== head.id
       ) {
-        this.checkpoints.discard();
-        this.executionObserver = undefined;
+        this.capture.discard();
         return;
       }
       this.recordSend(head, refs);
@@ -1096,7 +1096,8 @@ export class CodexSession implements SessionHandle {
         // A frame naming no turn after the completion re-busies the card,
         // and this response is not the catch.
         if (this.live.running) {
-          if (!head.warm) this.endCheckpoint();
+          // Our own turn, after its drain's baseline: neither latch can hold here.
+          if (!head.warm) this.capture.ended(this.live.cwd, { warm: false, baselining: false });
           this.apply(applyEvent(this.live, { kind: 'turn-end' }), 'agent');
         }
         if (head.warm) this.apply(closeWarm(this.live, false), 'agent');
@@ -1149,7 +1150,9 @@ export class CodexSession implements SessionHandle {
       if (error instanceof CodexFailure) this.apply(closeWarm(this.live, true));
       return;
     }
-    this.endCheckpoint();
+    // Unguarded on purpose: a start that threw ends the turn it opened, even one
+    // that threw while its drain still held the baseline latch.
+    this.capture.ended(this.live.cwd, { warm: false, baselining: false });
     this.currentTurnId = undefined;
     // An error object the app-server returned is the turn failing. A
     // timeout or a response with no turn id is ours, and states nothing
@@ -1294,16 +1297,6 @@ export class CodexSession implements SessionHandle {
 
   private recordLines(lines: readonly RecordLine[]): void {
     if (lines.length) this.memory.current.note(lines);
-  }
-
-  private endCheckpoint(): void {
-    const observer = this.executionObserver;
-    this.executionObserver = undefined;
-    const taken = this.checkpoints.closeExecution(
-      this.live.cwd,
-      observer ? () => observer.finish() : undefined
-    );
-    checkpointRecord.enqueue(this.memory.current, taken);
   }
 
   /**

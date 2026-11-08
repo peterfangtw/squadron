@@ -288,11 +288,9 @@ describe('the dock', () => {
   });
 
   /**
-   * `renderThread` runs ungated from nine places — a `sendResult` for the
-   * session just closed is one, and it lands a poll or two after the close. It
-   * repaints the head it still holds a view of, and used to take the class off
-   * with nothing selected: the original bug, rebuilt behind a shut dock and
-   * waiting for the next reveal.
+   * A late `sendResult` for the session just closed must leave `empty` on.
+   * `renderThread` returns before painting when that thread is not the active
+   * session.
    */
   it('does not let a late push for the closed session undo the state', (t) => {
     const p = openThread(t, threadView({ name: 'alpha' }));

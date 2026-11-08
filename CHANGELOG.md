@@ -9,6 +9,24 @@ scalability", only when that benefit is supported; omit implementation details.
 Do not add a release note for edits to this guidance.
 -->
 
+## 0.6.21
+
+- GitHub Projects token setup states exactly which scopes private and public repository issues need, and what to check when GitHub hides project items.
+
+## 0.6.20
+
+- GitHub Projects setup guides classic token creation and explains when private repository issues need additional access.
+- Empty ticket results and connection errors keep column headers in place; notices let every ticket scroll fully into view.
+
+## 0.6.19
+
+- Browse GitHub Projects tickets alongside Linear, open their details, and drag tickets into a session.
+- The @ mention menu follows the cursor while composing a message.
+
+## 0.6.18
+
+- More reliable delivery of messages and workflow wake-ups between sessions.
+
 ## 0.6.17
 
 - Maintenance release.

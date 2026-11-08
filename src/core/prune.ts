@@ -32,7 +32,9 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
  * Two are not housekeeping and should not be shortened without reading it:
  * `runs/` decides how long a finished workflow stays readable, and `workflows/`
  * is absent here because the user wrote those by hand. `STATE_DIR`'s top is
- * not swept — the only file there is `workflows.order.json`.
+ * unswept and holds more than `workflows.order.json`:
+ * `workflows.examples.seeded`, and the usage, models, and signin files
+ * (`docs/reference/state_retention.md`).
  */
 export async function pruneStatus(): Promise<void> {
   await pruneStartupRecords();

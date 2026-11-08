@@ -358,6 +358,15 @@ function selectionOf(editor: Editor): MentionTarget {
       const { selection } = editor.state;
       return selection.empty ? selection.from : null;
     },
+    caretLine: () => {
+      const { selection } = editor.state;
+      if (!selection.empty) return null;
+      // Side -1, the character before: with the menu open that is the `@`, a
+      // query letter or the pill awaiting its effort, so on the caret's line
+      // even at a soft wrap, where side 1 measures the next line's first.
+      const { top, bottom } = editor.view.coordsAtPos(selection.from, -1);
+      return { top, bottom };
+    },
     text: (from, to) => editor.state.doc.textBetween(from, to, '\n', '\uFFFC'),
     spot: () => spotAt(editor.state),
     onChange: (listener: (change: MentionChange) => void) => {

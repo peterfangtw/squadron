@@ -27,16 +27,6 @@ export const ATTACH_MAX_BYTES = 10 * 1024 * 1024;
  *  for, so no adapter splits one. */
 export const CAPTION_MAX = 1000;
 
-/**
- * How long the shim waits for the holder (a duration): the upload of a file at
- * the cap over an uplink of 2 Mbit/s at the least, about 42 s, and the calls
- * around it. A messenger's own upload deadline sits under this, so the agent
- * hears the outcome rather than "may have been posted". Past `STALE_MS`, as
- * `cli/spawn.ts`'s wait is, and for its reason — the shim reads only whether
- * a reply came.
- */
-export const ATTACH_REPLY_MS = 60_000;
-
 /** `checkPrompt`'s set: control characters bar newline and tab. */
 // eslint-disable-next-line no-control-regex
 const CONTROL = /[\x00-\x08\x0b-\x1f\x7f]/;

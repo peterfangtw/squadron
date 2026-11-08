@@ -283,10 +283,7 @@ describe('listeners', () => {
     async () => {
       const live = await listening();
       try {
-        // A span of four, not one: every caller asks for a block, so the range
-        // argument is exercised as they compose it.
-        const found = await listeners({ base: live.port, span: 4 });
-        const mine = found.get(live.port);
+        const mine = (await listeners()).get(live.port);
         assert.equal(mine?.pid, process.pid);
         // The whole point of the second reading: this is the key `servers.ts`
         // records a server under, so attribution is a lookup rather than a guess.
@@ -297,45 +294,18 @@ describe('listeners', () => {
     }
   );
 
-  it('finds a listener with no block at all', { todo: lsofTodo }, async () => {
-    // The machine-wide shape: no block composes `-iTCP`, which is what the
-    // board asks for — it holds several repos and cannot name one range.
-    const live = await listening();
-    try {
-      const mine = (await listeners()).get(live.port);
-      assert.equal(mine?.pid, process.pid);
-      assert.equal(mine?.cwd, process.cwd());
-    } finally {
-      await live.close();
-    }
-  });
-
   it('says nothing about a port nothing is listening on', async () => {
     // Asked of the port we just released, so it is a port this machine had free
     // a moment ago rather than one hoped to be.
     const live = await listening();
     const port = live.port;
     await live.close();
-    assert.equal((await listeners({ base: port, span: 1 })).size, 0);
-  });
-
-  it('refuses a block no picker could offer rather than spawning for it', async () => {
-    // `span: 0` composed `-iTCP:3000-2999`, which lsof accepts and answers
-    // nothing for — a spawn paid for a question that cannot have an answer.
-    // `ports.ts` refuses such a block too, but this is reachable from a
-    // hand-edited store without passing through it.
-    const live = await listening();
-    try {
-      assert.equal((await listeners({ base: live.port, span: 0 })).size, 0);
-      assert.equal((await listeners({ base: live.port, span: 1.5 })).size, 0);
-    } finally {
-      await live.close();
-    }
+    assert.equal((await listeners()).get(port), undefined);
   });
 });
 
 describe('listener acquisition', () => {
-  it('keeps the exact selectors and 2-second backstop for ranged and machine-wide reads', async () => {
+  it('keeps the machine-wide selector and 2-second backstop', async () => {
     const calls: unknown[] = [];
     const reader = darwin.listeners({
       run(file, args, options) {
@@ -343,21 +313,8 @@ describe('listener acquisition', () => {
         return Promise.resolve('');
       }
     });
-    value(await reader.read({ base: 3000, span: 10 }));
     value(await reader.read());
-    for (const block of [
-      { base: 3000, span: 0 },
-      { base: 3000, span: 1.5 },
-      { base: 0.5, span: 1 }
-    ]) {
-      assert.deepEqual(value(await reader.read(block)), []);
-    }
     assert.deepEqual(calls, [
-      [
-        '/usr/sbin/lsof',
-        ['-nP', '+c', '0', '-iTCP:3000-3009', '-sTCP:LISTEN', '-Fpcn'],
-        { timeout: 2000 }
-      ],
       ['/usr/sbin/lsof', ['-nP', '+c', '0', '-iTCP', '-sTCP:LISTEN', '-Fpcn'], { timeout: 2000 }]
     ]);
   });
@@ -460,21 +417,6 @@ describe('windows listeners', () => {
     assert.deepEqual(calls, [
       [String.raw`C:\Windows\System32\netstat.exe`, ['-ano'], { timeout: 2000 }]
     ]);
-  });
-
-  it('honours a block, and spawns nothing for one no picker could offer', async () => {
-    let runs = 0;
-    const answering = reader(() => {
-      runs++;
-      return Promise.resolve(NETSTAT);
-    });
-    assert.deepEqual(value(await answering.read({ base: 3001, span: 2 })), [
-      { port: 3001, pid: 4101 },
-      { port: 3002, pid: 4103 }
-    ]);
-    assert.equal(runs, 1);
-    assert.deepEqual(value(await answering.read({ base: 3000, span: 0 })), []);
-    assert.equal(runs, 1);
   });
 
   it('fails the whole read on a table it cannot follow', async () => {

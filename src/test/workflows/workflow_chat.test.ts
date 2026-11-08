@@ -138,7 +138,7 @@ describe('workflow UI in chat (lifecycle)', () => {
         thread
       });
     p.push(stateMessage(GROUPS, { workflows: WORKFLOWS }));
-    publish(live, 1);
+    publish(live, 2);
     assert.ok(chip(p)?.classList.contains('live'), 'the thread update takes over the armed slot');
     assert.equal(step(p), 'Build');
     chip(p)?.click();
@@ -159,11 +159,11 @@ describe('workflow UI in chat (lifecycle)', () => {
           ]
         }
       },
-      2
+      3
     );
     assert.equal(step(p), 'Review');
     assert.equal(drawer?.querySelector('.strow.now .slabel')?.textContent, 'Review');
-    publish({ ...live, workflow: undefined }, 3);
+    publish({ ...live, workflow: undefined }, 4);
     assert.equal(chip(p), null, 'an armed mention cannot return after the live workflow leaves');
   });
 

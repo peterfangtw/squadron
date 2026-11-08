@@ -1,5 +1,5 @@
 import type { Failed, Success } from '../unsupported';
-import type { Effects, Listeners, Range, Socket } from './index';
+import type { Effects, Listeners, Socket } from './index';
 
 /**
  * A backstop, not a latency budget — the same reasoning `machine.ts` gives for
@@ -48,15 +48,8 @@ export function listeners(effects: Effects): Listeners {
   }
 
   return {
-    async read(block?: Range) {
-      if (
-        block &&
-        (!Number.isInteger(block.base) || !Number.isInteger(block.span) || block.span < 1)
-      ) {
-        return { supported: true, status: 'ok', value: [] };
-      }
-      const selector = block ? `-iTCP:${block.base}-${block.base + block.span - 1}` : '-iTCP';
-      const output = await lsof(['-nP', '+c', '0', selector, '-sTCP:LISTEN', '-Fpcn']);
+    async read() {
+      const output = await lsof(['-nP', '+c', '0', '-iTCP', '-sTCP:LISTEN', '-Fpcn']);
       return output.status === 'ok' ? { ...output, value: parseListeners(output.value) } : output;
     },
     async cwds(pids) {

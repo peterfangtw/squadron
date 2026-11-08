@@ -1,4 +1,5 @@
 import { ticketPriority, ticketState, ticketSourceView } from '../ticket_fixtures';
+import { before } from 'node:test';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as boot from './boot';
@@ -40,6 +41,8 @@ const MINUTE = 60_000;
 boot.section(
   'README screenshots',
   () => {
+    // Before the panel's frame exists. `document.open` keeps the properties.
+    before(() => boot.ctx.page.context().addInitScript(armShotSelect));
     boot.step('hero: two folders, the alert bar, Warm, the chick and a conversation', async () => {
       await frame();
       const now = Date.now();
@@ -47,7 +50,7 @@ boot.section(
       const thread = fixtures.threadView({ ...savedCards(now), exchanges: savedCardsTalk(now) });
       await shoot('screenshot.png', async () => {
         await open(state(now, groups, { mascot: true }), thread);
-        await push(state(now, groups, { thread, mascot: true }));
+        await push(state(now, groups, { mascot: true }), thread);
         await dockWidth(540);
         await settle(3000);
       });
@@ -62,7 +65,7 @@ boot.section(
       });
       await shoot('screenshot-collab.png', async () => {
         await open(state(now, groups), thread);
-        await push(state(now, groups, { thread }));
+        await push(state(now, groups), thread);
         await dockWidth(640);
         await settle(2500);
       });
@@ -76,7 +79,7 @@ boot.section(
       const thread = fixtures.threadView({ ...savedCards(now), exchanges: savedCardsTalk(now) });
       await shoot('screenshot-tickets.png', async () => {
         await open(state(now, groups, tickets), thread);
-        await push(state(now, groups, { ...tickets, thread }));
+        await push(state(now, groups, tickets), thread);
         await boot.panel().locator('[data-act="tickets"]').click();
         await dockWidth(560);
         await boot.panel().locator('#tk-list .tk').first().waitFor();
@@ -90,7 +93,7 @@ boot.section(
       const thread = fixtures.threadView({ ...savedCards(now), exchanges: savedCardsTalk(now) });
       await shoot('screenshot-remote.png', async () => {
         await open(state(now, groups, { remote: remote(now) }), thread);
-        await push(state(now, groups, { thread, remote: remote(now) }));
+        await push(state(now, groups, { remote: remote(now) }), thread);
         await dockWidth(520);
         await boot.panel().locator('#bottomhub .remote-tab').click();
         await boot.panel().locator('#bottomdrawer.remote:not([hidden])').waitFor();
@@ -105,7 +108,7 @@ boot.section(
       const thread = fixtures.threadView({ ...savedCards(now), exchanges: savedCardsTalk(now) });
       await shoot('screenshot-warm.png', async () => {
         await open(state(now, groups, { warmCache: true }), thread);
-        await push(state(now, groups, { thread, warmCache: true }));
+        await push(state(now, groups, { warmCache: true }), thread);
         await dockWidth(520);
         await boot.panel().locator('#bottomhub .warm-tab').click();
         await boot.panel().locator('#bottomdrawer.warm:not([hidden])').waitFor();
@@ -621,18 +624,19 @@ async function frame(): Promise<void> {
   throw new Error('the panel would not take the frame size');
 }
 
-/** Push made-up state, as the host's own push arrives. */
-async function push(message: StateMessage): Promise<void> {
+/** Push made-up state, as the host's own push arrives. A thread, when given,
+ * follows on the ordered channel for the selection `open` just posted. */
+async function push(message: StateMessage, thread?: ThreadView): Promise<void> {
   await boot
     .panel()
     .locator('body')
     .evaluate((_, data) => {
       window.dispatchEvent(new MessageEvent('message', { data }));
     }, message);
+  if (thread) await publishThread(thread);
 }
 
-/** The board, then the press that makes `thread`'s card the dock's selection.
- *  Its thread is the caller's next push. */
+/** The board, then the press that makes `thread`'s card the dock's selection. */
 async function open(board: StateMessage, thread: ThreadView): Promise<void> {
   await boot.panel().locator('#board-sessions').click();
   await push(board);
@@ -642,6 +646,127 @@ async function open(board: StateMessage, thread: ThreadView): Promise<void> {
   // frame never sends.
   const cards = await boot.panel().locator('#cards').boundingBox();
   if (cards) await boot.ctx.page.mouse.move(cards.x + 8, cards.y + cards.height - 8);
+}
+
+/**
+ * Stock VS Code throws on a second `acquireVsCodeApi` and freezes the object
+ * the first call returned ("An instance of the VS Code API has already been
+ * acquired", webview preload). The bundle acquires once, at load, so this
+ * wraps that assignment. It also wraps the parent frame's
+ * `__vscode_post_message__`, which the preload's inner script binds when the
+ * panel HTML is written. `document.open` can drop a property on the inner
+ * window; the parent frame is not opened that way. Either path records the
+ * `select` the card click posts.
+ */
+function armShotSelect(): void {
+  const host = window as Window & { __shotSelect?: boolean };
+  if (host.__shotSelect || window === window.top) return;
+  host.__shotSelect = true;
+
+  const remember = (selection: string): void => {
+    try {
+      const frame = document.getElementById('active-frame');
+      const inner = frame instanceof HTMLIFrameElement ? frame.contentWindow : window;
+      if (!inner) return;
+      (inner as Window & { __selection?: string }).__selection = selection;
+    } catch {
+      // A failed observation still has to deliver the select.
+    }
+  };
+
+  const isSelect = (message: unknown): message is { type: 'select'; selection: string } =>
+    message !== null &&
+    typeof message === 'object' &&
+    'type' in message &&
+    message.type === 'select' &&
+    'selection' in message &&
+    typeof message.selection === 'string';
+
+  let acquire: unknown;
+  Object.defineProperty(window, 'acquireVsCodeApi', {
+    configurable: true,
+    enumerable: true,
+    get: () => acquire,
+    set: (next: unknown) => {
+      if (typeof next !== 'function') {
+        acquire = next;
+        return;
+      }
+      const real = next as () => {
+        postMessage: (message: unknown, transfer?: unknown) => unknown;
+        getState: () => unknown;
+        setState: (state: unknown) => unknown;
+      };
+      let api: ReturnType<typeof real> | undefined;
+      acquire = () => {
+        const held = api ?? real();
+        api = held;
+        const post = held.postMessage.bind(held);
+        return {
+          postMessage(message: unknown, transfer?: unknown) {
+            if (isSelect(message)) remember(message.selection);
+            return post(message, transfer);
+          },
+          getState: held.getState.bind(held),
+          setState: held.setState.bind(held)
+        };
+      };
+    }
+  });
+
+  let post: unknown;
+  Object.defineProperty(window, '__vscode_post_message__', {
+    configurable: true,
+    enumerable: true,
+    get: () => post,
+    set: (next: unknown) => {
+      if (typeof next !== 'function') {
+        post = next;
+        return;
+      }
+      const real = next as (command: string, data: unknown, transfer?: unknown) => unknown;
+      post = (command: string, data: unknown, transfer?: unknown) => {
+        if (
+          command === 'onmessage' &&
+          data !== null &&
+          typeof data === 'object' &&
+          'message' in data &&
+          isSelect(data.message)
+        )
+          remember(data.message.selection);
+        return real(command, data, transfer);
+      };
+    }
+  });
+}
+
+async function publishThread(thread: ThreadView): Promise<void> {
+  const posted = await boot
+    .panel()
+    .locator('body')
+    // Locator `evaluate` gives the element first. The thread is the argument.
+    .evaluate((_, view) => {
+      const page = window as unknown as { __selection?: string; __threadSeq?: number };
+      if (!page.__selection) return false;
+      const sequence = (page.__threadSeq ?? 0) + 1;
+      page.__threadSeq = sequence;
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'thread',
+            selection: page.__selection,
+            generation: 0,
+            sequence,
+            thread: view
+          }
+        })
+      );
+      return true;
+    }, thread);
+  if (!posted) throw new Error('the card click posted no captured select');
+  const prose = thread.exchanges.find((exchange) => 'text' in exchange && exchange.text.length > 0);
+  if (!prose || !('text' in prose)) throw new Error('screenshot thread has no prose');
+  await boot.panel().locator('#thread').getByText(prose.text.slice(0, 24)).waitFor();
 }
 
 /** The dock's divider, dragged to `px` wide the way a reader drags it. */

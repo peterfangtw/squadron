@@ -1,4 +1,4 @@
-import { Reply, RequestBody, awaitReply, postRequest } from './requests';
+import { REPLY_MS, Reply, RequestBody, awaitReply, postRequest } from './requests';
 
 /** A window that published a claim and then died still owes us an answer. */
 export const UNANSWERED = 'That session’s window did not answer.';
@@ -35,7 +35,7 @@ export async function ask(request: RequestBody, timeoutMs?: number): Promise<Ask
   if (!file) {
     return { ok: false, kind: 'unwritable', reason: 'could not write the request' };
   }
-  const reply = await awaitReply(file, timeoutMs);
+  const reply = await awaitReply(file, timeoutMs ?? REPLY_MS[request.kind]);
   if (!reply) {
     return { ok: false, kind: 'silent', reason: UNANSWERED, file };
   }

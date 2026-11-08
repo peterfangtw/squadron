@@ -33,7 +33,7 @@ export type Page = { rows: Conversation[]; next?: number };
 
 /** Freezes one open's rows: every row of the family in the window. */
 export function rank(rows: readonly Conversation[], cwd: string): Ranking {
-  const top = mergeConversations([[...rows]], cwd, new Map(), PAGE_ROWS);
+  const top = mergeConversations(rows, cwd, PAGE_ROWS);
   const served = new Set(top.map(key));
   const byActivity = [...rows].sort((a, b) => b.lastActivity - a.lastActivity);
   return { rows: [...top, ...byActivity.filter((row) => !served.has(key(row)))], byActivity };

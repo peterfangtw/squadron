@@ -30,7 +30,6 @@ import {
   Runner,
   RunnerOffer,
   candidateRunners,
-  commandHash,
   resolveRunners
 } from '../core/devservers/runners';
 import { Reply } from '../core/coordination/requests';
@@ -227,15 +226,9 @@ export async function runSettings(): Promise<RunSettings> {
   };
 }
 
-/**
- * A routed start may have no panel open, so `serve` supplies a stand-in.
- * Keep only the runner cache and redraw, per PanelActions' explicit-args rule.
- */
-export type RunHost = Pick<PanelActions, 'runners' | 'refresh'>;
-
 /** Fallback, never a merge: `offersFor` fills at most one of the two lists. */
 async function offerableRunners(
-  panel: RunHost,
+  panel: PanelActions,
   cwd: string,
   settings: RunSettings
 ): Promise<Runner[]> {
@@ -265,7 +258,7 @@ async function offerableRunners(
  * directories those are is a walk, and it happens when the sheet opens.
  */
 export async function offersFor(
-  panel: RunHost,
+  panel: PanelActions,
   cwd: string,
   settings: RunSettings
 ): Promise<RunnerOffer> {
@@ -684,19 +677,8 @@ export async function startsFor(
 /**
  * Starts one in this window, and returns as soon as the terminal exists.
  *
- * Split from the probe below because the answer a routed start needs is
- * "accepted", and it is needed inside `awaitReply`'s few seconds — while
- * `awaitReady` is allowed twenty. Resolving the runner stays on this side of
- * the split, because a refusal is one of the two things the asking window acts
- * on and it cannot be known without it.
- *
  * The `starting` record is written **before** the spawn, so another window's
  * picker sees the port taken in the seconds before anything is listening on it.
- * That reservation is weaker for a routed start than it reads: it happens here,
- * after the round trip, so between the click and this line another window's
- * picker will still offer the port. Narrowing that would mean reserving in the
- * asking window and handing ownership over, which puts `status` under two
- * writers — the trade `touchServer`'s note argues against.
  *
  * Terminal output is never read: if the port we asked for never answers, the
  * row says `failed · port taken` rather than guessing where the server landed.
@@ -705,25 +687,18 @@ export async function startsFor(
  * and would draw the row `up` at the other program's URL.
  */
 export async function runServerHere(
-  host: RunHost,
+  host: PanelActions,
   cwd: string,
   tree: string,
   runnerId: string,
   branch: string,
-  port?: number,
-  expect?: string
+  port?: number
 ): Promise<Reply> {
   const runner = (await offerableRunners(host, cwd, await runSettings())).find(
     (r) => r.id === runnerId
   );
   if (!runner) {
     return { ok: false, reason: 'That runner is not offered in this window.' };
-  }
-  // Only a routed start passes one. Same id, different command: settings are
-  // per-workspace, so refusing sends it back to the window whose reader picked
-  // the command they meant, rather than silently running another one.
-  if (expect !== undefined && commandHash(runner.command) !== expect) {
-    return { ok: false, reason: 'That runner names a different command in this window.' };
   }
 
   // The repo is the tree's, not the app's: `readCheckout` of a package
@@ -767,7 +742,7 @@ export async function runServerHere(
   }
 
   // Never awaited: the terminal exists, which is what the caller is waiting to
-  // hear. A routed start's reply has three seconds and this has twenty.
+  // hear, and `awaitReady` is allowed twenty seconds.
   void awaitReady(host, record, port);
   return { ok: true };
 }
@@ -787,7 +762,7 @@ async function taken(port: number, cwd: string, runnerId: string): Promise<boole
   return status?.free !== true;
 }
 
-async function awaitReady(host: RunHost, record: RunningServer, port: number): Promise<void> {
+async function awaitReady(host: PanelActions, record: RunningServer, port: number): Promise<void> {
   for (let waited = 0; waited < SERVER_READY_MS; waited += SERVER_POLL_MS) {
     await new Promise((resolve) => setTimeout(resolve, SERVER_POLL_MS));
     // Stopped, or its terminal closed, while we were waiting.

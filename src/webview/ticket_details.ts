@@ -148,7 +148,9 @@ export function takeTicketDetail(message: TicketDetailMessage): void {
     return;
   }
   view.title.textContent = message.detail.title;
-  view.assignee.textContent = message.detail.assignee?.label ?? 'Unassigned';
+  view.assignee.textContent = message.detail.assignees
+    ? message.detail.assignees.map((person) => person.label).join(', ') || 'Unassigned'
+    : (message.detail.assignee?.label ?? 'Unassigned');
   view.status.textContent = message.detail.state.label;
   if (message.empty) body.append(el('p', 'td-notice', 'No description.'));
   else {

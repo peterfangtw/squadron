@@ -40,7 +40,7 @@ import * as path from 'path';
 import * as sessionTarget from '../core/session_target';
 import { readHolder, type Holder } from '../core/remote/holder';
 import { ask, askExit, type AskResult } from '../core/coordination/ask';
-import { requestIdOf, type RequestBody } from '../core/coordination/requests';
+import { REPLY_MS, requestIdOf, type RequestBody } from '../core/coordination/requests';
 import type { Session } from '../core/model';
 import { NEVER_SENT_DIRS } from '../core/paths';
 import * as rules from '../core/remote/attach';
@@ -216,7 +216,7 @@ export function failure(result: Extract<AskResult, { ok: false }>): {
       code: askExit(result),
       reason:
         `the window holding Remote did not answer request ${requestIdOf(result.file)} within ` +
-        `${rules.ATTACH_REPLY_MS / 1000} s. ${MAY_HAVE_POSTED}`
+        `${REPLY_MS.attach / 1000} s. ${MAY_HAVE_POSTED}`
     };
   }
   if (result.kind === 'refused' && result.reply.unsure) {
@@ -263,7 +263,7 @@ async function main(): Promise<void> {
   const plan = await readPlan(opts, board.sessions, process.env, process.cwd(), board);
   if (!plan.ok) die(plan.code, plan.reason);
 
-  const result = await ask(plan.body, rules.ATTACH_REPLY_MS);
+  const result = await ask(plan.body);
   if (!result.ok) {
     const failed = failure(result);
     die(failed.code, failed.reason);

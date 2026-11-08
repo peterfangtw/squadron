@@ -141,14 +141,11 @@ const grokPort = (
  */
 async function pass(fetchImpl: ReturnType<typeof stubFetch>) {
   const port = grokPort(() => usage.readGrokUsage({ home, fetch: fetchImpl }));
-
-  const view = await store.walkUsage([{ brand: 'grok', source: port, signedIn: true }], {
-    sessions: [],
-
-    now: WITHIN,
-    home
-  });
-  const got = view.get('grok');
+  await store.walkUsage(
+    { brand: 'grok', source: port, signedIn: true },
+    { sessions: [], now: WITHIN, home }
+  );
+  const got = await store.usageFor('grok', port, { home, now: WITHIN });
   return got?.windows.some((window) => typeof window.pct === 'number') ? got : undefined;
 }
 

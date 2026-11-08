@@ -8,7 +8,11 @@ export type Ticket = TicketView & {
   assignee?: string;
 };
 
+export type TicketRead = { tickets: Ticket[]; options: TicketOptions; filter: TicketFilterView };
+
 export interface TicketSource {
+  invalidate?(): void;
+  read?(scopeId: string, filter: TicketFilterView, signal?: AbortSignal): Promise<TicketRead>;
   discoverScopes(signal?: AbortSignal): Promise<TicketScope[]>;
   list(scopeId: string, filter: TicketFilterView, signal?: AbortSignal): Promise<Ticket[]>;
   detail(scopeId: string, id: string, signal?: AbortSignal): Promise<TicketDetail>;
@@ -22,6 +26,7 @@ export type ConfiguredSource = {
   source: TicketSource;
   presentation: TicketSourcePresentation;
   legacyTeamKey?: string;
+  refreshMs?: number;
 };
 
 export function ticketKey(sourceId: string, nativeId: string): string {
@@ -83,4 +88,12 @@ export function storedSelection(raw: unknown): SavedTicketSelection | undefined 
     !!value.scopeId
     ? { sourceId: value.sourceId, scopeId: value.scopeId }
     : undefined;
+}
+
+export function configuredEndpoint(
+  scopes:
+    { globalValue?: string; workspaceValue?: string; workspaceFolderValue?: string } | undefined,
+  fallback: string
+): string {
+  return scopes?.globalValue?.trim() || fallback;
 }

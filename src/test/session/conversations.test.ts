@@ -231,7 +231,7 @@ describe('a family’s conversations', () => {
     }
     await write('own-here', app, 'claude', 'here', 1000);
 
-    const rows = conversations.mergeConversations([await listed(app)], app, new Map(), 4);
+    const rows = conversations.mergeConversations(await listed(app), app, 4);
     assert.equal(rows.length, 4);
     assert.ok(rows.some((row) => row.sessionId === 'own-here'));
   });
@@ -250,9 +250,8 @@ describe('mergeConversations', () => {
       });
       const busy = [1, 2, 3, 4].map((i) => row(`busy-${i}`, '/repo', 10 + i));
       const rows = conversations.mergeConversations(
-        [[...busy, row('here', '/Repo/Apps/Web', 1)]],
+        [...busy, row('here', '/Repo/Apps/Web', 1)],
         '/repo/apps/web',
-        new Map(),
         2
       );
       assert.deepEqual(

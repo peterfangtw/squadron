@@ -61,9 +61,6 @@ function submitAction(
   vscode.postMessage({
     type: kind === 'login' ? 'startMcpLogin' : 'mcpLogout',
     operationId,
-    name: cell.name,
-    brand: cell.brand,
-    ...(cell.root ? { root: cell.root } : {}),
     ...(cell.target ? { target: cell.target } : {})
   });
 }

@@ -205,10 +205,6 @@ describe('shared workflow prompt controls', () => {
   ]) {
     it(`offers four shared formats and saves ${format}`, (t) => {
       const p = openPanel(t);
-      Object.assign(p.window.Range.prototype, {
-        getClientRects: () => [],
-        getBoundingClientRect: () => p.window.document.body.getBoundingClientRect()
-      });
       openNew(p);
       nameIt(p);
       const box = promptField(p);

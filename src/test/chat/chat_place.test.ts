@@ -59,14 +59,14 @@ describe('the thread’s place', () => {
   });
 
   /** A board of three sessions, none of them read yet. */
-  function board(t: TestContext): { p: Panel; groups: GroupView[] } {
+  function board(t: TestContext): Panel {
     const p = openPanel(t);
     const groups = [
       groupView({ sessions: [cardView({ pid: 1 }), cardView({ pid: 2 }), cardView({ pid: 3 })] })
     ];
     p.push(stateMessage(groups));
     ruler(p);
-    return { p, groups };
+    return p;
   }
 
   /** Pick a card, without the push that answers it. */
@@ -76,15 +76,35 @@ describe('the thread’s place', () => {
     card.click();
   }
 
-  /** The thread the host sends back for a pick. */
-  function land(p: Panel, groups: GroupView[], pid: number, exchanges: ExchangeView[]): void {
-    p.push(stateMessage(groups, { thread: threadView({ pid, exchanges }) }));
+  /** Sequence per selection. A second publish on the same select is a later frame. */
+  const threadSequence = new Map<string, number>();
+
+  /** The thread the host sends back for a pick, on the ordered channel. */
+  function land(
+    p: Panel,
+    pid: number,
+    exchanges: ExchangeView[],
+    over: Partial<ThreadView> = {}
+  ): void {
+    const select = [...p.posted].reverse().find((row) => row.type === 'select');
+    if (select?.type !== 'select' || select.pid !== pid) {
+      assert.fail('the host answers the select it was sent');
+    }
+    const sequence = (threadSequence.get(select.selection) ?? 0) + 1;
+    threadSequence.set(select.selection, sequence);
+    p.push({
+      type: 'thread',
+      selection: select.selection,
+      generation: 0,
+      sequence,
+      thread: threadView({ pid, exchanges, ...over })
+    });
   }
 
   /** Pick a card and let its thread land, the way a reader does. */
-  function open(p: Panel, groups: GroupView[], pid: number, exchanges: ExchangeView[]): void {
+  function open(p: Panel, pid: number, exchanges: ExchangeView[]): void {
     pick(p, pid);
-    land(p, groups, pid, exchanges);
+    land(p, pid, exchanges);
   }
 
   /** Scroll the thread the way a reader does, event and all. */
@@ -101,53 +121,53 @@ describe('the thread’s place', () => {
   const three = [ask('first'), ask('second'), ask('third')];
 
   it('opens a session at its newest turn, whatever the last one was left at', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 1, three);
+    const p = board(t);
+    open(p, 1, three);
     scrollTo(p, 0);
-    open(p, groups, 2, three);
+    open(p, 2, three);
     assert.equal(at(p), END, 'the second session opened standing where the first was left');
   });
 
   it('gives a session back the place its own reader left it', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 1, three);
+    const p = board(t);
+    open(p, 1, three);
     scrollTo(p, 0);
-    open(p, groups, 2, three);
+    open(p, 2, three);
     scrollTo(p, END);
-    open(p, groups, 1, three);
+    open(p, 1, three);
     assert.equal(at(p), 0, 'the first session lost its own place to the second');
   });
 
   it('holds the turn the reader stopped at rather than the pixel it was at', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 1, three);
+    const p = board(t);
+    open(p, 1, three);
     // Forty pixels into the second turn: mid-reply, which is where reading
     // actually stops.
     scrollTo(p, STEP + 40);
-    open(p, groups, 2, three);
+    open(p, 2, three);
     // Back with one more turn read off the head of the transcript, so every
     // turn below it has moved. A remembered pixel would land in the turn above.
-    open(p, groups, 1, [ask('older'), ...three]);
+    open(p, 1, [ask('older'), ...three]);
     assert.equal(at(p), 2 * STEP + 40, 'the place followed the pixel, not the turn');
   });
 
   it('falls back to the turn above when the one it stopped at is gone', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 1, three);
+    const p = board(t);
+    open(p, 1, three);
     scrollTo(p, 2 * STEP + PAD);
-    open(p, groups, 2, three);
+    open(p, 2, three);
     // The turn at the fold is gone and the one above it is not. Within a turn of
     // where they were beats the bottom of a conversation they had left.
-    open(p, groups, 1, [ask('first'), ask('second')]);
+    open(p, 1, [ask('first'), ask('second')]);
     assert.equal(at(p), 2 * STEP + PAD, 'a survivable turn above the fold went unused');
   });
 
   it('opens at the newest turn when none of the turns it remembered are left', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 1, three);
+    const p = board(t);
+    open(p, 1, three);
     scrollTo(p, 2 * STEP + PAD);
-    open(p, groups, 2, three);
-    open(p, groups, 1, [ask('nothing'), ask('it'), ask('read')]);
+    open(p, 2, three);
+    open(p, 1, [ask('nothing'), ask('it'), ask('read')]);
     assert.equal(at(p), END);
   });
 
@@ -160,10 +180,10 @@ describe('the thread’s place', () => {
    * session being opened, which is the whole feature.
    */
   it('keeps the place of the session being opened when the last one is left mid-thread', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 2, three);
+    const p = board(t);
+    open(p, 2, three);
     scrollTo(p, STEP + PAD);
-    open(p, groups, 1, three);
+    open(p, 1, three);
     // Reading down session 1, so leaving it collapses a scrolled thread.
     scrollTo(p, 2 * STEP + PAD);
     pick(p, 2);
@@ -173,52 +193,52 @@ describe('the thread’s place', () => {
     assert.ok(thread);
     thread.scrollTop = 0;
     thread.dispatchEvent(new p.window.Event('scroll'));
-    land(p, groups, 2, three);
+    land(p, 2, three);
     assert.equal(at(p), STEP + PAD, 'leaving one session threw away the place of the next');
   });
 
   it('puts the reader back at the turn they stopped at, not an identical one above', (t) => {
-    const { p, groups } = board(t);
+    const p = board(t);
     const twice = [ask('same'), ask('same'), ask('other')];
-    open(p, groups, 1, twice);
+    open(p, 1, twice);
     // Forty pixels into the *second* of two turns that say the same thing, and
     // so carry the same key.
     scrollTo(p, STEP + PAD + 40);
-    open(p, groups, 2, three);
-    open(p, groups, 1, twice);
+    open(p, 2, three);
+    open(p, 1, twice);
     assert.equal(at(p), STEP + PAD + 40, 'the first turn with that key won');
   });
 
   it('waits for turns before counting a session as arrived', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 1, three);
+    const p = board(t);
+    open(p, 1, three);
     scrollTo(p, STEP + PAD);
-    open(p, groups, 2, three);
+    open(p, 2, three);
     pick(p, 1);
     // A transcript the host has not read yet: the thread says so and holds no
     // turns. Counted as the arrival, this would spend it on an empty thread and
     // leave the real turns looking like an ordinary poll.
-    land(p, groups, 1, []);
-    land(p, groups, 1, three);
+    land(p, 1, []);
+    land(p, 1, three);
     assert.equal(at(p), STEP + PAD, 'the arrival was spent on a thread with nothing in it');
   });
 
   it('waits for turns even when the empty thread names its source', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 1, three);
+    const p = board(t);
+    open(p, 1, three);
     scrollTo(p, STEP + PAD);
-    open(p, groups, 2, three);
+    open(p, 2, three);
     pick(p, 1);
     // The same hostile wire, for the second symptom: a note is not a turn, and
     // counting it as one spends the arrival on a thread holding nothing.
-    p.push(stateMessage(groups, { thread: threadView({ pid: 1, exchanges: [], fallback: true }) }));
-    land(p, groups, 1, three);
+    land(p, 1, [], { fallback: true });
+    land(p, 1, three);
     assert.equal(at(p), STEP + PAD, 'a source note stood in for the turns and spent the arrival');
   });
 
   it('keeps its place across a look at the backlog', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 1, three);
+    const p = board(t);
+    open(p, 1, three);
     scrollTo(p, STEP + PAD);
     const doc = p.window.document;
     doc.getElementById('board-tickets')?.click();
@@ -228,8 +248,8 @@ describe('the thread’s place', () => {
   });
 
   it('takes its place again after leaving for New', (t) => {
-    const { p, groups } = board(t);
-    open(p, groups, 1, three);
+    const p = board(t);
+    open(p, 1, three);
     scrollTo(p, STEP);
     newDraft(p);
     // What emptying the thread does to a real one, which jsdom lays out too
@@ -239,7 +259,7 @@ describe('the thread’s place', () => {
     const thread = p.window.document.getElementById('thread');
     assert.ok(thread);
     thread.scrollTop = 0;
-    open(p, groups, 1, three);
+    open(p, 1, three);
     assert.equal(at(p), STEP, 'a re-open of the session last painted took no place at all');
   });
 });

@@ -901,13 +901,26 @@ describe('scripts/timed.mjs gate', () => {
       const SQUADRON_GATE_DIR = await gate();
       await stepScript(dir);
       const first = runner(dir, [`compile=(${RELEASED}; touch done) & touch started; wait`], {
-        SQUADRON_GATE_DIR
+        SQUADRON_GATE_DIR,
+        ...preloadEnv(
+          dir,
+          `
+          const fs=require('node:fs'), cp=require('node:child_process');
+          const run=cp.execFileSync;
+          cp.execFileSync=function(command,args,options){
+            const file=process.argv[process.argv.indexOf('--job')+1];
+            if(command==='ps'&&process.argv.includes('--job')&&fs.existsSync(file+'.state.json')&&JSON.parse(fs.readFileSync(file+'.state.json','utf8')).phase==='launching')
+              Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,500);
+            return run.apply(this,arguments);
+          };
+        `
+        )
       });
       try {
         await until(() => exists(path.join(dir, 'started')), 'first run started');
         first.child.kill('SIGTERM');
         assert.equal(await closedWithin(first.closed), 143);
-        assert.equal(await exists(path.join(SQUADRON_GATE_DIR, 'holder')), false);
+        assert.equal(await exists(path.join(SQUADRON_GATE_DIR, 'holder')), false, first.stderr());
         const follower = timed(dir, ['compile=node step.cjs touch admitted'], {
           SQUADRON_GATE_DIR,
           SQUADRON_GATE_TIMEOUT_MS: '1000'

@@ -8,7 +8,6 @@ import { CONTROL_REPLY_MS } from '../startup';
 
 import { randomUUID } from 'crypto';
 import * as messageFacts from '../message_facts';
-import * as checkpointRecord from '../checkpoint_record';
 import * as recovery from '../recovery';
 import * as activity from '../activity';
 import type { ChangeOrigin, ConnectOptions, SessionHandle, WarmAttempt } from '../adapter';
@@ -61,6 +60,7 @@ import {
 } from '../live';
 import { reduce } from './reduce';
 import { type Conversation, Thread, readBaseline, recoverBaseline } from '../thread';
+import { TurnCapture } from '../turn_capture';
 import { launchTranscriptPath, locateTranscript, recoverWitnessed } from './transcript';
 import type { Decision, RateLimits, SendTarget } from '../model';
 import type { SessionTransport } from '../session';
@@ -185,8 +185,6 @@ export class OwnedSession implements SessionHandle {
 
   /** Every `system` subtype this session has shown us, so each is logged once. */
   private readonly said = new Set<string>();
-  /** Whether the previous state had a turn running, for the idle edge. */
-  private wasRunning = false;
   /** The title has been asked for. Not `state.title`: the answer lands a second
    *  or so later and every frame in between would otherwise re-ask. */
   private titleAsked = false;
@@ -200,8 +198,7 @@ export class OwnedSession implements SessionHandle {
    */
   private readonly checkpoints: TurnCheckpoints;
   private readonly executionRuntime: executionRuntime.ExecutionRuntime;
-  private executionObserver?: execution.ExecutionObserver;
-  private captureWake?: () => void;
+  private readonly capture: TurnCapture<execution.ExecutionObserver>;
   /**
    * Use a separate capture latch: sendNow clears writePending across awaits,
    * and borrowing sending would let send-now's finally drop this hold or this
@@ -263,6 +260,12 @@ export class OwnedSession implements SessionHandle {
     this.memory = new Thread({ cwd: start.cwd, brand: 'claude' }, start.sessionId ?? '', {
       log: start.log
     });
+    this.capture = new TurnCapture(
+      this.checkpoints,
+      this.executionRuntime.runtime,
+      () => this.memory.current,
+      (observer) => (store, turn) => observer.finish(store, turn)
+    );
     // At construction, because this CLI has no handshake to wait for: the id is
     // the one `--resume` names, and the first message is what starts the child
     // talking. The CLI's file is found rather than derived — a conversation
@@ -281,16 +284,7 @@ export class OwnedSession implements SessionHandle {
         : undefined,
       { stopped: () => this.closed || this.live.exit !== undefined, log: start.log }
     );
-    const historyState = recovery.historyState(Boolean(resumed), recovered);
-    this.thread = {
-      get historyState() {
-        return historyState();
-      },
-      generation: () => this.memory.current.generation,
-      snapshot: () => this.memory.snapshot(),
-      recovered,
-      onChange: (listener) => this.memory.onChange(listener)
-    };
+    this.thread = recovery.threadPort(this.memory, Boolean(resumed), recovered);
     this.recoveryPending = recovery.recoveryGate(Boolean(resumed), recovered, () =>
       this.tryDrain()
     );
@@ -308,7 +302,7 @@ export class OwnedSession implements SessionHandle {
             ? { contextFile: this.executionRuntime.contextFile, actor: this.live.sessionId }
             : undefined
         );
-      this.executionObserver?.take(value);
+      this.capture.observer?.take(value);
       // The thread is fed **here, before `handle`**, and not from a second
       // `onLine` listener. Listeners are called in registration order and
       // `handle` ends by draining, so a tee registered after it would take the
@@ -756,9 +750,8 @@ export class OwnedSession implements SessionHandle {
     // point is that an ending which is not a completion keeps its diff. The
     // capture is started here and its note takes its slot in the thread now;
     // `endExecution` below runs beside it.
-    if (this.wasRunning && !this.live.warmTurn) {
-      this.endCheckpoint(this.live.cwd);
-    }
+    if (this.capture.running && !this.live.warmTurn)
+      this.capture.ended(this.live.cwd, { warm: false, baselining: this.capturing });
     this.apply(messageFacts.abandon(this.live));
     if (this.closed) return;
     this.closed = true;
@@ -794,54 +787,22 @@ export class OwnedSession implements SessionHandle {
     // but a fleet of sessions ending turns is not the account moving any faster,
     // so one machine-wide read per brand follows them (`core/usage_refresh.ts`,
     // `SessionHandle.usage`) rather than a round trip per session.
-    // The other end of rule 1's pair, and the same edge. An interrupt needs no
-    // case of its own: the CLI ends an interrupted turn with a `result` too —
-    // `error_during_execution` — so it reaches here like a completion, and the
-    // turn keeps its writes instead of losing them into the next baseline.
-    //
-    // `state.exit` is *not* excluded, unlike the round trip above. A child that
-    // died mid-turn still wrote whatever it wrote, and reading that off the tree
-    // asks nothing of a pipe that has gone.
-    // A ping is maintenance: no capture opens or closes on it, and nothing is
-    // titled off it. Only a warm turn runs while the latch is set.
+    // The CLI ends an interrupted turn with a `result` too
+    // (`error_during_execution`), so an interrupt reaches capture's falling edge
+    // like a completion. A ping is maintenance: nothing is titled off it.
     const warm = state.warmTurn !== undefined;
-    if (this.wasRunning && !state.running && !warm) {
-      this.captureWake?.();
-      this.captureWake = undefined;
-      this.endCheckpoint(state.cwd);
-    }
-    if (
-      !warm &&
-      !this.wasRunning &&
-      state.running &&
-      state.sessionId &&
-      (this.capturing || (this.executionObserver && !state.inFlight))
-    ) {
-      this.captureWake = this.checkpoints.uncertainExecution(state.cwd, {
-        owner: identity.conversationKey('claude', state.sessionId),
-        runtime: this.executionRuntime.runtime,
-        turn: randomUUID()
-      });
-    }
-    if (
-      !warm &&
-      !this.wasRunning &&
-      state.running &&
-      !this.capturing &&
-      !this.executionObserver &&
-      state.sessionId
-    ) {
-      const turn = randomUUID();
-      void this.checkpoints.openUnknown(state.cwd, {
-        owner: identity.conversationKey('claude', state.sessionId),
-        runtime: this.executionRuntime.runtime,
-        turn
-      });
-      this.executionObserver = new execution.ExecutionObserver(
-        state.sessionId,
-        this.executionRuntime.contextFile
-      );
-    }
+    const sessionId = state.sessionId;
+    this.capture.follow(
+      { running: state.running, warm, inFlight: state.inFlight !== undefined, cwd: state.cwd },
+      sessionId
+        ? {
+            owner: identity.conversationKey('claude', sessionId),
+            create: () =>
+              new execution.ExecutionObserver(sessionId, this.executionRuntime.contextFile)
+          }
+        : undefined,
+      this.capturing
+    );
     // Once, on the first running turn: the CLI never titles a session like this
     // by itself. Not at spawn, because the title is generated from what the
     // session was asked — but not at the first idle edge either, which is where
@@ -876,7 +837,6 @@ export class OwnedSession implements SessionHandle {
         this.titleAsked = false;
       });
     }
-    this.wasRunning = state.running;
   }
 
   private request(
@@ -1035,43 +995,6 @@ export class OwnedSession implements SessionHandle {
     );
   }
 
-  /**
-   * What the turn just ended did to the working tree, onto the record.
-   *
-   * A slot in the thread taken now, at the turn's end, which is the ordering
-   * the record's positional `ck` rests on: the turn a note belongs to is *the
-   * last exchange written before it*. It also fixes the conversation at the
-   * turn's end rather than at the capture's, which a `/clear` is one frame away
-   * from changing.
-   *
-   * The await is **inside** the build and not in front of it, which holds the
-   * disk behind it for the length of the end capture — 43ms warm, capped at two
-   * `SPAWN_MS` spawns; memory draws past it meanwhile. Taking the slot only once
-   * the diff was in hand would let a drain releasing inside that window put the
-   * *next* turn's prompt ahead of it, and the note would land on that turn.
-   *
-   * The window goes to the per-tree store first. That is the evidence a
-   * *neighbour* subtracts our paths from, and it is what makes rule 2 possible
-   * at all — every owned session on the tree leaves an account of itself,
-   * naming what it touched however it touched it.
-   */
-  private endCheckpoint(cwd: string): void {
-    // Do not consume a baseline while capturing: it belongs to the unreleased
-    // turn, and an init, compaction or reopened/closed turn would spend it on a
-    // span that wrote nothing. Both cannot be served; preserve the turn about to send.
-    if (this.capturing) {
-      return;
-    }
-    // Consume the baseline now, before close or exit can clear it in the same tick.
-    const observer = this.executionObserver;
-    this.executionObserver = undefined;
-    const taken = this.checkpoints.closeExecution(
-      cwd,
-      observer ? (store, turn) => observer.finish(store, turn) : undefined
-    );
-    checkpointRecord.enqueue(this.memory.current, taken);
-  }
-
   private apply(next: LiveState, origin: ChangeOrigin = 'local', cacheTraffic?: boolean): void {
     next = this.messageTurns.apply(this.live, next);
     if (next === this.live) {
@@ -1164,9 +1087,11 @@ export class OwnedSession implements SessionHandle {
             }
           : undefined
       );
-      this.executionObserver = under
-        ? new execution.ExecutionObserver(under, this.executionRuntime.contextFile)
-        : undefined;
+      this.capture.install(
+        under
+          ? new execution.ExecutionObserver(under, this.executionRuntime.contextFile)
+          : undefined
+      );
     })().then(() => {
       this.capturing = false;
       void this.release(conversation);
@@ -1200,8 +1125,7 @@ export class OwnedSession implements SessionHandle {
       this.writePending ||
       !canDrain(this.live)
     ) {
-      this.checkpoints.discard();
-      this.executionObserver = undefined;
+      this.capture.discard();
       return;
     }
     const before = this.live.queued[0];
@@ -1212,15 +1136,14 @@ export class OwnedSession implements SessionHandle {
     );
     let head = this.live.queued[0];
     if (!head || this.refusedTargets.has(head.id)) {
-      this.checkpoints.discard();
-      this.executionObserver = undefined;
+      this.capture.discard();
       return;
     }
     if (!this.committedTargets.has(head.id) && head.target !== undefined) {
       this.committedTargets.add(head.id);
       if (head.target.model !== undefined) {
         this.targetingId = head.id;
-        const observer = this.executionObserver;
+        const observer = this.capture.observer;
         let failed = false;
         try {
           await this.setModel(head.target.model, head.target.window);
@@ -1232,8 +1155,7 @@ export class OwnedSession implements SessionHandle {
           this.targetingId = undefined;
         }
         if (failed) {
-          this.checkpoints.discard();
-          this.executionObserver = undefined;
+          this.capture.discard();
           this.tryDrain();
           return;
         }
@@ -1242,17 +1164,15 @@ export class OwnedSession implements SessionHandle {
           this.sending ||
           this.writePending ||
           !canDrain(this.live) ||
-          this.executionObserver !== observer
+          this.capture.observer !== observer
         ) {
-          this.checkpoints.discard();
-          this.executionObserver = undefined;
+          this.capture.discard();
           this.tryDrain();
           return;
         }
         head = this.live.queued[0];
         if (!head || !this.committedTargets.has(head.id)) {
-          this.checkpoints.discard();
-          this.executionObserver = undefined;
+          this.capture.discard();
           return;
         }
       }

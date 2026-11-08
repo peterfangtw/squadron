@@ -59,8 +59,8 @@ export function commitOwnedBoard(
  * Everything `buildState` needs, already gathered by the host.
  *
  * Workflows arrive whole (`ReadWorkflow`). What crosses is `toWorkflowView` —
- * the fields the editor lays out. `check` stays here. Thread is assembled
- * host-side (reachability, transcript, render).
+ * the fields the editor lays out. `check` stays here. The selected thread is
+ * a separate `thread` / `threadPatch` message, not part of this snapshot.
  */
 export type StateInputs = {
   sessions: readonly Session[];
@@ -69,7 +69,6 @@ export type StateInputs = {
   scratchRoot?: string;
   folderRoots: ReadonlyMap<string, string>;
   arrangements: ReadonlyMap<PathKey, Arrangement>;
-  thread: ThreadView | undefined;
   /** Machine-wide accounts; absent until the first auth poll. */
   accounts?: AccountView[];
   /** The usage chip's windows while `accounts` is absent; see `StateMessage`. */
@@ -297,7 +296,6 @@ export function buildState(inputs: StateInputs): StateMessage {
     defaultSkillsByBrand: inputs.workspaceFolder
       ? skillsAt.get(platform.paths.key(inputs.workspaceFolder))
       : undefined,
-    thread: inputs.thread,
     accounts: inputs.accounts,
     usageWindows: inputs.usageWindows,
     onboarding: !inputs.onboardingDone && !!inputs.accounts,

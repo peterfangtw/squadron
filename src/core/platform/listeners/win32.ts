@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { unsupported } from '../unsupported';
 import type { Failed } from '../unsupported';
-import type { Effects, Listeners, Range, Socket } from './index';
+import type { Effects, Listeners, Socket } from './index';
 
 /** `darwin.ts` argues this backstop. */
 const SPAWN_MS = 2000;
@@ -16,13 +16,7 @@ export type WindowsEffects = Effects & { windowsDirectory: string | undefined };
  */
 export function listeners(effects: WindowsEffects): Listeners {
   return {
-    async read(block) {
-      if (
-        block &&
-        (!Number.isInteger(block.base) || !Number.isInteger(block.span) || block.span < 1)
-      ) {
-        return { supported: true, status: 'ok', value: [] };
-      }
+    async read() {
       const file = netstatPath(effects.windowsDirectory);
       if (!file) return failed('Windows directory must be an absolute local path');
       let stdout: string;
@@ -31,7 +25,7 @@ export function listeners(effects: WindowsEffects): Listeners {
       } catch {
         return failed('netstat did not complete successfully');
       }
-      const found = parseListening(stdout, block);
+      const found = parseListening(stdout);
       return found
         ? { supported: true, status: 'ok', value: found }
         : failed('netstat printed a row this reader cannot follow');
@@ -63,7 +57,7 @@ function netstatPath(directory: string | undefined): string | undefined {
  * remote port 0 and `LISTENING` chose the same 37 of 132 TCP rows. A UDP row is
  * skipped by name, and the headings have no `TCP` in their first column.
  */
-function parseListening(stdout: string, block: Range | undefined): Socket[] | undefined {
+function parseListening(stdout: string): Socket[] | undefined {
   const found: Socket[] = [];
   for (const line of stdout.split(/\r?\n/)) {
     const columns = line.trim().split(/\s+/);
@@ -75,7 +69,6 @@ function parseListening(stdout: string, block: Range | undefined): Socket[] | un
     if (port === undefined || portOf(remote) === undefined) return undefined;
     if (!pidText || !/^\d+$/.test(pidText)) return undefined;
     if (portOf(remote) !== 0) continue;
-    if (block && (port < block.base || port >= block.base + block.span)) continue;
     found.push({ port, pid: Number(pidText) });
   }
   return found;

@@ -2,26 +2,16 @@ import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { brandForStart, offeredModels, refusal } from '../core/adapter';
+import { brandForStart, offeredModels } from '../core/adapter';
 import { BRANDS } from '../core/brands';
 import type { Started } from '../core/bridge/bridge';
 import * as words from '../core/bridge/words';
 import { windowTokens } from '../core/catalog';
-import { readActions, serializeSends, writeAction } from '../core/coordination/actions';
-import { checkVerbAnswer, openQuestion } from '../core/coordination/answer';
+import * as admit from '../core/coordination/admit';
 import { lineageAlive, readLineage } from '../core/coordination/lineage';
-import {
-  ParkedReport,
-  dropReport,
-  parkFor,
-  readReports,
-  releaseAuthor,
-  writeReport
-} from '../core/coordination/reports';
+import { readReports } from '../core/coordination/reports';
 import { MALFORMED, Reply, Request } from '../core/coordination/requests';
 import * as origin from '../core/coordination/origin';
-import * as route from '../core/coordination/route';
-import { checkVerbSend, wrapMessage } from '../core/coordination/send';
 import type { RemoteFilesStart } from '../core/coordination/serve_owned';
 import {
   RemoteStart,
@@ -31,7 +21,6 @@ import {
   serveOwned
 } from '../core/coordination/serve_owned';
 import { checkVerbSpawn, resolveSpawnIdentity } from '../core/coordination/spawn';
-import { readWaits } from '../core/coordination/wait';
 import * as incoming from '../core/incoming';
 import type { LaunchTarget } from '../core/model';
 import { sameSessionStart } from '../core/model';
@@ -58,8 +47,6 @@ import {
   startOwned,
   stateName
 } from './sessions';
-
-type AcceptedReply = Reply & { afterAdmission?: () => Promise<void> };
 
 export type RequestHost = {
   serve: (request: Request) => Promise<Reply>;
@@ -98,6 +85,13 @@ export function createRequestHost({
     incomingHolder: () => incomingHolderNow(vscode.env.sessionId, getRemote()?.incomingHolder()),
     holder: async () => readHolder(await scanProcesses())
   };
+  const admission: admit.AdmissionPort = {
+    owned: ownedSession,
+    target: ownedTarget,
+    windowId: vscode.env.sessionId,
+    orchestrators: () =>
+      vscode.workspace.getConfiguration('squadron').get<boolean>('orchestrators.enabled', false)
+  };
 
   return { serve, startRemote, remoteModels, startFiles, noteHeldReports };
 
@@ -134,183 +128,14 @@ export function createRequestHost({
     return decided.ok ? undefined : { ok: false, reason: decided.reason };
   }
 
-  /**
-   * Whether this report was held against an open wait instead of delivered.
-   *
-   * The window half of `PRD_shipped_wait_report_attachment.md`. A fan-out with a
-   * wait open costs its parent N+1 wakes — measured 2026-08-26, four wakes for
-   * two children — because the children still report and the convergence is an
-   * *extra* message on top. Held here, the same words arrive on the convergence
-   * and the parent is woken once.
-   *
-   * **Nothing is refused and nothing is dropped.** A5: the "redundant" report in
-   * that run carried a correction to the parent's own brief, so a window may not
-   * judge which report is worth keeping. Every path below either holds the
-   * message or sends it.
-   *
-   * **The cap releases rather than truncating.** At `REPORTS_PER_MEMBER` the
-   * member's held reports go out in the order they were accepted, and this one
-   * follows them — so a report that hits the cap can never overtake the ones it
-   * might be correcting.
-   *
-   * Degradation is always "send it normally": an unreadable store, a park that
-   * would not write, a sender that cannot be placed. `false` is the answer for
-   * every one of them, and it is today's behaviour exactly.
-   */
-  async function holdForWait(
-    request: Extract<Request, { kind: 'send' }>,
-    decided: { text: string; payload: string; from: string },
-    messages: NonNullable<ReturnType<typeof ownedSession>>['messages']
-  ): Promise<boolean> {
-    if (!messages) {
-      return false;
-    }
-    // `decided.from` and not `request.from`: `checkVerbSend` has just settled who
-    // the sender is, and its rule is that the wrapper's own author wins over the
-    // field beside it when the two disagree. Checking one and storing the other
-    // would let a hand-written request pass as A and park under B's name — the
-    // wrong-author failure the wrapper exists to prevent, reached sideways.
-    const fromPid = trustedSender(request.fromPid, decided.from);
-    if (fromPid === undefined) {
-      return false;
-    }
-    try {
-      const [held, waits] = await Promise.all([readReports(), readWaits()]);
-      const verdict = parkFor({
-        waits,
-        reports: held,
-        toPid: request.pid,
-        fromPid,
-        now: Date.now()
-      });
-      if (verdict === undefined) {
-        return false;
-      }
-      if (verdict.kind === 'release') {
-        await flush(verdict.reports, messages);
-        log(
-          `wait ${verdict.wait.id}: ${fromPid} reached its cap; released ${verdict.reports.length}`
-        );
-        return false;
-      }
-      const wrote = await writeReport({
-        schema: 1,
-        id: randomUUID(),
-        waitId: verdict.wait.id,
-        requesterPid: request.pid,
-        senderPid: fromPid,
-        senderSessionId: decided.from,
-        payload: decided.payload,
-        at: Date.now()
-      });
-      if (!wrote) {
-        // **Degrading must not reorder.** This send is about to go out now, so
-        // anything this member already has parked has to go out ahead of it —
-        // otherwise a full disk turns the fourth report into the first one the
-        // parent reads, which is exactly the inversion the cap rule and
-        // `compose`'s stop-at-first-misfit both exist to prevent, arrived at from
-        // the disk-failure side.
-        //
-        // Caught here rather than below: a throw out of the flush would otherwise
-        // land in the outer `catch`, whose whole excuse for not reordering is
-        // that it cannot know what is parked — and on this path it does know.
-        // Partway through is the best available answer, since what it managed to
-        // send is already ahead of this message and what it did not still rides
-        // the convergence.
-        try {
-          await flush(
-            held.filter((one) => one.waitId === verdict.wait.id && one.senderPid === fromPid),
-            messages
-          );
-        } catch (err) {
-          log(
-            `could not flush held reports for ${request.pid}: ` +
-              `${err instanceof Error ? err.message : String(err)}`
-          );
-        }
-      }
-      return wrote;
-    } catch (err) {
-      // A store this window cannot read is a feature that does not apply, not a
-      // send that fails. The message goes out the way it always did.
-      //
-      // Nothing is flushed here, and nothing can be: the only throws that reach
-      // this line come from reading the store, so this window does not know what
-      // is parked and has nothing to put ahead of the send. (A throw out of a
-      // flush is caught where it happens, above, precisely because *there* the
-      // answer is known.) The same failure stops the resolver reading them too,
-      // so they are released by `rescue` once the store recovers, or swept at a
-      // day if it does not.
-      log(
-        `could not hold a report for ${request.pid}: ` +
-          `${err instanceof Error ? err.message : String(err)}`
-      );
-      return false;
-    }
-  }
-
-  /**
-   * Held reports put on this session's pipe now, oldest first, and forgotten.
-   *
-   * Both callers are degradations — the member hit its cap, or the store would
-   * not take another one — and both have the same obligation: whatever is already
-   * parked goes out **ahead** of the send that triggered them. Order is the whole
-   * point. A correction read before the thing it corrects is worse than either of
-   * them arriving alone.
-   *
-   * Wrapped from the raw payload under each report's own author, which is why the
-   * store keeps it raw: a stored *wrapped* text embedded in a convergence would
-   * have been refused by `checkSend`'s own forgery guard.
-   */
-  async function flush(
-    reports: readonly ParkedReport[],
-    messages: NonNullable<NonNullable<ReturnType<typeof ownedSession>>['messages']>
-  ): Promise<void> {
-    for (const report of [...reports].sort((a, b) => a.at - b.at)) {
-      await messages.send(
-        wrapMessage(report.payload, releaseAuthor(report)),
-        [],
-        report.payload,
-        false
-      );
-      await dropReport(report.id);
-    }
-  }
-
-  /**
-   * Check a sender this window drives against its in-memory sessionId, avoiding
-   * a process scan on the send path. The shim already resolves the board's pid.
-   * A cross-window sender is trusted like from: forging fromPid can only hold
-   * the message, not bypass guards or deliver it somewhere otherwise refused.
-   */
-  function trustedSender(
-    fromPid: number | undefined,
-    from: string | undefined
-  ): number | undefined {
-    if (fromPid === undefined) {
-      return undefined;
-    }
-    const claimed = ownedSession(fromPid);
-    if (claimed && claimed.state.sessionId !== from) {
-      return undefined;
-    }
-    return fromPid;
-  }
-
   async function serve(request: Request): Promise<Reply> {
     const classified = origin.classifyRequest(request);
     if (!classified) return { ok: false, reason: MALFORMED };
-    if (classified.policy === 'agent-answer' || classified.policy === 'agent-send') {
-      const request = classified.request;
-      const accepted = await serializeSends(() => serveRequest(classified));
-      await accepted.afterAdmission?.();
-      const { afterAdmission, ...reply } = accepted;
-      const owned = ownedSession(request.pid);
-      const messageFacts =
-        owned && sameSessionStart(owned.state.startedAt, request.startedAt)
-          ? owned.state.messageFacts
-          : undefined;
-      return { ...reply, ...(messageFacts === undefined ? {} : { messageFacts }) };
+    if (classified.policy === 'agent-send') {
+      return admit.admit({ kind: 'send', request: classified.request }, admission, log);
+    }
+    if (classified.policy === 'agent-answer') {
+      return admit.admit({ kind: 'answer', request: classified.request }, admission, log);
     }
     const reply = await serveRequest(classified);
     return classified.request.kind === 'open'
@@ -437,7 +262,9 @@ export function createRequestHost({
     );
   }
 
-  async function serveRequest(classified: origin.ClassifiedRequest): Promise<AcceptedReply> {
+  async function serveRequest(
+    classified: Exclude<origin.ClassifiedRequest, { policy: 'agent-send' | 'agent-answer' }>
+  ): Promise<Reply> {
     // Before any pid lookup: the holder almost never drives the session an
     // attachment names, and that lookup would answer "does not drive" for it.
     if (classified.policy === 'fetch') {
@@ -573,175 +400,6 @@ export function createRequestHost({
     if (owned) {
       if (!sameSessionStart(owned.state.startedAt, request.startedAt)) {
         return { ok: false, reason: 'That session is no longer there.' };
-      }
-      if (request.kind === 'send') {
-        if (!owned.messages) {
-          return { ok: false, reason: refusal('messages') };
-        }
-        // The window's own reading of the target, not the shim's: a shim that
-        // read a stale published record must not get a cold wake past this.
-        const target = ownedTarget(request.pid);
-        if (!target) {
-          return { ok: false, reason: 'That session is no longer there.' };
-        }
-        const decided = checkVerbSend({
-          enabled: vscode.workspace
-            .getConfiguration('squadron')
-            .get<boolean>('orchestrators.enabled', false),
-          from: request.from,
-          windowId: vscode.env.sessionId,
-          target,
-          text: request.text,
-          now: Date.now(),
-          actions: await readActions(),
-          force: request.force
-        });
-        if (!decided.ok) {
-          return { ok: false, reason: decided.reason };
-        }
-        if (ownedSession(request.pid) !== owned) {
-          return { ok: false, reason: 'That session is no longer there.' };
-        }
-        // Park after guards and before delivery, retaining the actions record.
-        // Interrupt bypasses parking because breaking in is not filing a report.
-        // Test the boolean itself: parked !== undefined would swallow false
-        // without delivering or storing the message.
-        const parked =
-          request.interrupt !== true && (await holdForWait(request, decided, owned.messages));
-        if (parked) {
-          // Parking is acceptance and counts against the same window burst cap
-          // as delivery. Await the record for the ordering reason on writeAction below.
-          await writeAction({
-            schema: 1,
-            kind: 'send',
-            windowId: vscode.env.sessionId,
-            from: decided.from,
-            toPid: request.pid,
-            toSessionId: owned.state.sessionId,
-            at: Date.now(),
-            requestId: request.id
-          });
-          return { ok: true, queued: owned.state.queued.length, heldForWait: request.pid };
-        }
-        if (ownedSession(request.pid) !== owned) {
-          return { ok: false, reason: 'That session is no longer there.' };
-        }
-        // `describe` is the payload, so what names the session is the message
-        // rather than the tag around it: `firstPrompt` feeds the CLI's titler,
-        // and a title is persisted into the transcript for every window and every
-        // `/resume` to read. It is also what the held outbox row and the
-        // in-flight bubble draw before the transcript catches up.
-        const routed = route.routeTo({ owned });
-        if (route.isRefused(routed) || !routed.messages) {
-          return { ok: false, reason: refusal('messages') };
-        }
-        const sent = await routed.messages.send(
-          decided.text,
-          [],
-          decided.payload,
-          request.interrupt === true,
-          undefined,
-          request.correlation
-        );
-        if (!sent.ok) return sent;
-        // Awaited, and before the interrupt: the send above is the accept, and a
-        // record written after something that can reject or hang is a record the
-        // counters do not have when the next request of the same tick reads them.
-        await writeAction({
-          schema: 1,
-          kind: 'send',
-          windowId: vscode.env.sessionId,
-          from: decided.from,
-          toPid: request.pid,
-          toSessionId: owned.state.sessionId,
-          at: Date.now(),
-          requestId: request.id
-        });
-        // Ahead, then `sendNow`: the latch is what makes the interrupt and the
-        // delivery one act. Interrupt-then-`send` is the race `sendNow` exists to
-        // close — the interrupt's own idle edge drains whatever was already held,
-        // and the payload lands a turn later.
-        //
-        // Swallowed on purpose. The message is enqueued either way; the interrupt
-        // only decides *when* it is read. A rejection travelling out of here would
-        // be written as `{ ok: false }`, and an agent told "refused" retries —
-        // which is a second copy of a message already at the head of the outbox.
-        const accepted: AcceptedReply = sent;
-        const messages = owned.messages;
-        if (request.interrupt) {
-          accepted.afterAdmission = async () => {
-            if (ownedSession(request.pid) === owned) await messages.sendNow().catch(() => {});
-            // Capture can still hold an outgoing row after send-now returns.
-            if (sent.queued !== 0) accepted.queued = owned.state.queued.length;
-          };
-        }
-        return accepted;
-      } else if (request.kind === 'answer') {
-        if (!owned.messages) {
-          return { ok: false, reason: refusal('messages') };
-        }
-        const target = ownedTarget(request.pid);
-        if (!target) {
-          return { ok: false, reason: 'That session is no longer there.' };
-        }
-        const decided = checkVerbAnswer({
-          enabled: vscode.workspace
-            .getConfiguration('squadron')
-            .get<boolean>('orchestrators.enabled', false),
-          from: request.from,
-          windowId: vscode.env.sessionId,
-          target,
-          text: request.text,
-          now: Date.now(),
-          actions: await readActions(),
-          force: request.force,
-          pending: owned.state.pending,
-          askId: request.askId
-        });
-        if (!decided.ok) {
-          return { ok: false, reason: decided.reason };
-        }
-        // Again after the await, and again before the interrupt: the person may
-        // answer on the dialog while this window awaits, and an interrupt then
-        // cuts the turn their answer started. Closed by the second check, the
-        // answer stays an ordinary held message the idle edge delivers.
-        // **Accepted:** an interrupt that rejects leaves the prose held too, and
-        // it drains after the person answers, saying a dialog was closed that
-        // was not — the failure `send --interrupt` swallows the same way.
-        const stillOpen = (): boolean =>
-          ownedSession(request.pid) === owned &&
-          openQuestion(owned.state.pending, request.askId).ok;
-        if (!stillOpen()) {
-          return { ok: false, reason: 'That question is no longer open.' };
-        }
-        // `send --interrupt`'s path, in its order and for its reasons: ahead,
-        // the record, then `sendNow`, whose rejection is swallowed as send's is.
-        await owned.messages.send(
-          decided.text,
-          [],
-          decided.payload,
-          true,
-          undefined,
-          request.correlation
-        );
-        await writeAction({
-          schema: 1,
-          kind: 'answer',
-          windowId: vscode.env.sessionId,
-          from: decided.from,
-          toPid: request.pid,
-          toSessionId: owned.state.sessionId,
-          askId: request.askId,
-          at: Date.now(),
-          requestId: request.id
-        });
-        const messages = owned.messages;
-        return {
-          ok: true,
-          afterAdmission: async () => {
-            if (stillOpen()) await messages.sendNow().catch(() => {});
-          }
-        };
       }
       if (request.kind === 'warm') {
         // setWarm refuses a handle without the warm capability itself.

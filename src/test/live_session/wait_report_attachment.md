@@ -9,8 +9,10 @@ the only thing that can say whether it now costs one.
 
 ## Proves what `check` cannot
 
-**The hold is in `host/extension.ts`, which imports `vscode`.** `holdForWait` is
-named in exactly one file and no test in the suite references it — grep it. The
+**The hold was in `host/extension.ts`, which imports `vscode`**, and no test
+reached it. It is now `core/coordination/admit.ts`'s `holdForWait`, which
+`admit.test.ts` drives headlessly, but the outbox drain below it still needs a
+real session, which is what this scenario is for. The
 gate ran 3836 tests green over a version where the guard was `parked !==
 undefined` against a `Promise<boolean>`, so the *not*-parked answer took the
 parked branch: with no wait open anywhere, a message went onto no pipe, into no

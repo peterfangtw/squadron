@@ -12,6 +12,11 @@ export class TicketStore {
   private detailRead:
     { requestId: string; key: string; url?: string; controller: AbortController } | undefined;
   private configured: tickets.ConfiguredSource | undefined;
+  private sources: tickets.ConfiguredSource[] = [];
+  private catalogs = new Map<
+    string,
+    { scopes?: TicketScope[]; error?: tickets.TicketSourceError; at?: number }
+  >();
   private saving: Promise<void> = Promise.resolve();
   private saved: tickets.SavedTicketSelection | undefined;
   private scopes: TicketScope[] | undefined;
@@ -23,7 +28,9 @@ export class TicketStore {
   private filter: TicketFilterView = tickets.defaultFilter();
   private snapshot: { tickets: TicketView[]; options: TicketOptions } | undefined;
   private error: tickets.TicketSourceError | undefined;
-  private catalogAt: number | undefined;
+  private catalogEpoch = 0;
+  private catalogController = new AbortController();
+  private catalogReads = new Set<string>();
   private optionsAt: number | undefined;
   private refreshOptions = false;
   private fetchedAt: number | undefined;
@@ -36,27 +43,61 @@ export class TicketStore {
     this.now = ports.now ?? Date.now;
   }
 
-  state(configured: tickets.ConfiguredSource | undefined): {
+  state(input: tickets.ConfiguredSource | tickets.ConfiguredSource[] | undefined): {
     tickets?: TicketView[];
     status?: TicketSourceStatus;
   } {
     if (this.disposed) return {};
+    const sources = input ? (Array.isArray(input) ? input : [input]) : [];
     if (
-      configured?.sourceId !== this.configured?.sourceId ||
-      configured?.generation !== this.configured?.generation
+      JSON.stringify(sources.map((s) => [s.sourceId, s.generation])) !==
+      JSON.stringify(this.sources.map((s) => [s.sourceId, s.generation]))
     ) {
       this.reset();
-      this.configured = configured;
+      this.sources = sources;
+      this.configured = sources.find((s) => s.sourceId === this.saved?.sourceId) ?? sources[0];
     }
+    const configured = this.configured;
     if (!configured) return {};
-    if (!this.fetching) {
-      if (!this.scopes && this.due(this.catalogAt)) this.discover(configured);
-      else if (this.scopeId && this.due(this.fetchedAt)) this.load(configured, this.scopeId);
+    for (const source of this.sources) {
+      if (
+        !this.catalogReads.has(source.sourceId) &&
+        this.due(
+          this.catalogs.get(source.sourceId)?.at,
+          this.catalogs.get(source.sourceId)?.error ? TICKET_TTL_MS : (source.refreshMs ?? Infinity)
+        )
+      )
+        this.discover(source);
     }
+    if (
+      !this.fetching &&
+      this.scopeId &&
+      !this.catalogs.get(configured.sourceId)?.error &&
+      this.due(this.fetchedAt, configured.refreshMs)
+    )
+      this.load(configured, this.scopeId);
+    const error = this.catalogs.get(configured.sourceId)?.error ?? this.error;
     return {
       tickets: this.snapshot?.tickets,
       status: {
         linked: true,
+        ...(this.sources.length > 1
+          ? {
+              boards: this.sources.flatMap((source) =>
+                (this.catalogs.get(source.sourceId)?.scopes ?? []).map((scope) => ({
+                  ...scope,
+                  sourceId: source.sourceId,
+                  presentation: source.presentation
+                }))
+              )
+            }
+          : {}),
+        connections: this.sources.map((source) => ({
+          sourceId: source.sourceId,
+          presentation: source.presentation,
+          error: this.catalogs.get(source.sourceId)?.error?.message,
+          failure: this.catalogs.get(source.sourceId)?.error?.kind
+        })),
         sourceId: configured.sourceId,
         generation: configured.generation,
         selectionSeq: this.selectionSeq,
@@ -65,10 +106,10 @@ export class TicketStore {
         presentation: configured.presentation,
         filter: this.filter,
         options: this.snapshot?.options,
-        loading: this.fetching,
-        stale: !!this.error,
-        error: this.error?.message,
-        failure: this.error?.kind
+        loading: this.fetching || (!this.scopes && this.catalogReads.has(configured.sourceId)),
+        stale: !!error,
+        error: error?.message,
+        failure: error?.kind
       }
     };
   }
@@ -80,6 +121,7 @@ export class TicketStore {
   identity(): TicketSelectionToken | undefined {
     return this.configured
       ? {
+          ...(this.sources.length > 1 ? { sourceId: this.configured.sourceId } : {}),
           generation: this.configured.generation,
           selectionSeq: this.selectionSeq,
           ...(this.scopeId ? { scopeId: this.scopeId } : {})
@@ -91,6 +133,7 @@ export class TicketStore {
     return (
       !this.disposed &&
       !!this.configured &&
+      (token.sourceId === undefined || token.sourceId === this.configured.sourceId) &&
       token.generation === this.configured.generation &&
       token.selectionSeq === this.selectionSeq &&
       token.scopeId === this.scopeId
@@ -101,18 +144,24 @@ export class TicketStore {
     scopeId: string,
     token: TicketSelectionToken
   ): tickets.SavedTicketSelection | undefined {
-    const configured = this.configured;
+    const configured = token.sourceId
+      ? this.sources.find((s) => s.sourceId === token.sourceId)
+      : this.configured;
+    const scopes = configured ? this.catalogs.get(configured.sourceId)?.scopes : undefined;
     if (
       !configured ||
       this.disposed ||
       token.generation !== configured.generation ||
       !Number.isSafeInteger(token.selectionSeq) ||
       token.selectionSeq <= this.selectionSeq ||
-      !this.scopes?.some((scope) => scope.id === scopeId)
+      !(scopes ?? this.scopes)?.some((scope) => scope.id === scopeId)
     )
       return undefined;
     this.closeDetail();
+    this.configured?.source.invalidate?.();
     this.retire();
+    this.configured = configured;
+    this.scopes = scopes ?? this.scopes;
     this.selectionSeq = token.selectionSeq;
     this.scopeId = scopeId;
     this.snapshot = undefined;
@@ -196,8 +245,21 @@ export class TicketStore {
     this.ports.onDetailClosed?.(read.requestId);
   }
 
+  refetchCatalog(): void {
+    for (const source of this.sources) source.source.invalidate?.();
+    this.retire();
+    this.catalogEpoch++;
+    this.catalogController.abort();
+    this.catalogController = new AbortController();
+    this.catalogReads.clear();
+    for (const catalog of this.catalogs.values()) catalog.at = undefined;
+    this.fetchedAt = undefined;
+    this.optionsAt = undefined;
+  }
+
   refetch(options = true): void {
     if (options) {
+      this.configured?.source.invalidate?.();
       this.optionsAt = undefined;
       this.refreshOptions = true;
     }
@@ -206,22 +268,28 @@ export class TicketStore {
       this.fetchedAt = undefined;
       if (!this.scopeId) {
         this.scopes = undefined;
-        this.catalogAt = undefined;
+        if (this.configured) this.catalogs.delete(this.configured.sourceId);
       }
     }
   }
 
   reset(): void {
+    for (const source of this.sources) source.source.invalidate?.();
     this.closeDetail();
     this.retire();
     this.configured = undefined;
+    this.sources = [];
+    this.catalogs.clear();
+    this.catalogEpoch++;
+    this.catalogController.abort();
+    this.catalogController = new AbortController();
+    this.catalogReads.clear();
     this.scopes = undefined;
     this.scopeId = undefined;
     this.selectionSeq = 0;
     this.snapshot = undefined;
     this.filter = tickets.defaultFilter();
     this.error = undefined;
-    this.catalogAt = undefined;
     this.fetchedAt = undefined;
     this.optionsAt = undefined;
   }
@@ -240,8 +308,8 @@ export class TicketStore {
     this.again = false;
     this.refreshOptions = false;
   }
-  private due(at: number | undefined): boolean {
-    return at === undefined || this.now() - at > TICKET_TTL_MS;
+  private due(at: number | undefined, ttl = TICKET_TTL_MS): boolean {
+    return at === undefined || this.now() - at > ttl;
   }
   private remember(sourceId: string, scopeId: string): tickets.SavedTicketSelection {
     const selection = { sourceId, scopeId };
@@ -255,35 +323,76 @@ export class TicketStore {
     return selection;
   }
   private discover(configured: tickets.ConfiguredSource): void {
-    const epoch = this.epoch;
-    this.fetching = true;
-    void (async () => configured.source.discoverScopes(this.controller.signal))()
-      .then((scopes) => {
-        if (epoch !== this.epoch) return;
-        this.scopes = scopes;
-        const saved = this.saved;
-        const chosen = saved
-          ? scopes.find(
-              (scope) => saved.sourceId === configured.sourceId && saved.scopeId === scope.id
-            )
-          : (scopes.find((scope) => scope.key === configured.legacyTeamKey) ??
-            (scopes.length === 1 ? scopes[0] : undefined));
-        if (chosen) {
-          this.scopeId = chosen.id;
-          this.remember(configured.sourceId, chosen.id);
-        }
-        this.error = undefined;
-      })
-      .catch((error: unknown) => {
-        if (epoch === this.epoch) this.error = tickets.sourceError(error);
-      })
-      .finally(() => {
-        if (epoch !== this.epoch) return;
-        this.catalogAt = this.again ? undefined : this.now();
-        this.again = false;
-        this.fetching = false;
+    const epoch = this.catalogEpoch;
+    const sourceId = configured.sourceId;
+    this.catalogReads.add(sourceId);
+    void (async () => configured.source.discoverScopes(this.catalogController.signal))()
+      .then((scopes) => ({
+        scopes,
+        at: this.now(),
+        error: undefined as tickets.TicketSourceError | undefined
+      }))
+      .catch((error: unknown) => ({
+        scopes: this.catalogs.get(sourceId)?.scopes,
+        at: this.now(),
+        error: tickets.sourceError(error)
+      }))
+      .then((catalog) => {
+        if (epoch !== this.catalogEpoch) return;
+        this.catalogReads.delete(sourceId);
+        this.catalogs.set(sourceId, catalog);
+        this.resolveCatalog(sourceId);
         this.ports.onChange();
       });
+  }
+  private resolveCatalog(changedSourceId: string): void {
+    let configured = this.configured;
+    if (!configured) return;
+    let catalog = this.catalogs.get(configured.sourceId);
+    if (configured.sourceId === changedSourceId) {
+      this.scopes = catalog?.scopes;
+      if (catalog?.error) return;
+      if (this.scopeId && !this.scopes?.some((scope) => scope.id === this.scopeId)) {
+        this.closeDetail();
+        this.retire();
+        this.scopeId = undefined;
+        this.snapshot = undefined;
+        this.filter = tickets.defaultFilter();
+        this.selectionSeq++;
+      }
+    }
+    if (this.scopeId || !catalog?.scopes) return;
+    const sourceId = configured.sourceId;
+    const legacyTeamKey = configured.legacyTeamKey;
+    let chosen = this.saved
+      ? catalog.scopes.find(
+          (scope) => this.saved?.sourceId === sourceId && this.saved.scopeId === scope.id
+        )
+      : catalog.scopes.find((scope) => scope.key === legacyTeamKey);
+    if (
+      !chosen &&
+      !this.saved &&
+      this.sources.every((source) => {
+        const value = this.catalogs.get(source.sourceId);
+        return value?.scopes && value.at !== undefined && !value.error;
+      })
+    ) {
+      const boards = this.sources.flatMap((source) =>
+        (this.catalogs.get(source.sourceId)?.scopes ?? []).map((scope) => ({ source, scope }))
+      );
+      if (boards.length === 1 && boards[0]) {
+        configured = boards[0].source;
+        chosen = boards[0].scope;
+        this.configured = configured;
+        catalog = this.catalogs.get(configured.sourceId);
+        this.scopes = catalog?.scopes;
+      }
+    }
+    if (chosen) {
+      this.scopeId = chosen.id;
+      this.error = undefined;
+      this.remember(configured.sourceId, chosen.id);
+    }
   }
   private load(configured: tickets.ConfiguredSource, scopeId: string): void {
     const epoch = this.epoch;
@@ -293,15 +402,22 @@ export class TicketStore {
     const cachedOptions = !this.due(this.optionsAt) ? this.snapshot?.options : undefined;
     this.refreshOptions = false;
     this.fetching = true;
-    void Promise.all([
-      (async () => configured.source.list(scopeId, filter, signal))(),
-      cachedOptions
-        ? Promise.resolve(cachedOptions)
-        : (async () => configured.source.options(scopeId, signal))()
-    ])
-      .then(([rows, options]) => {
+    const pending = configured.source.read
+      ? configured.source.read(scopeId, filter, signal)
+      : Promise.all([
+          (async () => configured.source.list(scopeId, filter, signal))(),
+          cachedOptions
+            ? Promise.resolve(cachedOptions)
+            : (async () => configured.source.options(scopeId, signal))()
+        ]).then(([rows, options]) => ({ tickets: rows, options, filter }));
+    void pending
+      .then((result) => {
         if (epoch !== this.epoch || revision !== this.revision) return;
-        this.snapshot = { tickets: rows.map(tickets.toTicketView), options };
+        this.snapshot = {
+          tickets: result.tickets.map(tickets.toTicketView),
+          options: result.options
+        };
+        this.filter = result.filter;
         this.error = undefined;
         if (!cachedOptions && !this.refreshOptions) this.optionsAt = this.now();
       })
