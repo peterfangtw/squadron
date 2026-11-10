@@ -416,6 +416,7 @@ describe('model catalog', () => {
       ['claude-opus-5-5', 'medium'],
       ['claude-sonnet-5-5', 'high'],
       ['claude-haiku-5-5', 'high'],
+      ['claude-fable-5-2', 'medium'],
       ['claude-fable-5-1', 'medium'],
       ['claude-opus-5', 'medium'],
       ['claude-sonnet-5', 'high']
@@ -547,6 +548,10 @@ const CLAUDE_TODAY: readonly Snapshot[] = [
   ['claude-sonnet-5-5', 200_000, 'Sonnet 5.5', ['claude-sonnet-5-5', 'claude-sonnet-5-5[1m]']],
   ['claude-haiku-5-5', 1_000_000, 'Haiku 5.5', ['claude-haiku-5-5', 'claude-haiku-5-5[1m]']],
   ['claude-haiku-5-5', 200_000, 'Haiku 5.5', ['claude-haiku-5-5', 'claude-haiku-5-5[1m]']],
+  // Opus 5.5's shape, not Fable 5.1's: `[1m]` survives into the usage key, so
+  // it is a reading — `cli_state/models.md` § *Fable 5.2*.
+  ['claude-fable-5-2', 1_000_000, 'Fable 5.2', ['claude-fable-5-2', 'claude-fable-5-2[1m]']],
+  ['claude-fable-5-2', 200_000, 'Fable 5.2', ['claude-fable-5-2', 'claude-fable-5-2[1m]']],
   ['claude-fable-5-1', 1_000_000, 'Fable 5.1', ['claude-fable-5-1']],
   ['claude-fable-5-1', 200_000, 'Fable 5.1', ['claude-fable-5-1']],
   ['claude-fable-5', 1_000_000, 'Fable 5', ['claude-fable-5'], true],

@@ -6,7 +6,8 @@ import type { ConversationRoot } from './store';
 
 /** A session started from the messenger, or why not. `brand` is what the
  *  conversation's root is recorded as; `sessionId` when already known, else
- *  the next observation fills it. */
+ *  the next observation fills it. A refusal's `outcome` is `stopped` only when
+ *  nothing started. */
 export type Started =
   | {
       ok: true;
@@ -16,7 +17,12 @@ export type Started =
       sessionId?: string;
       remoteLaunchEvidence?: import('./model').RemoteLaunchEvidence;
     }
-  | { ok: false; reason: string; notStarted?: true; selectionInvalid?: true; unsure?: true };
+  | {
+      ok: false;
+      reason: string;
+      outcome: import('../start_outcome').FailedWord;
+      selectionInvalid?: true;
+    };
 
 /** Stop's outcome: the turn was interrupted, or (`idle`) the window holding
  *  the pipe found none running — the one place "nothing to stop" is known. */

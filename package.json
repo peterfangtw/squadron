@@ -2,7 +2,7 @@
   "name": "squadron",
   "displayName": "Squadron",
   "description": "Run Claude Code, Codex and Grok in the same UI on your editor, and let them work with each other autonomously.",
-  "version": "0.6.21",
+  "version": "0.6.24",
   "squadronBuild": "posix-staging",
   "publisher": "peterfangtw",
   "license": "MIT",
@@ -83,6 +83,14 @@
       {
         "command": "squadron.disconnectLinear",
         "title": "Squadron: Disconnect Linear"
+      },
+      {
+        "command": "squadron.connectGitHubProjects",
+        "title": "Squadron: Connect GitHub Projects"
+      },
+      {
+        "command": "squadron.disconnectGitHubProjects",
+        "title": "Squadron: Disconnect GitHub Projects"
       },
       {
         "command": "squadron.logPerf",

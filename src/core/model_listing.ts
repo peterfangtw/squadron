@@ -165,7 +165,7 @@ export function remoteTarget(
   fallback: () => LaunchTarget | undefined
 ):
   | { ok: true; target?: LaunchTarget }
-  | { ok: false; reason: string; notStarted: true; selectionInvalid: true } {
+  | { ok: false; reason: string; outcome: 'stopped'; selectionInvalid: true } {
   if (start.selection === undefined)
     return { ok: true, target: start.brand === undefined ? fallback() : { brand: start.brand } };
   const target: LaunchTarget = {
@@ -187,7 +187,7 @@ export function remoteTarget(
     : {
         ok: false,
         reason: 'That model, context or effort is no longer available. Choose again.',
-        notStarted: true,
+        outcome: 'stopped',
         selectionInvalid: true
       };
 }

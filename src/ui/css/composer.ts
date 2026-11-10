@@ -960,6 +960,10 @@ export const css = /* css */ `
   /* Window and brand for a model, status and pid for a session, a count for a
      kind: what tells two rows of one name apart, kept to the right. */
   .mnrow .meta { color: var(--av-muted); font-size: 0.9em; white-space: nowrap; }
+  /* A ticket: its number whole, then its title on the rest of the one line.
+     The menu's max-width is what cuts it. */
+  .mnrow.titled .nm { flex: none; white-space: nowrap; }
+  .mnrow.titled .meta { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* A row that opens a further step: a kind's list, or a model's efforts. */
   .mnrow .go { color: var(--av-muted); }
   /* Which kind a row is, in its pill's colour, drawn only when the menu holds

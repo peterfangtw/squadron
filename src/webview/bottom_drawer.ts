@@ -3,7 +3,8 @@
  * remembers while it is shut, lives in that mode.
  */
 
-import { $, el, imeKey } from './dom';
+import { $, el } from './dom';
+import * as layers from './layers';
 import { ui } from './state';
 import { setOpen } from './workflow_overview_drawer';
 import * as bottomHub from './bottom_hub';
@@ -20,6 +21,9 @@ let arrival = false;
 /** Find and foot are concealed when the filling changes. The mode's paint
  *  shows them when it has any. */
 let slotsFor: bottomDrawerModes.DrawerModeId | undefined;
+/** On the layer stack exactly while the drawer is drawn raised, however it
+ *  came down: `close`, or a paint that found its mode empty. */
+let layer: layers.Handle | undefined;
 
 function resting(): bottomDrawerModes.DrawerModeId {
   const first = bottomDrawerModes.modes()[0];
@@ -108,6 +112,8 @@ export function render(source: 'local' | 'push' = 'local'): void {
     root.hidden = true;
     $('bottomdrawer-scrim').hidden = true;
     $('board').classList.remove('drawer-open');
+    layer?.pop();
+    layer = undefined;
   } else if (entry.available) {
     root.classList.toggle('columns', entry.columns);
     for (const candidate of bottomDrawerModes.modes()) {
@@ -127,6 +133,19 @@ export function render(source: 'local' | 'push' = 'local'): void {
     root.hidden = false;
     $('bottomdrawer-scrim').hidden = false;
     $('board').classList.add('drawer-open');
+    if (!layer?.open) {
+      layer = layers.push({
+        kind: 'bottomDrawer',
+        close: () => close(),
+        // The composer's own Escape is the interrupt, and the ask layer keeps
+        // its own. Without the yield, Escape with the caret in the box closed
+        // the drawer and stopped the session.
+        escape: 'consume',
+        yieldsToComposer: true,
+        ground: true,
+        root: () => [root, $('bottomdrawer-scrim')]
+      });
+    }
     if (!ui.ready) {
       const body = $('bottomdrawer-body');
       body
@@ -159,33 +178,15 @@ function concealSlots(): void {
  * is a press past it. `#bottomdrawer` is a child of `#board`, so the same rule would
  * shut this on its own row buttons and its own filter box. Hence the
  * first line: everything inside the drawer is inside, whatever else it is.
+ * A press that landed in a layer above it — the lightbox, a dialog, a picker,
+ * all children of `#board` — is that layer's, not a press past the drawer.
  */
 document.addEventListener('click', (e) => {
-  if (!raised) return;
+  if (!raised || (layer && layers.above(layer, e))) return;
   const t = e.target;
   if (!(t instanceof Element)) return;
   if (t.closest('#bottomdrawer') || t.closest('#bottomhub')) return;
   if (t.closest('#bottomdrawer-scrim') || t.closest('#board')) close();
-});
-
-/** Esc shuts it; the composer's own Escape (interrupt) and the ask layer keep
- *  theirs. A mode may consume the key first, from this one listener: a second
- *  listener on the same key would still run after this one returns. */
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || !raised || mode === undefined) return;
-  if (imeKey(e)) return;
-  const current = bottomDrawerModes.modeFor(mode);
-  if (current.available && current.escape?.()) {
-    e.preventDefault();
-    return;
-  }
-  const t = e.target;
-  // The composer's own Escape is the interrupt, and the ask layer keeps its
-  // own. Dropping the `#input` half made Escape with the caret in the box
-  // close the drawer and stop the session.
-  if (t instanceof HTMLElement && t.closest('#input, #ask')) return;
-  e.preventDefault();
-  close();
 });
 
 $('bottomdrawer-close').onclick = () => close();

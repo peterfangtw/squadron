@@ -31,7 +31,7 @@ import { delivered } from '../core/coordination/send';
 import { resolve, stepList } from './reading';
 import { pathHeading, shorten } from './text';
 import { withoutImageMarkers } from '../core/markers';
-import { sameSessionStart } from '../core/model';
+import { isMidTurn, sameSessionStart } from '../core/model';
 import { refFor } from '../core/session_ref';
 import { warmOwned } from '../core/transcript';
 import * as warm from '../core/warm';
@@ -502,7 +502,36 @@ function cacheTtlMs(session: Session): number {
     : DEFAULT_WARM_POLICY.ttlMs[sessionBrand(session.brand)];
 }
 
+/** What `offersInterrupt` reads: the card's own fields, so the card it
+ *  composes and the answer it ships cannot disagree. */
+export type InterruptFacts = Pick<
+  CardView,
+  'status' | 'turnPending' | 'closing' | 'endStuck' | 'canControl' | 'owned'
+>;
+
+/**
+ * Whether there is a turn to end right now, for every surface that offers it.
+ *
+ * Only while a turn is open (`isMidTurn`) and the CLI has opened it: before
+ * that (`turnPending`) there is nothing an interrupt could retract. Never on a
+ * session being ended, or whose end failed: the pipe the frame would ride on is
+ * closed, and the host does not refuse that request cleanly. A `waiting` turn
+ * needs `owned` too, because `canControl` stays true when control is invalid on
+ * a session this window does not drive, and that session has no pipe an
+ * interrupt can retract its dialog through.
+ */
+export function offersInterrupt(card: InterruptFacts): boolean {
+  if (!card.canControl || !isMidTurn(card.status)) return false;
+  if (card.turnPending || card.closing || card.endStuck) return false;
+  return card.status !== 'waiting' || card.owned === true;
+}
+
 export function toCard(session: Session, lineage?: Lineage): CardView {
+  const card = cardOf(session, lineage);
+  return { ...card, canInterrupt: offersInterrupt(card) };
+}
+
+function cardOf(session: Session, lineage?: Lineage): Omit<CardView, 'canInterrupt'> {
   const control = sessionTarget.controlOf(session);
   return {
     pid: session.pid,
@@ -627,7 +656,8 @@ export type ThreadInputs = {
   lineage?: Lineage;
   /** Start-model rows this session's brand owns. The gear keeps the union. */
   models?: readonly Model[];
-  /** Whether this thread can select a target for its next message. */
+  /** Whether this thread can select a target for its next message, as
+   *  `composeThread` decides it. Absent is no. */
   canModel?: boolean;
   /** What this session can load, for the composer's `@` menu. From its own
    *  `init` where it has had one, else what this window learnt from another
@@ -838,9 +868,12 @@ export type ThreadHalves = {
 };
 
 /** What the host knows about the open session beyond its two halves. */
-export type ThreadContext = Pick<ThreadInputs, 'lineage' | 'workflow' | 'canModel' | 'models'> & {
+export type ThreadContext = Pick<ThreadInputs, 'lineage' | 'workflow' | 'models'> & {
   /** Folder discoveries resolved for the actual cwd and CLI. */
   skillsHere?: readonly string[];
+  /** This window holds the session's `messages` capability, the port that
+   *  targets one message at a model (`core/adapter.ts`). */
+  messages?: boolean;
 };
 
 /**
@@ -877,7 +910,8 @@ export function composeThread(
     lineage: context.lineage,
     skills: live && !session.background ? context.skillsHere : undefined,
     workflow: context.workflow,
-    canModel: context.canModel,
+    // A model per message rides the pipe this window holds, through its port.
+    canModel: reachable && context.messages === true,
     models: context.models
   });
 }
@@ -1075,7 +1109,7 @@ export function toThread(session: Session, inputs: ThreadInputs): ThreadView {
     // is the reader: a refusal it is holding yields to `blockedReason` here and
     // nowhere else — see `chat.ts`.
     ...(ended ? { ended: true } : {}),
-    ...(inputs.canModel === false ? { canModel: false as const } : {}),
+    canModel: inputs.canModel === true,
     ...(inputs.models?.length ? { models: modelViews(inputs.models) } : {}),
     blockedReason: isBackground
       ? 'Background session — it has no controllable pipe.'

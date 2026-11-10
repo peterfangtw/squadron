@@ -190,7 +190,7 @@ it(
       t.child.publish,
       () => Promise.resolve(true)
     );
-    assert.equal(result.notStarted, true);
+    assert.deepEqual(result, { ok: false, outcome: 'stopped' });
     assert.equal(await t.ledger.notStarted(expected(t.view())), 'committed');
     context.mock.restoreAll();
     const next = await children.child(t.t.host, 'claude', cwd);

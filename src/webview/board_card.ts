@@ -175,18 +175,16 @@ export function card(s: CardView): HTMLElement {
     return control;
   };
   if (s.canControl) {
-    // Only while there is a turn to end. Absent rather than disabled: an idle
-    // session has nothing to interrupt, and a `waiting` one would read the same
-    // ESC as "cancel the dialog".
-    // Never on a session being ended either, and it is the *only* control an
-    // end takes away: the pipe it would put the frame on is closed. End stays
+    // Absent rather than disabled: an idle session has nothing to interrupt.
+    // A `waiting` card leaves it to the dialog, whose Cancel is the same verb.
+    // It is the *only* control an end takes away (`offersInterrupt`). End stays
     // — an end that was not honoured is exactly when a second one is wanted,
     // and the dock's own End is on screen for the same session regardless, so
     // taking this one away would only make the two surfaces disagree.
-    if (s.status === 'busy' && !s.turnPending && !s.closing && !s.endStuck) {
+    if (s.canInterrupt && s.status !== 'waiting') {
       actions.append(button(ICONS.interrupt, 'Interrupt turn', 'interrupt'));
     }
-    if (s.warm && s.warm.held !== 'unsupported') {
+    if (warmRows.warmable(s.warm)) {
       const toggle = button(ICONS.flame, 'Keep prompt cache warm', 'warm');
       toggle.setAttribute('aria-pressed', String(warmChoice.shown(s)));
       actions.append(toggle);

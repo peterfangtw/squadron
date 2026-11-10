@@ -390,7 +390,7 @@ describe('remoteVerbs message evidence', () => {
         prompt: 'go',
         correlation: 'lost-start'
       }),
-      { ok: false, reason: ask.UNANSWERED, unsure: true }
+      { ok: false, reason: ask.UNANSWERED, outcome: 'unknown' }
     );
     assert.equal(attempts, 3);
   });
@@ -962,29 +962,37 @@ describe('remote selection requests', () => {
     }
   });
 
-  it('preserves only positive pre-launch acknowledgments on failed replies', async () => {
-    for (const reply of [
-      {
-        ok: false,
-        reason: 'before child',
-        notStarted: true as const,
-        selectionInvalid: true as const
-      },
-      { ok: false, reason: 'after child' }
-    ]) {
+  it('reads a failed start reply by its outcome alone, and a reply with none as unknown', async () => {
+    const incomingStart = { attempt: {} } as unknown as NonNullable<
+      Parameters<SessionVerbs['start']>[0]['incomingStart']
+    >;
+    for (const [reply, started] of [
+      [
+        { ok: false, reason: 'before child', outcome: 'stopped', selectionInvalid: true },
+        { ok: false, reason: 'before child', outcome: 'stopped', selectionInvalid: true }
+      ],
+      [
+        { ok: false, reason: 'after child', outcome: 'unknown' },
+        { ok: false, reason: 'after child', outcome: 'unknown' }
+      ],
+      [
+        { ok: false, reason: 'threw' },
+        { ok: false, reason: 'threw', outcome: 'unknown' }
+      ]
+    ] as const) {
       const t = rig({
         ask: () =>
-          Promise.resolve({
-            ok: false,
-            kind: 'refused',
-            reason: reply.reason,
-            reply,
-            file: 'request'
-          })
+          Promise.resolve({ ok: false, kind: 'refused', reason: reply.reason, reply, file: 'r' })
       });
       assert.deepEqual(
         await t.verbs.start({ windowId: THERE, cwd: '/work', prompt: 'go', selection: 'default' }),
-        reply
+        started,
+        `open: ${reply.reason}`
+      );
+      assert.deepEqual(
+        await t.verbs.start({ windowId: THERE, cwd: '/work', prompt: 'go', incomingStart }),
+        started,
+        `remoteStartFilesV1: ${reply.reason}`
       );
     }
   });

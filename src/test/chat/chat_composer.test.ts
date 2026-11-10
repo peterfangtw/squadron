@@ -1288,9 +1288,8 @@ describe('the composer is one editor', () => {
     p.push({
       type: 'openResult',
       draftId,
-      ok: false,
-      notStarted: true,
-      reason: 'That session did not start.'
+      outcome: 'stopped',
+      notice: 'That session did not start.'
     });
     typeIn(p, 'later');
     p.window.document.querySelector<HTMLElement>('[data-act="retry-held"]')?.click();

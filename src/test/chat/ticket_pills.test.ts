@@ -1,7 +1,7 @@
 import * as MarkdownIt from 'markdown-it';
 import * as assert from 'node:assert/strict';
 import { it } from 'node:test';
-import { groupView, openThread, stateMessage, threadView } from '../harness';
+import { groupView, openThread, stateMessage, threadView, typeIn } from '../harness';
 import * as mentions from '../../webview/mention_text';
 import * as refs from '../../core/ticket_ref';
 import { ticketPriority, ticketSourceView, ticketState } from '../ticket_fixtures';
@@ -126,3 +126,58 @@ for (const [name, ticket, ref, expected] of [
     assert.equal(p.posted.at(-1)?.type, expected);
   });
 }
+
+it('reads the ticket number off any source identifier, keeping an unrecognised one whole', () => {
+  for (const [identifier, number] of [
+    ['ENG-42', 'ENG-42'],
+    ['acme/acme-web#42', '#42'],
+    ['acme-web#42', '#42'],
+    ['GH-7', 'GH-7'],
+    ['draft', 'draft']
+  ] as const)
+    assert.equal(refs.ticketNumber(identifier), number, identifier);
+});
+
+it('lists a ticket as its number then its title, and still finds it by the full identifier', () => {
+  const github: TicketView = {
+    ...row,
+    key: 'issue-b',
+    identifier: 'acme/acme-web#42',
+    title: 'Speed up release CD',
+    url: 'https://example.test/acme/acme-web/issues/42'
+  };
+  const picked = (query: string): mentions.Row[] =>
+    mentions
+      .linesFor({ tickets: [row, github] }, query, [])
+      .lines.filter((line): line is mentions.Row => 'act' in line);
+  assert.deepEqual(
+    picked('ticket:').map((r) => [r.name, r.meta]),
+    [
+      ['ENG-42', 'Check the ticket'],
+      ['#42', 'Speed up release CD']
+    ]
+  );
+  assert.deepEqual(
+    picked('ticket:acme').map((r) => r.name),
+    ['#42']
+  );
+  const pick = picked('ticket:acme')[0];
+  assert.ok(pick && 'mention' in pick.act);
+  assert.equal(pick.act.mention.label, '@acme/acme-web#42');
+});
+
+it('draws a ticket row on one line: the number kept whole, the title cut with an ellipsis', (t) => {
+  // jsdom resolves the cascade by source order and lays nothing out; the one
+  // line itself is ticket_pills.smoke.ts.
+  const p = openThread(t, threadView(), { ticketSource: ticketSourceView(), tickets: [row] });
+  typeIn(p, '@ticket:', 8);
+  const node = p.window.document.querySelector<HTMLElement>('#mentionmenu .mnrow.titled');
+  assert.ok(node, 'a ticket row');
+  const style = (sel: string): CSSStyleDeclaration =>
+    p.window.getComputedStyle(node.querySelector(sel)!);
+  assert.equal(style('.nm').whiteSpace, 'nowrap');
+  assert.equal(style('.nm').flexShrink, '0');
+  assert.equal(style('.meta').whiteSpace, 'nowrap');
+  assert.equal(style('.meta').overflow, 'hidden');
+  assert.equal(style('.meta').textOverflow, 'ellipsis');
+});

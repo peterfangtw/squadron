@@ -7,7 +7,7 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import * as util from 'node:util';
 import * as validation from '../../cli/workflow-validation';
 import * as paths from '../../core/paths';
-import { homeEnv, repoRoot } from '../helpers';
+import { homeEnv, repoRoot, withoutForceColor } from '../helpers';
 
 const bundle = path.join(repoRoot(), 'dist', `${paths.WORKFLOW_VALIDATION_SHIM}.js`);
 const execFile = util.promisify(childProcess.execFile);
@@ -43,7 +43,7 @@ describe('workflow-validation', () => {
   it('runs the bundled command without an IDE or a session and writes no run state', async () => {
     const { stdout, stderr } = await execFile(process.execPath, [bundle, '--file-path', file], {
       cwd: home,
-      env: { ...process.env, ...homeEnv(home) }
+      env: withoutForceColor({ ...process.env, ...homeEnv(home) })
     });
     assert.deepEqual(JSON.parse(stdout), { ok: true, file, cwd: home, reasons: [] });
     assert.equal(stderr, '');
@@ -53,7 +53,9 @@ describe('workflow-validation', () => {
   it('returns machine-readable errors and exit 2 for an invalid workflow', async () => {
     await fs.writeFile(file, JSON.stringify({ ...definition, steps: [] }));
     await assert.rejects(
-      execFile(process.execPath, [bundle, '--file-path', file, '--cwd-path', home]),
+      execFile(process.execPath, [bundle, '--file-path', file, '--cwd-path', home], {
+        env: withoutForceColor()
+      }),
       (error: unknown) => {
         const result = error as { code: number; stdout: string; stderr: string };
         assert.equal(result.code, 2);

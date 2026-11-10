@@ -625,9 +625,9 @@ describe('the persistent shell', () => {
     enter(p);
     const open = p.posted.find((m) => m.type === 'open');
     assert.equal(open?.cwd, cwd);
-    assert.equal(open?.model, 'haiku');
-    assert.equal(open?.window, 200_000);
-    assert.equal(open?.effort, 'high');
+    assert.equal(open?.target?.model, 'haiku');
+    assert.equal(open?.target?.window, 200_000);
+    assert.equal(open?.target?.effort, 'high');
     answerOpen(p, 303, 303_000);
     const sent = p.posted.find((m) => m.type === 'send' && m.pid === 303);
     assert.ok(sent?.type === 'send');
@@ -666,9 +666,8 @@ describe('the persistent shell', () => {
         p.push({
           type: 'openResult',
           draftId: open.draftId,
-          ok: false,
-          notStarted: true,
-          reason: 'Start refused'
+          outcome: 'stopped',
+          notice: 'Start refused'
         });
         assert.ok(p.window.document.getElementById('chat')?.classList.contains('start'));
         assert.equal(p.window.document.getElementById('chat-startup')?.hidden, true);
@@ -747,10 +746,10 @@ describe('the dock on a draft', () => {
         enter(p);
         const opened = p.posted.find((message) => message.type === 'open');
         assert.ok(opened);
-        assert.equal(opened.brand ?? 'claude', brand);
-        assert.equal(opened.model, model);
-        assert.equal(opened.window, window);
-        assert.equal(opened.effort, expected);
+        assert.equal(opened.target?.brand ?? 'claude', brand);
+        assert.equal(opened.target?.model, model);
+        assert.equal(opened.target?.window, window);
+        assert.equal(opened.target?.effort, expected);
       });
     }
   }
@@ -803,7 +802,7 @@ describe('the dock on a draft', () => {
       enter(p);
       const opened = p.posted.find((message) => message.type === 'open');
       assert.ok(opened);
-      assert.equal(opened.effort, 'medium');
+      assert.equal(opened.target?.effort, 'medium');
     });
   }
 
@@ -839,7 +838,7 @@ describe('the dock on a draft', () => {
     enter(p);
     const opened = p.posted.find((message) => message.type === 'open');
     assert.ok(opened);
-    assert.equal(opened.effort, 'low');
+    assert.equal(opened.target?.effort, 'low');
   });
 
   it('paints a composer rather than the vacant plate', (t) => {

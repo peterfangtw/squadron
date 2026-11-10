@@ -21,10 +21,15 @@ import { rowKey, srvKey, STOP_WAIT_MS, stopListener, stopMark, stopRecord } from
 import { findCard } from './board_card';
 import { $, el, q } from './dom';
 import { morph } from './kit';
+import * as layers from './layers';
 import { chats, ui, vscode } from './state';
 
 const scrim = $('rscrim');
 const sheet = $('runsheet');
+/** On the stack while the sheet is up. Escape is its own only from inside it:
+ *  this is modal over the board, and Escape at a session's ask is a different
+ *  Escape entirely. */
+let layer: layers.Handle | undefined;
 const body = $('rbody');
 
 /** Long enough for the poll that shows a started server, short enough that a
@@ -67,10 +72,20 @@ export function openRunPicker(group: string, tree?: string): void {
   open = { group, tree: entry.tree, branch: entry.branch };
   scrim.hidden = false;
   sheet.hidden = false;
+  layer ??= layers.push({
+    kind: 'serversSheet',
+    close: closeRunPicker,
+    escape: (e) => {
+      if (!(e.target instanceof Node && sheet.contains(e.target))) return false;
+      closeRunPicker();
+      return true;
+    },
+    root: () => [sheet, scrim]
+  });
   ask(rows, entry);
   paint();
-  // The sheet itself: Escape is listened for here, and before the answer lands
-  // the sheet may hold nothing else to focus.
+  // The sheet itself: Escape is its own only from inside it, and before the
+  // answer lands the sheet may hold nothing else to focus.
   sheet.focus();
 }
 
@@ -88,6 +103,8 @@ export function closeRunPicker(): void {
   asked = '';
   scrim.hidden = true;
   sheet.hidden = true;
+  layer?.pop();
+  layer = undefined;
   [...document.querySelectorAll<HTMLElement>('.sdoor')]
     .find((door) => door.dataset.group === group)
     ?.focus();
@@ -724,7 +741,7 @@ body.addEventListener('click', (e) => {
   if (!hit) return;
   press(hit);
   // Run and Stop replace what was pressed. Focus falling to the document would
-  // take Escape with it, which is listened for on the sheet.
+  // take Escape with it, which the sheet takes only from inside.
   if (document.activeElement === document.body) sheet.focus();
 });
 // Delegated, as clicks are: the field is morphed and keeps no handler.
@@ -737,12 +754,10 @@ body.addEventListener('input', (e) => {
 });
 scrim.onclick = () => closeRunPicker();
 
-// On the sheet rather than the document: this is modal over the board, and
-// Escape at a session's ask is a different Escape entirely.
+// On the sheet rather than the document: this is modal over the board. Its
+// Escape is the layer's, above.
 sheet.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    closeRunPicker();
-  } else if (e.key === 'Enter' && expanded !== undefined) {
+  if (e.key === 'Enter' && expanded !== undefined) {
     // Not over a button: a tile's own Enter arms it, and booting as well would
     // make one keystroke pick a port and start on it. Nor over a refused or
     // held tile, which is not a button and whose port is not the armed one.

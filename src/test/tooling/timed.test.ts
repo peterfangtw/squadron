@@ -937,6 +937,134 @@ describe('scripts/timed.mjs gate', () => {
     }
   );
 
+  /**
+   * A step that, once `go` exists, leaves a child in its group after the last
+   * native read (holding until `free`) and exits: no record names that child.
+   */
+  const ORPHANING = [
+    "const fs = require('node:fs'), cp = require('node:child_process');",
+    "fs.writeFileSync('started', '');",
+    'const orphan = [',
+    "  \"const fs = require('node:fs'); fs.writeFileSync('orphan', String(process.pid));\",",
+    '  "const end = Date.now() + 30000;",',
+    '  "setInterval(() => { if (fs.existsSync(\'free\') || Date.now() > end) process.exit(0); }, 50);"',
+    "].join('');",
+    'const poll = setInterval(() => {',
+    "  if (!fs.existsSync('go')) return;",
+    '  clearInterval(poll);',
+    "  cp.spawn(process.execPath, ['-e', orphan], { stdio: 'ignore' }).unref();",
+    "  const wait = setInterval(() => { if (fs.existsSync('orphan')) process.exit(0); }, 20);",
+    '}, 50);'
+  ].join('\n');
+
+  for (const mode of ['killed', 'pruned', 'orphaned'] as const) {
+    it(
+      {
+        killed:
+          'reclaims the slot of a runner killed before closing its job, once every member is gone',
+        pruned:
+          'keeps a killed runner’s run folder while it holds the gate, then reclaims the slot',
+        orphaned: 'keeps a killed runner’s slot while an unrecorded descendant stays in its group'
+      }[mode],
+      {
+        skip:
+          testPlatform() === 'win32' &&
+          'win32: a lost coordinator retains the slot until descendants are witnessed — squadron-private#277'
+      },
+      async () => {
+        const dir = await repo();
+        const SQUADRON_GATE_DIR = await gate();
+        await stepScript(dir);
+        await fs.writeFile(path.join(dir, 'orphaning.cjs'), ORPHANING);
+        // The 2026-11-09 holder: its runner recorded the cancel and was killed
+        // before it could close the job, while the step ran on.
+        const step =
+          mode === 'orphaned' ? 'node orphaning.cjs' : 'node step.cjs hold started finished';
+        const first = runner(dir, [`compile=${step}`], {
+          SQUADRON_GATE_DIR,
+          ...preloadEnv(
+            dir,
+            `
+            const fs=require('node:fs');const rename=fs.renameSync;
+            fs.renameSync=function(from,to){
+              const result=rename.apply(this,arguments);
+              if(/\\.cancel-\\d+\\.json$/.test(String(to)))process.kill(process.pid,'SIGKILL');
+              return result;
+            };
+          `
+          )
+        });
+        const follow = (timeout: number, marker: string) => {
+          const ran = timed(dir, [`compile=node step.cjs touch ${marker}`], {
+            SQUADRON_GATE_DIR,
+            SQUADRON_GATE_TIMEOUT_MS: String(timeout)
+          });
+          return { status: ran.status, stderr: ran.stderr };
+        };
+        const gone = (pid: number) => {
+          try {
+            process.kill(pid, 0);
+            return false;
+          } catch {
+            return true;
+          }
+        };
+        try {
+          await until(() => exists(path.join(dir, 'started')), 'step started');
+          const holder = JSON.parse(
+            await fs.readFile(path.join(SQUADRON_GATE_DIR, 'holder'), 'utf8')
+          ) as { job: { file: string }; workerPid: number };
+          first.child.kill('SIGTERM');
+          assert.equal(await closedWithin(first.closed), 137, first.stderr());
+          const job = holder.job.file;
+          const files = await fs.readdir(path.dirname(job));
+          assert.ok(
+            files.some((name) => name.includes('.cancel-')),
+            files.join(' ')
+          );
+          assert.ok(!files.some((name) => name.endsWith('.closed.json')), files.join(' '));
+
+          if (mode !== 'orphaned') {
+            const early = follow(300, 'early');
+            assert.equal(early.status, 75, 'a live member keeps the slot: ' + early.stderr);
+          }
+          await fs.writeFile(path.join(dir, 'go'), '');
+          await until(() => gone(holder.workerPid), 'wrapper exited');
+          if (mode === 'orphaned') {
+            const orphan = Number(await fs.readFile(path.join(dir, 'orphan'), 'utf8'));
+            assert.equal(gone(orphan), false, 'the orphan outlives its step and wrapper');
+            const state = JSON.parse(await fs.readFile(job + '.state.json', 'utf8')) as {
+              members: { pid: number }[];
+            };
+            assert.ok(!state.members.some((member) => member.pid === orphan), 'no record names it');
+            const early = follow(300, 'early');
+            assert.equal(early.status, 75, 'its group keeps the slot: ' + early.stderr);
+            await fs.writeFile(path.join(dir, 'free'), '');
+            await until(() => gone(orphan), 'orphan exited');
+          }
+          assert.equal(await exists(path.join(dir, 'early')), false);
+          if (mode === 'pruned') {
+            // Twenty newer folders put the killed run's past the prune's keep.
+            const runs = path.dirname(path.dirname(job));
+            for (let at = 0; at < 21; at++)
+              await fs.mkdir(
+                path.join(runs, `2099-01-01T00-00-${String(at).padStart(2, '0')}.000Z-x-1`)
+              );
+          }
+          const follower = follow(3000, 'admitted');
+          assert.equal(follower.status, 0, follower.stderr);
+          assert.equal(await exists(path.join(dir, 'admitted')), true);
+          assert.equal(await exists(path.join(SQUADRON_GATE_DIR, 'holder')), false);
+        } finally {
+          await fs.writeFile(path.join(dir, 'go'), '');
+          await fs.writeFile(path.join(dir, 'free'), '');
+          first.child.kill('SIGKILL');
+          await closedWithin(first.closed);
+        }
+      }
+    );
+  }
+
   it('keeps competing work outside the gate during acknowledged cleanup', async () => {
     const dir = await repo();
     const SQUADRON_GATE_DIR = await gate();
@@ -1290,7 +1418,7 @@ unnamed.watch = function (target, ...rest) {
   });
 
   it(
-    'retains unconfirmed ownership after a killed runner’s step exits',
+    'retains a killed runner’s slot while its step runs, and reclaims it once the step exits',
     { todo: gateLivenessTodo, timeout: 60_000 },
     async () => {
       const dir = await repo();
@@ -1312,10 +1440,10 @@ unnamed.watch = function (target, ...rest) {
           }
           const follower = timed(dir, ['compile=node step.cjs touch admitted'], {
             SQUADRON_GATE_DIR,
-            SQUADRON_GATE_TIMEOUT_MS: '100'
+            SQUADRON_GATE_TIMEOUT_MS: released ? '3000' : '100'
           });
-          assert.equal(follower.status, 75, follower.stderr);
-          assert.equal(await exists(path.join(dir, 'admitted')), false);
+          assert.equal(follower.status, released ? 0 : 75, follower.stderr);
+          assert.equal(await exists(path.join(dir, 'admitted')), released);
         }
       } finally {
         // Releases the orphaned step even when the follower never waited.

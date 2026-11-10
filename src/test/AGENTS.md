@@ -341,6 +341,12 @@ cost. It is compiled with everything else and spawned as
 spellings — a fixture that agreed with our reader instead of with the CLI would
 pass while the real thing failed.
 
+**A fake CLI never runs under the real home.** `npm run dev:host` keeps the
+machine's home, so a hand-check that points `squadron.claudePath` (or a
+sibling) at `fake-cli.js` lets the fixture write machine-wide state that
+every window reads, plan usage among it. A scenario that needs a fake CLI in a
+real host is a smoke file, whose home is temporary.
+
 `fixtures/fake-acp.ts` is the same idea for Grok: JSON-RPC ACP on stdio, spawned
 as `out/test/fixtures/fake-acp.js` by `grok_session.test.ts`. Handshake and stream
 shapes are from `docs/reference/cli_state/grok/protocol.md` (1.0.4).

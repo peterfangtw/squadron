@@ -518,9 +518,8 @@ describe('New startup is the only extra delivery step', () => {
     p.push({
       type: 'openResult',
       draftId: first,
-      ok: false,
-      notStarted: true,
-      reason: 'That session did not start.'
+      outcome: 'stopped',
+      notice: 'That session did not start.'
     });
     const row = p.window.document.querySelector('[data-act="retry-held"]')?.closest('.send-failed');
     assert.match(row?.textContent ?? '', /plan→build→review/);
@@ -543,9 +542,8 @@ describe('New startup is the only extra delivery step', () => {
     p.push({
       type: 'openResult',
       draftId: first,
-      ok: false,
-      notStarted: true,
-      reason: 'That session did not start.'
+      outcome: 'stopped',
+      notice: 'That session did not start.'
     });
     assert.match(composerValue(p), /\/tmp\/late\.ts/);
     assert.ok(
@@ -642,7 +640,7 @@ describe('New startup is the only extra delivery step', () => {
       type: 'startupStatus',
       attemptId: first,
       state: 'stopped',
-      reason: 'Session start stopped.'
+      notice: 'Session start stopped.'
     });
     retryHeld(p);
     assert.notEqual(lastOpen(p).draftId, first, 'timeout retry reused the retired attempt');

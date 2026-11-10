@@ -17,12 +17,14 @@ import {
 } from './kit';
 import { Picker, picker, SortDir } from './picker';
 import { linearMark, githubMark } from './mcp_marks';
+import * as ticketToken from '../core/ticket_token';
 
 const sourceMarks: Record<TicketSourceMarkId, () => HTMLElement> = {
   linear: linearMark,
   github: githubMark
 };
-let sourceGeneration: string | undefined;
+/** The token `settleFilter` last saw; a new one drops the pending pick and its menus. */
+let settledToken: TicketSelectionToken | undefined;
 let refreshScopeChoices: ((source: TicketSourceStatus) => void) | undefined;
 let observedNotice: HTMLElement | null = null;
 const noticeResize =
@@ -47,43 +49,42 @@ function paintTicketList(nodes: HTMLElement[]): void {
   if (notice) noticeResize?.observe(notice);
 }
 
-function token(): TicketSelectionToken {
-  const source = ui.state.ticketSource;
-  return {
-    ...(source?.boards ? { sourceId: source.sourceId } : {}),
-    generation: source?.generation ?? -1,
-    selectionSeq: source?.selectionSeq ?? 0,
-    ...(source?.scopeId ? { scopeId: source.scopeId } : {})
-  };
-}
+/** Whether the tab still shows the selection a control was painted under. */
 function current(was: TicketSelectionToken): boolean {
-  const now = token();
-  return (
-    now.sourceId === was.sourceId &&
-    now.generation === was.generation &&
-    now.selectionSeq === was.selectionSeq &&
-    now.scopeId === was.scopeId
-  );
+  const shown = ui.state.ticketSource?.token;
+  return !!shown && ticketToken.sameToken(shown, was);
 }
+
+// The host's newest tickets state, kept while a pick's optimistic state fences
+// it, so a refused pick has something true to return to.
+let served: { source: TicketSourceStatus | undefined; tickets: TicketView[] | undefined } = {
+  source: undefined,
+  tickets: undefined
+};
 
 /** A delayed board push must not undo a pick already made in this document. */
 export function fenceTicketState(message: StateMessage): void {
   const before = ui.state.ticketSource;
   const next = message.ticketSource;
-  if (
-    before &&
-    next &&
-    (next.generation < before.generation ||
-      (next.generation === before.generation && next.selectionSeq < before.selectionSeq))
-  ) {
+  served = { source: next, tickets: message.tickets };
+  if (before && next && ticketToken.newer(before.token, next.token)) {
     message.ticketSource = before;
     message.tickets = ui.state.tickets;
   }
 }
 
+/** A refused pick drops its optimistic board, only while the tab still shows that pick. */
+export function refuseTicketScope(refused: TicketSelectionToken): void {
+  if (!current(refused)) return;
+  ui.state.ticketSource = served.source;
+  ui.state.tickets = served.tickets;
+  settleFilter();
+  renderTickets();
+}
+
 function scopePicker(source: TicketSourceStatus): HTMLElement {
   refreshScopeChoices = undefined;
-  const rendered = token();
+  const rendered = source.token;
   const boards = (value: TicketSourceStatus): TicketBoard[] | undefined =>
     value.boards ??
     value.scopes?.map((scope) => ({
@@ -130,8 +131,9 @@ function scopePicker(source: TicketSourceStatus): HTMLElement {
               };
               ui.state.ticketSource = {
                 ...source,
-                ...next,
+                token: next,
                 sourceId: scope.sourceId,
+                scopeId: scope.id,
                 presentation: scope.presentation,
                 options: undefined,
                 filter: { assignee: 'anyone', states: [], priorities: [] },
@@ -173,13 +175,11 @@ function scopePicker(source: TicketSourceStatus): HTMLElement {
         'one',
         () => {
           closeMenu();
-          vscode.postMessage({
-            type: connection.failure === 'credentials' ? 'connectTicketSource' : 'refreshTickets',
-            ...rendered,
-            ...(connection.failure === 'credentials'
-              ? { provider: connection.sourceId }
-              : { catalog: true })
-          });
+          vscode.postMessage(
+            connection.failure === 'credentials'
+              ? { type: 'connectTicketSource', ...rendered, provider: connection.sourceId }
+              : { type: 'refreshTickets', ...rendered, catalog: true }
+          );
         }
       );
       body.append(recovery);
@@ -198,13 +198,20 @@ function scopePicker(source: TicketSourceStatus): HTMLElement {
         })
       );
     }
-    if (source.connections)
+    // The host lists only the sources not yet connected; a connected one is
+    // re-keyed from the header's key button. Below the same divider as the rest.
+    for (const offer of source.connections ? (source.offers ?? []) : []) {
       body.append(
-        menuItem('Connect a ticket source…', false, 'one', () => {
+        menuItem('Connect ' + offer.label, false, 'one', () => {
           closeMenu();
-          vscode.postMessage({ type: 'connectTicketSource', ...rendered, provider: 'choose' });
+          vscode.postMessage({
+            type: 'connectTicketSource',
+            ...rendered,
+            provider: offer.sourceId
+          });
         })
       );
+    }
   });
   control.wrap.append(menu);
   return control.wrap;
@@ -284,8 +291,8 @@ function currentFilter(): TicketFilterView {
 }
 
 /** Post a filter change; the host refetches and echoes the new selection back. */
-function setFilter(next: TicketFilterView, rendered = token()): void {
-  if (!current(rendered)) return;
+function setFilter(next: TicketFilterView, rendered = ui.state.ticketSource?.token): void {
+  if (!rendered || !current(rendered)) return;
   wantFilter = next;
   vscode.postMessage({ type: 'setTicketFilter', ...rendered, filter: next });
 }
@@ -293,11 +300,13 @@ function setFilter(next: TicketFilterView, rendered = token()): void {
 /** Drop the pending pick once the host's answer agrees with it. */
 export function settleFilter(): void {
   const source = ui.state.ticketSource;
-  const identity = source
-    ? JSON.stringify([source.sourceId, source.generation, source.selectionSeq, source.scopeId])
-    : undefined;
-  if (identity !== sourceGeneration) {
-    sourceGeneration = identity;
+  const shown = source?.token;
+  if (
+    shown === undefined || settledToken === undefined
+      ? shown !== settledToken
+      : !ticketToken.sameToken(shown, settledToken)
+  ) {
+    settledToken = shown;
     wantFilter = null;
     shutLanes.clear();
     sortDir = null;
@@ -357,10 +366,11 @@ let sortDir: SortDir = null;
  * would silently undo a pick made since.
  */
 function renderTicketFilter(root: HTMLElement): void {
-  const options = ui.state.ticketSource?.options;
+  const source = ui.state.ticketSource;
+  const options = source?.options;
   if (!options) return;
   const filter = currentFilter();
-  const rendered = token();
+  const rendered = source.token;
   const changeFilter = (next: TicketFilterView): void => setFilter(next, rendered);
 
   const pills: Picker[] = [];
@@ -514,7 +524,7 @@ export function renderTickets(): void {
     paintTicketList([pending]);
     return;
   }
-  if (!(ui.state.ticketSource?.linked ?? false)) {
+  if (!source?.linked) {
     // No source means no filter to hold on to, whatever menu was open. Through
     // closeMenu, so the pill it hangs off is left closed rather than merely
     // forgotten about.
@@ -522,34 +532,13 @@ export function renderTickets(): void {
     filterEl.replaceChildren();
     if (heldOpen(head)) closeMenu();
     head.replaceChildren(el('span', 'src', 'No ticket source'));
-    const empty = el('div', 'tkempty');
-    empty.dataset.key = 'unlinked';
-    empty.append(
-      el(
-        'div',
-        null,
-        presentation?.connectHint ?? 'Connect a ticket source to see your backlog here.'
-      )
-    );
-    if (presentation) {
-      const connect = el('button', 'tkconnect', presentation.connectLabel);
-      connect.dataset.act = 'connect';
-      connect.dataset.key = 'connect';
-      empty.append(connect);
-      const another = el('button', 'tkclear', 'Connect a ticket source…');
-      another.dataset.act = 'connectChoose';
-      another.dataset.key = 'connectChoose';
-      empty.append(another);
-    }
-    paintTicketList([empty]);
+    paintTicketList([connectPrompt(source)]);
     return;
   }
 
-  if (source) {
-    if (heldOpen(head)) refreshScopeChoices?.(source);
-    else head.replaceChildren(scopePicker(source));
-  }
-  const rendered = token();
+  if (heldOpen(head)) refreshScopeChoices?.(source);
+  else head.replaceChildren(scopePicker(source));
+  const rendered = source.token;
   const refresh = iconButton(ICONS.refresh, 'Refresh tickets', () =>
     vscode.postMessage({ type: 'refreshTickets', ...rendered })
   );
@@ -563,7 +552,7 @@ export function renderTickets(): void {
   actions.append(refresh);
   if (presentation?.reconfigureLabel) {
     const reconfigure = iconButton(ICONS.keyRound, presentation.reconfigureLabel, () =>
-      vscode.postMessage({ type: 'connectTicketSource', ...rendered })
+      vscode.postMessage({ type: 'connectTicketSource', ...rendered, provider: source.sourceId })
     );
     reconfigure.classList.add('reconfigure');
     actions.append(reconfigure);
@@ -586,6 +575,7 @@ export function renderTickets(): void {
     if (presentation?.reconfigureLabel) {
       const recovery = el('button', 'tkconnect', 'Update credentials');
       recovery.dataset.act = 'connect';
+      recovery.dataset.provider = source.sourceId;
       warning.append(recovery);
     }
     nodes.push(warning);
@@ -608,6 +598,7 @@ export function renderTickets(): void {
       source?.failure === 'credentials' ? 'Update credentials' : 'Retry'
     );
     recovery.dataset.act = source?.failure === 'credentials' ? 'connect' : 'retryTickets';
+    recovery.dataset.provider = source.sourceId;
     recovery.toggleAttribute(
       'disabled',
       source?.loading === true && source.failure !== 'credentials'
@@ -700,6 +691,44 @@ export function renderTickets(): void {
 }
 
 /**
+ * The unlinked tab: one prompt, a row per source the host offers. A row goes
+ * straight to its source's connect flow; one whose IDE prompt is open is held
+ * until the host says it returned, so a second press cannot open a second.
+ */
+function connectPrompt(source: TicketSourceStatus | undefined): HTMLElement {
+  const prompt = el('div', 'tkempty tkpick');
+  prompt.dataset.key = 'unlinked';
+  const rows = el('div', 'tksrcs');
+  rows.setAttribute('role', 'list');
+  for (const offer of source?.offers ?? []) {
+    const busy = source?.connecting === offer.sourceId;
+    const row = el('button', 'tksrc');
+    row.setAttribute('role', 'listitem');
+    row.dataset.act = 'connect';
+    row.dataset.provider = offer.sourceId;
+    row.dataset.key = 'connect:' + offer.sourceId;
+    row.toggleAttribute('disabled', busy);
+    const mark = el('span', 'mk');
+    if (offer.mark) mark.append(sourceMarks[offer.mark]());
+    const text = el('span', 'tx');
+    text.append(
+      el('span', 'nm', offer.label),
+      el('span', 'what', busy ? 'Waiting for the key…' : offer.detail)
+    );
+    const go = el('span', 'go', '›');
+    go.setAttribute('aria-hidden', 'true');
+    row.append(mark, text, go);
+    rows.append(row);
+  }
+  prompt.append(
+    el('div', 'tkstate-title', 'Connect a ticket source'),
+    el('div', 'lead', 'Your backlog shows here once one is connected.'),
+    rows
+  );
+  return prompt;
+}
+
+/**
  * The list's clicks, delegated to the one element here a repaint never
  * replaces. A 3 s push rebuilds every row, and a `click` fires on the nearest
  * common ancestor of its mousedown and mouseup targets — so a row replaced
@@ -714,16 +743,15 @@ $('tk-list').addEventListener('click', (e) => {
   const target = e.target instanceof Element ? e.target : null;
   const acted = target?.closest<HTMLElement>('[data-act]');
   if (!acted) return;
-  if (acted.dataset.act === 'connectChoose') {
-    vscode.postMessage({ type: 'connectTicketSource', ...token(), provider: 'choose' });
-    return;
-  }
+  const shown = ui.state.ticketSource?.token;
+  if (!shown) return;
   if (acted.dataset.act === 'connect') {
-    vscode.postMessage({ type: 'connectTicketSource', ...token() });
+    const provider = acted.dataset.provider;
+    if (provider) vscode.postMessage({ type: 'connectTicketSource', ...shown, provider });
     return;
   }
   if (acted.dataset.act === 'retryTickets') {
-    vscode.postMessage({ type: 'refreshTickets', ...token() });
+    vscode.postMessage({ type: 'refreshTickets', ...shown });
     return;
   }
   if (acted.dataset.act === 'clearFilter') {
@@ -746,7 +774,7 @@ $('tk-list').addEventListener('click', (e) => {
   const t = (ui.state.tickets ?? []).find((row) => row.key === id);
   if (!t) return;
   if (acted.dataset.act === 'readTicket') {
-    openTicketDetail(t, token());
+    openTicketDetail(t, shown);
     return;
   }
 });

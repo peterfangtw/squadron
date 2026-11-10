@@ -1,4 +1,5 @@
 import * as place from '../ui/place';
+import * as layers from './layers';
 
 export interface PillStack {
   open: () => boolean;
@@ -21,6 +22,8 @@ export function create(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let touch = false;
   let pinned = false;
+  /** On the layer stack exactly while the pills are up. */
+  let layer: layers.Handle | undefined;
   const expandedAttribute = toggleOnClick ? 'aria-expanded' : 'data-waiting-expanded';
   const blocked = (): boolean =>
     board.classList.contains('drawer-open') ||
@@ -41,6 +44,23 @@ export function create(
       stack.hidden = !open;
       stack.inert = !open;
       trigger.setAttribute(expandedAttribute, String(open));
+      if (open) {
+        layer ??= layers.push({
+          kind: 'pillStack',
+          close: () => controls.setOpen(false),
+          escape: () => {
+            controls.setOpen(false);
+            trigger.focus();
+            return true;
+          },
+          // Drawn in the hub, under whatever opens over the board.
+          ground: true,
+          root: () => [trigger, stack]
+        });
+      } else {
+        layer?.pop();
+        layer = undefined;
+      }
       if (open) {
         position();
         stack.scrollTop = stack.scrollHeight;
@@ -92,12 +112,7 @@ export function create(
     node.addEventListener(
       'keydown',
       (event) => {
-        if (event.key === 'Escape' && controls.open()) {
-          event.preventDefault();
-          event.stopPropagation();
-          controls.setOpen(false);
-          trigger.focus();
-        } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
           if (node === trigger && event.key !== 'ArrowUp') return;
           event.preventDefault();
           controls.setOpen(true);
@@ -137,23 +152,13 @@ export function create(
   document.addEventListener(
     'click',
     (event) => {
+      if (layer && layers.above(layer, event)) return;
       if (
         event.target instanceof Node &&
         !stack.contains(event.target) &&
         !trigger.contains(event.target)
       )
         controls.setOpen(false);
-    },
-    { signal }
-  );
-  document.addEventListener(
-    'keydown',
-    (event) => {
-      if (event.key === 'Escape' && controls.open()) {
-        event.preventDefault();
-        controls.setOpen(false);
-        trigger.focus();
-      }
     },
     { signal }
   );

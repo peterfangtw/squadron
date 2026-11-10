@@ -30,6 +30,8 @@ import { AttachGuard } from '../core/remote/attach';
 import { unclaimAfter } from '../core/remote/holder';
 import { type AttachPort } from '../core/remote/serve_attach';
 import * as skillInstall from '../core/skill_install';
+import * as github from '../core/tickets/github';
+import * as linear from '../core/tickets/linear';
 import { setUsageLog } from '../core/usage';
 import * as examples from '../core/workflows/examples';
 import { registerBeforeImages } from './diff';
@@ -393,9 +395,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('squadron.remote.turnOff', () => host.turnOff()),
     vscode.commands.registerCommand('squadron.remote.connect', () => host.connect()),
     vscode.commands.registerCommand('squadron.remote.disconnect', () => host.disconnect()),
-    vscode.commands.registerCommand('squadron.connectLinear', () => OverviewPanel.connectLinear()),
+    vscode.commands.registerCommand('squadron.connectLinear', () =>
+      OverviewPanel.connectTicketSource(linear.SOURCE_ID)
+    ),
     vscode.commands.registerCommand('squadron.disconnectLinear', () =>
-      OverviewPanel.disconnectLinear()
+      OverviewPanel.disconnectTicketSource(linear.SOURCE_ID)
+    ),
+    vscode.commands.registerCommand('squadron.connectGitHubProjects', () =>
+      OverviewPanel.connectTicketSource(github.SOURCE_ID)
+    ),
+    vscode.commands.registerCommand('squadron.disconnectGitHubProjects', () =>
+      OverviewPanel.disconnectTicketSource(github.SOURCE_ID)
     ),
     // Reading resets, so a reading is always "since the last one" — take one to
     // start the window and another a minute later to read it. The channel is

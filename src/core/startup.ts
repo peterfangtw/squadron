@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import * as perf from './perf';
 import type { BrandId } from './model';
+import type { FailedWord } from './start_outcome';
 import type { RemoteLaunchEvidence } from './bridge/model';
 import { CLEANUP_WAIT_MS, type SessionLifetime, type CleanupResult } from './session_lifetime';
 
@@ -17,18 +18,24 @@ export type StartOutcome =
       brand: BrandId;
       sessionId?: string;
       remoteLaunchEvidence?: RemoteLaunchEvidence;
-      startupVersion?: 1;
       attemptId?: string;
     }
   | {
       ok: false;
       reason: string;
       cause?: 'pick' | 'startup' | 'timeout' | 'cancelled';
-      notStarted?: true;
-      unsure?: true;
-      startupVersion?: 1;
+      outcome: FailedWord;
       attemptId?: string;
     };
+
+/**
+ * What an attempt's work reports. A failure may leave its word out: `settle`
+ * states it from whether a prompt was admitted and a child's cleanup, and a
+ * failure with neither started nothing.
+ */
+export type AttemptResult =
+  | Extract<StartOutcome, { ok: true }>
+  | (Omit<Extract<StartOutcome, { ok: false }>, 'outcome'> & { outcome?: FailedWord });
 
 export class StartupUnknown extends Error {}
 
@@ -99,13 +106,13 @@ export class StartupAttempt {
     return this.outcome;
   }
 
-  run(work: () => Promise<StartOutcome>): Promise<StartOutcome> {
+  run(work: () => Promise<AttemptResult>): Promise<StartOutcome> {
     this.running ??= this.execute(work);
     return this.running;
   }
 
-  private async execute(work: () => Promise<StartOutcome>): Promise<StartOutcome> {
-    let result: StartOutcome;
+  private async execute(work: () => Promise<AttemptResult>): Promise<StartOutcome> {
+    let result: AttemptResult;
     try {
       result = await this.wait('preparing', async () => {
         const outcome = await work();
@@ -117,7 +124,7 @@ export class StartupAttempt {
         ok: false,
         reason: error instanceof Error ? error.message : String(error),
         cause: error instanceof StartupStopped ? error.cause : 'startup',
-        ...(error instanceof StartupUnknown ? { unsure: true } : {})
+        ...(error instanceof StartupUnknown ? { outcome: 'unknown' as const } : {})
       };
     }
     this.finish(result.ok ? 'handed-off' : 'refused');
@@ -136,28 +143,24 @@ export class StartupAttempt {
     return this.cancelling;
   }
 
-  private async settle(result: StartOutcome): Promise<StartOutcome> {
-    if (!result.ok) {
-      if (this.admittedPrompt) result = { ...result, notStarted: undefined, unsure: true };
-      else if (this.lifetime) {
-        this.cleanup = this.lifetime.close();
-        let timer: NodeJS.Timeout | undefined;
-        const state = await Promise.race([
-          this.cleanup,
-          new Promise<'unresolved'>((resolve) => {
-            timer = setTimeout(() => resolve('unresolved'), CLEANUP_WAIT_MS);
-          })
-        ]);
-        clearTimeout(timer);
-        result = {
-          ...result,
-          notStarted: state === 'gone' ? true : undefined,
-          unsure: state === 'gone' ? undefined : true
-        };
-        this.note(`cleanup ${state}; descendant coverage ${this.lifetime.descendantCoverage}`);
-      } else if (!result.unsure) result = { ...result, notStarted: true, unsure: undefined };
-    }
-    this.outcome = { ...result, startupVersion: 1, attemptId: this.id };
+  private async settle(attempted: AttemptResult): Promise<StartOutcome> {
+    let result: StartOutcome;
+    if (attempted.ok) result = attempted;
+    else if (this.admittedPrompt) result = { ...attempted, outcome: 'unknown' };
+    else if (this.lifetime) {
+      this.cleanup = this.lifetime.close();
+      let timer: NodeJS.Timeout | undefined;
+      const state = await Promise.race([
+        this.cleanup,
+        new Promise<'unresolved'>((resolve) => {
+          timer = setTimeout(() => resolve('unresolved'), CLEANUP_WAIT_MS);
+        })
+      ]);
+      clearTimeout(timer);
+      result = { ...attempted, outcome: state === 'gone' ? 'stopped' : 'unknown' };
+      this.note(`cleanup ${state}; descendant coverage ${this.lifetime.descendantCoverage}`);
+    } else result = { ...attempted, outcome: attempted.outcome ?? 'stopped' };
+    this.outcome = { ...result, attemptId: this.id };
     if (this.cleanup)
       void this.cleanup.then((state) => {
         if (state === 'gone') this.confirmCleanup();
@@ -167,7 +170,7 @@ export class StartupAttempt {
 
   private confirmCleanup(): void {
     if (this.outcome && !this.outcome.ok && !this.admittedPrompt)
-      this.outcome = { ...this.outcome, unsure: undefined, notStarted: true };
+      this.outcome = { ...this.outcome, outcome: 'stopped' };
   }
 
   remaining(cap = Infinity): number {

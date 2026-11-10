@@ -64,7 +64,8 @@ describe('the dock head', () => {
     assert.equal(doc.querySelector('#chat-head .pill')?.textContent, 'busy');
     assert.equal(button.style.display, 'none');
 
-    const { turnPending: _, ...opened } = sent;
+    // Rebuilt rather than spread: the push ships the host's answer afresh.
+    const opened = threadView({ status: 'busy' });
     p.push(stateMessage([groupView({ sessions: [opened] })], { thread: opened }));
     assert.notEqual(button.style.display, 'none');
   });

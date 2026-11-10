@@ -10,10 +10,12 @@
  * not the port's current one, or a verb that forces it (sign-in, sign-out,
  * *Re-check*, a path setting).
  *
- * One file per brand under `~/.squadron/`, so the answer outlives the IDE and is
- * shared by every window — and by a fork and stock VS Code on one machine,
- * which share one CLI login and nothing else. A window that finds the record
- * another window wrote, stamp matching, asks nothing.
+ * One file per brand and binary under `~/.squadron/`, so the answer outlives
+ * the IDE and is shared by every window running that binary — and by a fork
+ * and stock VS Code on one machine, which share one CLI login and nothing else.
+ * A window that finds the record another window wrote, stamp matching, asks
+ * nothing. A window whose path setting names another binary keeps its own
+ * record (`signInFile`), so neither answer stands in for the other.
  */
 
 import type { AccountSource, CliAdapter } from './adapter';
@@ -31,14 +33,19 @@ export const RETRY_MS = 60_000;
 
 type SignInRecord = { status: AccountRowStatus; stamp: string };
 
+/** The stored answer of the binary `override` names; none is the default search. */
 export async function storedSignIn(
   brand: BrandId,
-  home?: string
+  opts: { home?: string; override?: string } = {}
 ): Promise<AccountRowStatus | undefined> {
-  return narrow(await readJson<unknown>(signInFile(brand, home)))?.status;
+  return narrow(await readJson<unknown>(signInFile(brand, opts.home, opts.override)))?.status;
 }
 
-/** Per window and in memory only: another window may still try. */
+/**
+ * Per window and in memory only: another window may still try. Per brand, not
+ * per record file: a window holds one path setting per brand, and changing it
+ * forces the next ask past this wait.
+ */
 const failedAt = new Map<BrandId, number>();
 
 export function signInRetryAt(): number | undefined {
@@ -46,11 +53,12 @@ export function signInRetryAt(): number | undefined {
 }
 
 /**
- * The pass running for each brand. `refresh()` is not re-entrant and this runs
- * on every pass, so an ask outliving one pass (Codex 0.6 s, a hang 4 s) would
+ * The pass running for each record file, so a pass for one binary is never
+ * joined by a call for another. `refresh()` is not re-entrant and this runs on
+ * every pass, so an ask outliving one pass (Codex 0.6 s, a hang 4 s) would
  * otherwise be started again by the next.
  */
-const running = new Map<BrandId, Promise<AccountRowStatus | undefined>>();
+const running = new Map<string, Promise<AccountRowStatus | undefined>>();
 
 /**
  * This brand's sign-in, from the store when it can be and from the CLI when it
@@ -70,15 +78,16 @@ export function signInFor(
   source: AccountSource,
   opts: { now: number; force?: boolean; override?: string; home?: string }
 ): Promise<AccountRowStatus | undefined> {
-  const before = running.get(brand);
+  const file = signInFile(brand, opts.home, opts.override);
+  const before = running.get(file);
   if (before && !opts.force) return before;
   const pass = (async () => {
     if (before) await before;
-    return look(brand, source, opts);
+    return look(brand, source, file, opts);
   })();
-  running.set(brand, pass);
+  running.set(file, pass);
   const clear = (): void => {
-    if (running.get(brand) === pass) running.delete(brand);
+    if (running.get(file) === pass) running.delete(file);
   };
   pass.then(clear, clear);
   return pass;
@@ -87,12 +96,13 @@ export function signInFor(
 async function look(
   brand: BrandId,
   source: AccountSource,
-  opts: { now: number; force?: boolean; override?: string; home?: string }
+  file: string,
+  opts: { now: number; force?: boolean; override?: string }
 ): Promise<AccountRowStatus | undefined> {
   // Taken before the ask: an auth file rewritten while the CLI answers then
   // leaves a record under the old stamp, and the next pass asks again.
   const stamp = await source.stamp();
-  const record = narrow(await readJson<unknown>(signInFile(brand, opts.home)));
+  const record = narrow(await readJson<unknown>(file));
   if (!opts.force) {
     // A stamp that cannot be told is no evidence of a change, and asking on it
     // would write a record every other window then reads as one.
@@ -110,14 +120,17 @@ async function look(
   // An answer that could not be stored is a failure of the store: with no
   // record, the next pass would otherwise ask again, every 3 s.
   const stored =
-    stamp !== undefined &&
-    (await writeAtomicJson(signInFile(brand, opts.home), { status, stamp } satisfies SignInRecord));
+    stamp !== undefined && (await writeAtomicJson(file, { status, stamp } satisfies SignInRecord));
   if (stored) failedAt.delete(brand);
   else failedAt.set(brand, opts.now);
   return status;
 }
 
-/** The stamp each brand's catalog was last refreshed under, in this process. */
+/**
+ * The stamp and binary each brand's catalog was last refreshed under, in this
+ * process. The adapter holds one catalog per brand, so a path setting that
+ * names another binary re-reads it as an account switch does.
+ */
 const caught = new Map<BrandId, string>();
 const catalogFailedAt = new Map<BrandId, number>();
 const refreshing = new Map<BrandId, Promise<void>>();
@@ -150,12 +163,13 @@ export async function refreshCatalog(
     if (before) await before;
     const stamp = await account.stamp();
     if (stamp === undefined) return;
+    const key = JSON.stringify([stamp, opts.override?.trim() ?? '']);
     if (!opts.force) {
-      if (caught.get(brand) === stamp) return;
+      if (caught.get(brand) === key) return;
       if (opts.now - (catalogFailedAt.get(brand) ?? -Infinity) < RETRY_MS) return;
     }
     if (await refreshModels(opts.override).catch(() => false)) {
-      caught.set(brand, stamp);
+      caught.set(brand, key);
       catalogFailedAt.delete(brand);
     } else {
       catalogFailedAt.set(brand, opts.now);

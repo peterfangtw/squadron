@@ -2,8 +2,7 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { before } from 'node:test';
-import { processCwds } from '../../core/devservers/listeners';
-import { homeDir, openPanel, panel, section, step } from './boot';
+import { argvLogPath, homeDir, openPanel, panel, section, step } from './boot';
 import {
   composer,
   dockReady,
@@ -120,7 +119,11 @@ section(
 );
 
 async function childCwd(pid: string): Promise<string> {
-  const actual = (await processCwds([Number(pid)])).get(Number(pid));
-  assert.ok(actual, 'the child process exposes its actual working directory');
-  return fs.realpath(actual);
+  const launches = (await fs.readFile(argvLogPath() + '.launches.jsonl', 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as { pid: number; cwd: string });
+  const launch = launches.find((entry) => entry.pid === Number(pid));
+  assert.ok(launch, 'the child process logged its actual working directory');
+  return fs.realpath(launch.cwd);
 }

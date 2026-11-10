@@ -5,7 +5,7 @@ import type { SessionHandle } from '../../core/adapter';
 import { refusal } from '../../core/adapter';
 import type { Holder } from '../../core/remote/holder';
 import { personAnswerProse } from '../../core/coordination/answer';
-import type { Request, RequestBody } from '../../core/coordination/requests';
+import type { Reply, Request, RequestBody } from '../../core/coordination/requests';
 import { serveOwned, type RemoteStart, type ServePort } from '../../core/coordination/serve_owned';
 import type { LiveState, PendingRequest } from '../../core/live';
 import type { Decision, ImageBlock, SendTarget } from '../../core/model';
@@ -318,16 +318,17 @@ describe('serveOwned, the Remote guard', () => {
   ];
 
   const guarded = legacyGuarded.flatMap((body) => [body, { ...body, origin: 'remote' as const }]);
+  const remoteOff = (kind: RequestBody['kind']): Reply => ({
+    ok: false,
+    reason: 'Remote is off.',
+    ...(kind === 'open' ? { outcome: 'stopped' as const } : {})
+  });
 
   it('refuses every guarded kind when no live holder exists', async () => {
     for (const body of guarded) {
       const { owned, calls } = handle(state([question, permission()]));
       const served = port(owned, { holder: () => Promise.resolve(undefined) });
-      assert.deepEqual(
-        await serve(body, served),
-        { ok: false, reason: 'Remote is off.' },
-        body.kind
-      );
+      assert.deepEqual(await serve(body, served), remoteOff(body.kind), body.kind);
       assert.deepEqual(calls, [], `${body.kind} reached the session`);
       assert.deepEqual(served.started, [], `${body.kind} started a session`);
     }
@@ -338,7 +339,7 @@ describe('serveOwned, the Remote guard', () => {
       const { owned, calls } = handle(state([question, permission()]));
       const served = port(owned);
       const forged = { ...body, remote: 'someone-else' } as RequestBody;
-      assert.deepEqual(await serve(forged, served), { ok: false, reason: 'Remote is off.' });
+      assert.deepEqual(await serve(forged, served), remoteOff(body.kind));
       assert.deepEqual(calls, []);
       assert.deepEqual(served.started, []);
     }
@@ -371,7 +372,7 @@ describe('serveOwned, the Remote guard', () => {
       prompt: 'go',
       via: 'remote'
     };
-    assert.deepEqual(await serve(bare, served), { ok: false, reason: 'Remote is off.' });
+    assert.deepEqual(await serve(bare, served), remoteOff('open'));
     assert.deepEqual(served.started, []);
   });
 });
@@ -571,12 +572,13 @@ describe('serveOwned, a Remote open', () => {
     assert.deepEqual(await serve({ ...base, brand: 'future' }, served), {
       ok: false,
       reason: 'That CLI cannot be started from here.',
-      cause: 'pick'
+      cause: 'pick',
+      outcome: 'stopped'
     });
     assert.deepEqual(served.started, []);
     const selected = await serve({ ...base, brand: 'future', selection: 'catalog' }, served);
     assert.equal(selected.ok, false);
-    assert.equal(selected.notStarted, true);
+    assert.equal(selected.outcome, 'stopped');
     assert.equal(selected.selectionInvalid, true);
     assert.deepEqual(served.started, []);
     assert.equal((await serve(base, served)).ok, true);
@@ -586,7 +588,12 @@ describe('serveOwned, a Remote open', () => {
   it('passes a refused start back as it came', async () => {
     const served = port(undefined, {
       start: () =>
-        Promise.resolve({ ok: false, reason: 'No `grok` executable found.', cause: 'pick' })
+        Promise.resolve({
+          ok: false,
+          reason: 'No `grok` executable found.',
+          cause: 'pick',
+          outcome: 'stopped'
+        })
     });
     const reply = await serve(
       {
@@ -599,7 +606,12 @@ describe('serveOwned, a Remote open', () => {
       },
       served
     );
-    assert.deepEqual(reply, { ok: false, reason: 'No `grok` executable found.', cause: 'pick' });
+    assert.deepEqual(reply, {
+      ok: false,
+      reason: 'No `grok` executable found.',
+      cause: 'pick',
+      outcome: 'stopped'
+    });
   });
 });
 
@@ -635,7 +647,7 @@ describe('incoming arms require negotiated owner services', () => {
       const reply = await serve(body, p);
       assert.equal(reply.ok, false);
       assert.equal(reply.incomingRefusal, 'unsupported-capability');
-      assert.equal(reply.notStarted, body.kind === 'remoteStartFilesV1' ? true : undefined);
+      assert.equal(reply.outcome, body.kind === 'remoteStartFilesV1' ? 'stopped' : undefined);
     }
     const future = { ...bodies[0], kind: 'remoteStartFilesV2' } as unknown as RequestBody;
     assert.match((await serve(future, p)).reason ?? '', /older Squadron/);

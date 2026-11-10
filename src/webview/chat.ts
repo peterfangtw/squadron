@@ -5,7 +5,8 @@
  */
 
 import { $, el, q, swapStamp } from './dom';
-import { isMidTurn, sameSessionStart } from '../core/model';
+import * as layers from './layers';
+import { sameSessionStart } from '../core/model';
 import { chats, clearThreadKeys, input, thread, ui, vscode } from './state';
 import { CACHE_NOTE, since } from './board';
 import { renderQuestion } from './question';
@@ -464,18 +465,10 @@ export function tickHead(): void {
   swapStamp(q($('chat-head'), '.since'), since(t));
 }
 
-/**
- * Interrupt is live while a turn is open (`isMidTurn`) and the CLI has opened
- * it (`turnPending`). The head button and Escape share this, so an offscreen
- * button has no live key.
- *
- * `waiting` still needs `owned`. `canControl` stays true when control is
- * invalid on a session this window does not drive (`toCard`), and that
- * session has no pipe an interrupt can retract.
- */
+/** The head button, Escape and a dialog's Cancel share this, so an offscreen
+ *  button has no live key. The host decides it (`CardView.canInterrupt`). */
 export function endable(t: ThreadView | undefined): boolean {
-  if (!t || !t.canControl || !isMidTurn(t.status) || t.turnPending) return false;
-  return t.status !== 'waiting' || t.owned === true;
+  return t?.canInterrupt === true;
 }
 
 export function renderThread(t: ThreadView | undefined): void {
@@ -685,6 +678,8 @@ export function submitRename(pid: number, startedAt: number, title: string): voi
   vscode.postMessage({ type: 'rename', pid, startedAt, title: want });
 }
 
+// Escape reverts the name and leaves whatever surface is open around the dock.
+layers.claim(renameBox);
 renameBox.onkeydown = (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();

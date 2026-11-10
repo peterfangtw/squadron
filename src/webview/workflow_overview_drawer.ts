@@ -5,6 +5,7 @@
 
 import { $, el } from './dom';
 import { morph } from './kit';
+import * as layers from './layers';
 import { chats, ui } from './state';
 import * as bottomDrawer from './bottom_drawer';
 
@@ -12,6 +13,8 @@ import * as bottomDrawer from './bottom_drawer';
 let open = false;
 /** Last joined current id we scrolled to while open — repaints must not fight the reader. */
 let scrolledTo: string | undefined;
+/** On the layer stack exactly while the rail is drawn, however it shut. */
+let layer: layers.Handle | undefined;
 
 export function isOpen(): boolean {
   return open;
@@ -86,6 +89,18 @@ export function render(): void {
   // because a replaced button drops the click that is already on its way down.
   morph(root, [head, list]);
   root.hidden = false;
+  if (!layer?.open) {
+    layer = layers.push({
+      kind: 'overviewDrawer',
+      close: () => setOpen(false),
+      escape: 'consume',
+      // Input and ask keep their own Escape.
+      yieldsToComposer: true,
+      ground: true,
+      restoreFocus: () => focusDoor(root),
+      root: () => [root]
+    });
+  }
   syncChipCaret();
 
   // Scroll only on first open or when the joined cursor moves — not every poll.
@@ -107,6 +122,8 @@ export function render(): void {
  */
 function shut(root: HTMLElement): void {
   root.hidden = true;
+  layer?.pop();
+  layer = undefined;
   syncChipCaret();
 }
 
@@ -153,6 +170,16 @@ function stateWord(step: RailStep): string {
   return 'pending';
 }
 
+/** The live chip, when it or the rail holds focus. A press that already
+ *  moved focus — the hub word, a card — keeps where it moved. */
+function focusDoor(rail: HTMLElement): HTMLElement | undefined {
+  const door = document.querySelector<HTMLElement>('#wattach .wflow.live');
+  if (!door) return undefined;
+  const active = document.activeElement;
+  if (active === door || (active instanceof Node && rail.contains(active))) return door;
+  return undefined;
+}
+
 function syncChipCaret(): void {
   const chip = document.querySelector<HTMLElement>('#wattach .wflow.live');
   if (!chip) return;
@@ -172,19 +199,11 @@ function syncChipCaret(): void {
  *
  * Delegated to the document and not to #board, because the board's own handlers
  * are delegated too and this must not depend on landing before or after them:
- * it only reads the press, and lets it through to select the card it hit.
+ * it only reads the press, and lets it through to select the card it hit. A
+ * press in a layer above the rail (the lightbox, a dialog) is not on the board.
  */
 document.addEventListener('click', (e) => {
-  if (!open) return;
+  if (!open || (layer && layers.above(layer, e))) return;
   const t = e.target;
   if (t instanceof Element && t.closest('#board')) setOpen(false);
-});
-
-/** Esc closes the drawer when open; input and ask keep their own Escape. */
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || !open) return;
-  const t = e.target;
-  if (t instanceof HTMLElement && t.closest('#input, #ask')) return;
-  e.preventDefault();
-  setOpen(false);
 });

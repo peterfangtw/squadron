@@ -253,6 +253,9 @@ const CLAUDE_OPUS_FABLE_EFFORT = 'medium';
  * same sitting — the same swap, watched a second time. Sonnet 5.5 arrived on
  * 2.1.284, 2026-09-29, demoting Sonnet 5 — but that release lists the older
  * models too, so what demotes a row changed; see Older below.
+ *
+ * Fable 5.2 arrived listed by full id on 2.1.316, 2026-11-10, while the `fable`
+ * alias still resolves to 5.1 — both lead the list, so neither is demoted.
  */
 export const CLAUDE_MODELS: readonly CatalogRow[] = [
   {
@@ -297,6 +300,22 @@ export const CLAUDE_MODELS: readonly CatalogRow[] = [
     readings: ['claude-haiku-5-5', 'claude-haiku-5-5[1m]'],
     efforts: CLAUDE_EFFORTS,
     defaultEffort: CLAUDE_DEFAULT_EFFORT,
+    windows: [
+      { tokens: 1_000_000, reach: 'plain' },
+      { tokens: 200_000, reach: 'flag' }
+    ]
+  },
+  {
+    value: 'claude-fable-5-2',
+    name: 'Fable 5.2',
+    id: 'claude-fable-5-2',
+    brand: 'claude',
+    // Probed 2026-11-10 on 2.1.316: Opus 5.5's shape, not Fable 5.1's — `[1m]`
+    // survives into the usage key at the bare id's million, so it is a reading
+    // and not a row. `cli_state/models.md` § *Fable 5.2*.
+    readings: ['claude-fable-5-2', 'claude-fable-5-2[1m]'],
+    efforts: CLAUDE_EFFORTS,
+    defaultEffort: CLAUDE_OPUS_FABLE_EFFORT,
     windows: [
       { tokens: 1_000_000, reach: 'plain' },
       { tokens: 200_000, reach: 'flag' }

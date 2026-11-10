@@ -15,13 +15,19 @@
 import { brandMark } from './accounts';
 import { $, ago, el, imeKey, q } from './dom';
 import { DEFAULT_BRAND } from '../core/brands';
+import type { LaunchTarget } from '../core/model';
 import { brandForModel, effortFor } from '../core/model_names';
 import { ui, vscode } from './state';
 import { morph } from './kit';
+import * as layers from './layers';
 import { repaintBoard } from './board_repaint';
 
 const scrim = $('pscrim');
 const sheet = $('picker');
+/** On the stack while the picker is up. Escape is its own only from inside it:
+ *  the picker is modal over the board, and Escape at a session's ask is a
+ *  different Escape entirely. */
+let layer: layers.Handle | undefined;
 const list = $('plist');
 const filter = $('pfilter') as HTMLInputElement;
 
@@ -61,11 +67,15 @@ const SEARCH_PAUSE_MS = 150;
 let pickFirst = false;
 
 type ResumeRequest = Extract<WebviewMessage, { type: 'resume' }>;
+/** What the host said this resume came to, from its reply or a later status. */
+type Settled = { attemptId?: string; notice: string } & (
+  { outcome: 'started'; pid: number; startedAt: number } | { outcome: 'stopped' | 'unknown' }
+);
 type PendingResume = {
   group: string;
   title: string;
   request: ResumeRequest;
-  result?: ResumeResultMessage;
+  result?: Settled;
   note?: string;
 };
 
@@ -73,8 +83,12 @@ const pending = new Map<string, PendingResume>();
 
 function startResume(group: string, title: string, ask: Omit<ResumeRequest, 'requestId'>): void {
   for (const [id, other] of pending) {
-    if (other.request.sessionId !== ask.sessionId || other.request.brand !== ask.brand) continue;
-    if (!other.result || other.result.ok || !other.result.notStarted || other.result.unsure) return;
+    if (
+      other.request.sessionId !== ask.sessionId ||
+      other.request.target?.brand !== ask.target?.brand
+    )
+      continue;
+    if (other.result?.outcome !== 'stopped') return;
     pending.delete(id);
   }
   const request = { ...ask, requestId: globalThis.crypto.randomUUID() };
@@ -83,10 +97,21 @@ function startResume(group: string, title: string, ask: Omit<ResumeRequest, 'req
   repaintBoard();
 }
 
+/** A reply settles an attempt still open or unknown; a final word stands. */
 export function takeResumeResult(msg: ResumeResultMessage): void {
   const attempt = pending.get(msg.requestId);
-  if (!attempt || (attempt.result && (attempt.result.ok || !attempt.result.unsure))) return;
-  attempt.result = !msg.ok && !msg.notStarted ? { ...msg, unsure: true } : msg;
+  if (!attempt || (attempt.result && attempt.result.outcome !== 'unknown')) return;
+  const attemptId = msg.attemptId === undefined ? {} : { attemptId: msg.attemptId };
+  attempt.result =
+    msg.outcome === 'started'
+      ? {
+          ...attemptId,
+          outcome: 'started',
+          notice: msg.notice,
+          pid: msg.pid,
+          startedAt: msg.startedAt
+        }
+      : { ...attemptId, outcome: msg.outcome, notice: msg.notice };
   repaintBoard();
 }
 
@@ -97,35 +122,27 @@ export function takeResumeStartup(msg: StartupStatusMessage): void {
   if (!attempt) return;
   if (msg.state === 'started' && msg.pid !== undefined && msg.startedAt !== undefined)
     attempt.result = {
-      type: 'resumeResult',
-      requestId: attempt.request.requestId,
       attemptId: msg.attemptId,
-      ok: true,
+      outcome: 'started',
+      notice: msg.notice,
       pid: msg.pid,
       startedAt: msg.startedAt
     };
   else if (msg.state === 'stopped')
-    attempt.result = {
-      type: 'resumeResult',
-      requestId: attempt.request.requestId,
-      attemptId: msg.attemptId,
-      ok: false,
-      notStarted: true,
-      reason: msg.reason ?? 'The session start stopped.'
-    };
-  else attempt.note = msg.reason ?? 'Starting session…';
+    attempt.result = { attemptId: msg.attemptId, outcome: 'stopped', notice: msg.notice };
+  else attempt.note = msg.notice;
   repaintBoard();
 }
 
 export function retryResume(id: string | undefined): void {
   const attempt = id ? pending.get(id) : undefined;
-  if (attempt?.result && !attempt.result.ok && !attempt.result.unsure)
+  if (attempt?.result?.outcome === 'stopped')
     startResume(attempt.group, attempt.title, attempt.request);
 }
 
 export function dismissResume(id: string | undefined): void {
   const attempt = id ? pending.get(id) : undefined;
-  if (!attempt?.result || attempt.result.ok) return;
+  if (!attempt?.result || attempt.result.outcome === 'started') return;
   pending.delete(attempt.request.requestId);
   repaintBoard();
 }
@@ -135,7 +152,7 @@ export function pendingResumeCards(cwd: string): HTMLElement[] {
   for (const [id, attempt] of pending) {
     const result = attempt.result;
     if (
-      result?.ok &&
+      result?.outcome === 'started' &&
       ui.state.groups.some((group) =>
         group.sessions.some(
           (session) => session.pid === result.pid && session.startedAt === result.startedAt
@@ -146,8 +163,7 @@ export function pendingResumeCards(cwd: string): HTMLElement[] {
       continue;
     }
     if (attempt.group !== cwd) continue;
-    const unknown = result && !result.ok && result.unsure;
-    const failed = result && !result.ok && !unknown;
+    const failed = result?.outcome === 'stopped';
     const node = el('div', 'card starting resuming' + (failed ? ' refused' : ''));
     node.dataset.key = id;
     node.append(el('div', 'resume-title', attempt.title));
@@ -155,10 +171,14 @@ export function pendingResumeCards(cwd: string): HTMLElement[] {
     status.setAttribute('role', 'status');
     if (!failed) status.append(el('span', 'spinner'));
     status.append(
-      el('span', null, result && !result.ok ? result.reason : (attempt.note ?? 'Resuming…'))
+      el(
+        'span',
+        null,
+        result && result.outcome !== 'started' ? result.notice : (attempt.note ?? 'Resuming…')
+      )
     );
     node.append(status);
-    if (!result?.ok && !failed) {
+    if (result?.outcome !== 'started' && !failed) {
       const actions = el('div', 'resume-actions startup-actions');
       for (const [action, label] of [
         ['status', 'Check status'],
@@ -202,6 +222,19 @@ export function openPicker(cwd: string): void {
   q(sheet, '.cw').textContent = cwd.replace(/^.*\//, '') || cwd;
   scrim.hidden = false;
   sheet.hidden = false;
+  // Read before the filter takes focus: that is where closing returns.
+  const opener = focusOutside();
+  layer ??= layers.push({
+    kind: 'resumePicker',
+    close: closePicker,
+    escape: (e) => {
+      if (!(e.target instanceof Node && sheet.contains(e.target))) return false;
+      closePicker();
+      return true;
+    },
+    restoreFocus: opener,
+    root: () => [sheet, scrim]
+  });
   ask(cwd);
   render();
   filter.focus();
@@ -215,6 +248,18 @@ export function closePicker(): void {
   next = undefined;
   scrim.hidden = true;
   sheet.hidden = true;
+  layer?.pop();
+  layer = undefined;
+}
+
+/** The control that had focus when the picker opened. The filter is not it:
+ *  opening focuses that next, and closing would otherwise return there. */
+function focusOutside(): HTMLElement | undefined {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return undefined;
+  if (active === document.body || active === document.documentElement) return undefined;
+  if (sheet.contains(active) || scrim.contains(active)) return undefined;
+  return active;
 }
 
 /**
@@ -420,20 +465,23 @@ function pick(node: HTMLElement | undefined): void {
         ui.state.efforts[ui.state.model]
       )
     : undefined;
-  startResume(open.cwd, row.title, {
-    type: 'resume',
-    cwd: row.cwd,
-    sessionId: row.sessionId,
+  const target: LaunchTarget = {
     brand: row.brand,
-    // A stated name is a name; a prompt standing in is a label. The second
-    // must not reach `--name` — see `core/naming.ts`.
-    name: row.titled ? row.title : undefined,
-    ...(row.titled ? {} : { placeholder: row.title }),
     model: mine ? ui.state.model : '',
     ...(mine && ui.state.contextWindow !== undefined ? { window: ui.state.contextWindow } : {}),
     // Validated against the same row as the model. A setting left on another
     // brand names no safe effort here, so neither half crosses the seam.
     ...(effort === undefined ? {} : { effort })
+  };
+  startResume(open.cwd, row.title, {
+    type: 'resume',
+    cwd: row.cwd,
+    sessionId: row.sessionId,
+    // A stated name is a name; a prompt standing in is a label. The second
+    // must not reach `--name` — see `core/naming.ts`.
+    name: row.titled ? row.title : undefined,
+    ...(row.titled ? {} : { placeholder: row.title }),
+    target
   });
   closePicker();
 }
@@ -450,12 +498,10 @@ list.addEventListener('click', (e) => {
 filter.addEventListener('input', search);
 
 // Keys are read on the sheet rather than the document: the picker is modal over
-// the board, and Escape at a session's ask is a different Escape entirely.
+// the board. Its Escape is the layer's, above.
 sheet.addEventListener('keydown', (e) => {
   if (imeKey(e)) return;
-  if (e.key === 'Escape') {
-    closePicker();
-  } else if (e.key === 'ArrowDown') {
+  if (e.key === 'ArrowDown') {
     move(1);
   } else if (e.key === 'ArrowUp') {
     move(-1);

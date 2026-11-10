@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, it } from 'node:test';
 import { RuleTester } from 'eslint';
 import * as rule from '../../../scripts/eslint-skip-reason.cjs';
-import { repoRoot } from '../helpers';
+import { repoRoot, withoutForceColor } from '../helpers';
 
 RuleTester.describe = describe;
 RuleTester.it = it;
@@ -87,7 +87,7 @@ async function report(source: string): Promise<string> {
   try {
     const file = path.join(dir, 'fixture.test.cjs');
     await fs.writeFile(file, source);
-    const env = { ...process.env };
+    const env = withoutForceColor();
     delete env.NODE_TEST_CONTEXT;
     const ran = cp.spawnSync(
       process.execPath,

@@ -87,14 +87,16 @@ src/
     request_host.ts  one activation's request dispatch and incoming-launch ledger;
                  guarded Remote starts, the agent `send`/`answer` handed to
                  core/coordination/admit.ts over this window's port, and the
-                 held reports' shutdown witness. Activation owns the poll and
+                 held reports' shutdown witness. An agent `open` takes its pick
+                 from `launchTargetOf`. Activation owns the poll and
                  supplies late Remote/attachment reads; core modules retain the rules
     panel.ts     webview host: board polling/dispatch, serialized board gathers
                  and independent selected-thread snapshots/patches, with an explicit full recorded-history view. Activity-only clocks
                  do not invalidate discovery; conversation generations do.
                  Selection requests and owned captures fence asynchronous reads.
                  A Warm figure edit is written Global, as
-                 core/warm_policy.ts's `warmSettingWrite` maps and clamps it
+                 core/warm_policy.ts's `warmSettingWrite` maps and clamps it.
+                 Panel `open` and `resume` pass `target` through
     panel_actions.ts  friend surface for extracted host verbs — rules under
                  *H56 extract hygiene* below
     runs.ts      servers sheet's answer, start/stop, occupancy, runner cache.
@@ -112,7 +114,8 @@ src/
                  files
     session_io.ts     send, queue, interrupt, model, rename, thread, images
     session_open.ts   new/resume, copy ref, reveal; pending UI resumes share
-                      startup across panel reopenings, with a reply per attempt
+                      startup across panel reopenings, with a reply per attempt.
+                      Every start reply is core/start_outcome.ts's word and notice
                       Folderless panel starts allocate a managed scratch child;
                       explicit CLI starts keep their requested cwd
     skills.ts     window-lived folder discovery, refreshed on mention use with
@@ -387,10 +390,12 @@ src/
                    session's pipe owner.
                    `models` needs no target session or open panel. The panel
                    posts none: it drives the sessions it started without files
-      request_codec.ts  pure request/reply wire decoding and field validation;
-                   requests.ts keeps contracts and file transport. Shares incoming-kind
-                   and delivery narrowing with the poster; request types are type-only
-                   imports, so decoding does not load the transport
+      request_codec.ts  pure request/reply wire decoding and field validation.
+                   `launchTargetOf` reads an open file's flat brand, model, window
+                   and effort into one `LaunchTarget`. requests.ts keeps contracts
+                   and file transport. Shares incoming-kind and delivery narrowing
+                   with the poster; request types are type-only imports, so decoding
+                   does not load the transport
       origin.ts    action origin and closed admission-owner policy, classified once
                    at dispatch. Decoder validates explicit metadata without inferring
                    legacy origin; the raw serveOwned facade shares that classifier.
@@ -404,7 +409,8 @@ src/
                    remote-start-files, evidence, close, and unknown. Moved
                    out of `host/extension.ts` so the two-window test drives
                    the code a window runs. A kind with no arm fails the build
-                   here, and an unknown one answers "older Squadron"
+                   here, and an unknown one answers "older Squadron".
+                   `serveRemoteOpen` takes its pick from `launchTargetOf`
       claims.ts    reads the per-window claim files, so panel and CLI agree on
                    which windows are alive. `brands` is still parsed and no
                    longer read. Also the cwd tiers, `windowForCwd`: the
@@ -835,6 +841,13 @@ src/
                  sessions keeps the registry; this module keeps no second one
     startup.ts   monotonic opening deadline, cancellation and once-only settlement;
                  caller transport expiry does not retire this operation
+    start_outcome.ts  a start's word, `started`, `stopped` or `unknown`, and
+                 the sentence the panel paints. A failed start states its word
+                 (`FailedWord`); `StartupAttempt.settle` decides one the work
+                 left out. Panel replies and `open` request-file replies carry
+                 only the word (`startReply`); `outcomeOfReply` reads it, and a
+                 start reply with none is unknown. A leaf, so `protocol.d.ts`
+                 names `StartWord`
     session_lifetime.ts  native scope registered before adapter opening, shared
                  by failed starts, End, shutdown and temporary usage readers;
                  adapter cleanup plus verified
@@ -949,7 +962,15 @@ src/
     asks.ts      an AskUserQuestion's questions, narrowed field by field
     answers.ts   picks and typed words -> the payload the ask tool takes
     backlog.ts   the tickets tab's state machine: complete scope catalog, remembered
-                 selection, atomic scoped snapshots, TTL and retired request/action tokens
+                 selection, atomic scoped snapshots, TTL and retired request/action tokens.
+                 Every list is one `read`; its filter is `normalizeFilter`ed against that
+                 read's options, and the TTL `invalidate`s the source's cache.
+                 `state` authors the whole status, linked or unlinked, its offers off
+                 the connector roster and the `token` (`identity`) every
+                 selection-scoped post echoes; `accepts` is that token compared once
+    ticket_token.ts  `sameToken` and `newer`: the one comparison of two ticket
+                 selection tokens, for the store and the tab. A leaf for
+                 `markers`' reason
     pastes.ts    images written down so a path can carry them to the CLI
     markers.ts   `[Image #N]`: which image a message's prose means, given that
                  the bytes ride after each message's words rather than among
@@ -1017,7 +1038,8 @@ src/
     claude/usage_reader.ts  get_usage on a control-only temporary child;
                  decoding remains in the leaf claude/usage.ts
     signin.ts    whether each CLI is signed in: the answer stored under
-                 `signin.<brand>.json`, reused while the adapter's `account`
+                 `signin.<brand>.json`, or a file of its own per binary-path
+                 setting, reused while the adapter's `account`
                  stamp holds, so a CLI is started only when the answer is
                  missing or a verb forces it. A failed ask waits a minute. Also
                  when an `'account'` model catalog is re-read: once per stamp
@@ -1025,11 +1047,25 @@ src/
                  a percentage before the session has stated its window. What
                  a model id was seen to answer in outlives the window that saw
                  it: `models.claude.json`, beside the usage store
-    tickets.ts   shared ticket source contract, scoped keys, individual detail reads and view projection
+    tickets.ts   shared ticket source contract (one `read` protocol, `invalidate`
+                 required), scoped keys, individual detail reads and view projection;
+                 `normalizeFilter`, the one pruning of a filter against its options;
+                 `TicketConnector`, one source's connection rules without `vscode`
+    tickets/connections.ts the connector roster in offer order, lookup by source
+                 and `openConnection` (a malformed record opens nothing). Apart
+                 from `tickets.ts` because both adapters import that file. The
+                 host keeps the prompts, the keychain and the watches, and loops
+                 over this: one keychain read per source per ticket epoch
     tickets/github.ts GitHub ProjectV2 GraphQL reads, exact single-select field
-                 resolution, nested pagination and issue-backed item identities
+                 resolution, nested pagination and issue-backed item identities;
+                 its connector (JSON keychain record) and the owner and
+                 classic-token validators its connect prompts use
     tickets/linear.ts Linear GraphQL transport, native field translation,
-                 team/member/state pagination and provider presentation metadata
+                 team/member/state pagination and provider presentation metadata;
+                 `read` memoises a team's options until `invalidate`, and a filter
+                 with anything to prune waits for them before the issues request;
+                 its connector (the bare key as record), whose `open` fills
+                 `legacyTeamKey` from `squadron.linear.team`
     hooks.ts     removing the hooks older builds installed in the CLI's
                  settings. Nothing installs one now
     jobs.ts      the background-job files a non-interactive session writes
@@ -1268,6 +1304,8 @@ src/
   ui/            the panel's view built headlessly — no vscode import
     confirmations.ts one pending host confirmation per panel: offered action ids,
                  one-use replies and cancellation on replacement/reload/disposal
+    ticket_disconnect.ts the confirmation a ticket source's Disconnect asks, read by
+                 both the panel modal and the palette's native one
     chat_state.ts one private record per session incarnation or cwd draft:
                  compose data, thread, pending operations and reading state;
                  the only owner of active chat identity, selection request nonces,
@@ -1324,6 +1362,8 @@ src/
                  hold in the set at once
     warm_rows.ts the warm list's words: a row's lifetime, provenance and
                  clause off `CardView.warm` and the clock, and the bar's count.
+                 `warmable` is the one reading of `held: 'unsupported'`, for
+                 the card's switch, the sheet's and the count
                  The note is the pushed window (`warmNote`); the lead before
                  expiry is the configuration column's figure
     mascot.ts    the mascot's rules, headless: `facts` diffs two pushes into
@@ -1383,7 +1423,8 @@ src/
                       ping's footer animation; document visibility is main.ts
     warm_choice.ts    one pending per-session warm preference shared by the
                       card and Warm sheet, keyed by pid + startedAt; posts setWarm
-    board_nav.ts      nav bar, gauges, filter, start slots
+    board_nav.ts      nav bar, gauges, filter, start slots. A draft's first
+                      send posts `open` with the pick as `target`
     warm_menu.ts Warm on the bottom drawer: this window's switches, the
                  pinned New sessions default, the configuration column, and
                  the bar's count. Paint only; the decision arrives on
@@ -1481,9 +1522,12 @@ src/
                  mounted since 2026-10-05** — out of the bundle, kept for
                  whatever shows the hold next
     pot.ts       the moka pot that pours into it, with computed shading
-    resume.ts    resume picker and pending startup cards; correlated results
+    resume.ts    resume picker and pending startup cards. The posted resume
+                 carries `target`. Correlated results
                  retain feedback until the exact session appears, or offer
-                 retry/dismiss after refusal. Separate from draft chat state.
+                 retry/dismiss after refusal. Paints the host's outcome and
+                 notice; it decides neither. Closing returns focus to the
+                 Resume half that opened it. Separate from draft chat state.
                  Pages: a reply is drawn only for the last ask (`requestId`,
                  snapshot), Show older appends and keeps the highlighted row, the
                  filter box asks the host after a 150 ms pause, Enter before the
@@ -1502,7 +1546,25 @@ src/
                  nothing passes it. Login and Remote's guide use board
                  positioning; MCP and End confirmation use full-panel positioning.
                  Its backdrop owns clicks even when their target closes the
-                 sheet; its capture listener owns Escape before surfaces below
+                 sheet; its Escape is a layer on `layers.ts`, its Tab trap its own
+    layers.ts    the panel's one layer stack: a surface pushes on open, pops on
+                 close, and states its Escape (consume, pass or a handler), its
+                 focus return, the kinds it excludes, its `root` and whether it
+                 yields Escape to the composer (`#input`, `#ask`). One window-capture
+                 listener offers Escape top-down after the `imeKey` guard; another
+                 records which layer each press landed in, and the stack's order
+                 then, before any handler runs, for `above`. It dismisses nothing
+                 on a press; paint order stays CSS. Every Escape owner joins it:
+                 sheets, menus (one layer each), both drawers, lightbox, dialog,
+                 settings, onboarding, both pickers, pill stack, the drawer's
+                 flight and the canvas's wire drag and selection. The workflow
+                 editor joins it to exclude the bottom drawer, and passes
+                 Escape so Back stays the fallback. Drawers and
+                 the pill stack are `ground`: beneath every other layer, in push
+                 order among themselves. A field-level owner (`num_input`, the
+                 rename boxes, the `@` menu) `claim`s Escape aimed at it, and the
+                 stack then offers it to no layer. Interrupt and editor Back stay
+                 outside, reading `defaultPrevented`. Mounted by `main.ts`
     mention_pill.ts shared chat mention markup, consuming mention_text's
                  exhaustive presentation contract; only tickets are actionable
     mention_clipboard.ts ticket HTML links with validated reference metadata,
@@ -1514,13 +1576,16 @@ src/
     markdown_dom.ts shared DOMPurify boundary; chat may preserve parsed local
                  file links, tracker content only offers validated web links
     tickets.ts   the tickets tab, its filter pills and menus; the list is
-                 morphed too, keyed by ticket id
+                 morphed too, keyed by ticket id. Every post echoes
+                 `TicketSourceStatus.token` and names the `provider` it painted;
+                 tokens compare only through `core/ticket_token.ts`
     onboarding.ts the first-launch dialog: setup (the accounts popover's rows,
                  gated when no CLI resolves), then three slides — the second
                  says which CLIs have the squadron skill. Once per install; the
                  gear's Show onboarding reopens it
     editor.ts    the board-mode workflow editor: a draft of one workflow, and
-                 create, edit, save and delete of its JSON. Hands the canvas
+                 create, edit, save and delete of its JSON. Its layer excludes
+                 the bottom drawer and passes Escape. Hands the canvas
                  facts and handlers, and reads none of its DOM
     wfcanvas.ts  the session-lane canvas: a column per session and a grid
                  row per step a tier holds in it, with the wires between steps.
@@ -1530,20 +1595,26 @@ src/
                  by graph.layout
     bottom_drawer_modes.ts one record per mode: id, bar class, title/note, columns,
                  paint/repaint, bar values, focus word and beat participation.
-                 Optional closed, empty, emptyWord and escape. Every mode is
+                 Optional closed, empty and emptyWord. Every mode is
                  available; `available: false` stays for a placeholder word. All imported callbacks are deferred until event
                  time; the id type is derived from these records
     sheet_parts.ts shared column heading; a DOM leaf outside the sheet cycle
     bottom_drawer.ts the bottom drawer's frame and lifecycle, dispatched through
-                 bottom_drawer_modes.ts. One Escape listener for every mode; a
-                 mode consumes the key through escape(). A dismissal returns focus
+                 bottom_drawer_modes.ts. Its Escape is a ground layer on
+                 `layers.ts`, held exactly while it is drawn raised; its outside
+                 click ignores a press `layers.above` places over it. A dismissal returns focus
                  to its record's word, or More when that word is tucked away. The
                  live workflow chip passes `taken`, so focus stays on that chip.
                  Push and beat read the records; the beat
                  neither mounts nor measures
                  the bar. Find and foot start hidden when the filling changes
+    workflow_overview_drawer.ts the live chip's step rail over the board.
+                 A ground layer; closing returns focus to that chip when the
+                 rail or the chip holds it. A press that already moved focus
+                 keeps it
     workflows_mode.ts the Workflows filling: the list, detail, filter, delete
-                 confirm and order write. The flight is workflows_drag.ts
+                 confirm and order write. New and Edit leave the drawer to
+                 the editor's layer. The flight is workflows_drag.ts
     remote_sheet.ts Remote on the sheet: the bar word's dot and tip values; on the
                  left this window's switch above the messengers, with reason,
                  refusal, warnings and hint pinned under the list; on the right the
@@ -1567,7 +1638,8 @@ src/
     messenger_marks.ts each messenger's mark by id, inlined from `media/`
                  for `mcp_marks.ts`'s CSP reason; an id with no mark draws none
     workflows_drag.ts the Workflows list's pointer flight: hold, ghost,
-                 insertion line, auto-scroll, release and cancel. Order and
+                 insertion line, auto-scroll, release and cancel. A flight is a
+                 transient layer, so Escape cancels it and not the drawer. Order and
                  filter come from workflows_mode.ts; open and paint from
                  bottom_drawer.ts
     mascot.ts    the chick: one canvas over `#board` (frames painted into a
@@ -1579,8 +1651,10 @@ src/
     visibility.ts whether anyone can see the panel — the host's `visible`
                  and the document's — shared by the beat, the warm cue and
                  the mascot
-    main.ts      the bundle's entry: the divider, and the message wiring
-    protocol.d.ts  the wire format, ambient so both halves check against it
+    main.ts      the bundle's entry: the divider, the layer stack's mount, and
+                 the message wiring
+    protocol.d.ts  the wire format, ambient so both halves check against it.
+                 `open` and `resume` carry `LaunchTarget` as `target`
   test/          see src/test/AGENTS.md
 ```
 
@@ -1660,20 +1734,21 @@ splits):
    other, namespace imports both ways. Both directions stay inside functions:
    the drag reads `isFiltered`, `ordered` and `commitOrder` from the mode, and
    `isOpen` and `render` from the frame, when a pointer event asks. The mode
-   reads `inFlight`, `justDragged` and `cancelFlight` from paint, the row click
-   and `escape()`. The frame does not import the drag. A top-level read across
-   the cycle can TDZ. Escape stays the one listener in `bottom_drawer.ts`. A
-   second listener on the same key still runs after the first returns, so
-   registration order cannot keep a cancelled flight from also closing the drawer.
+   reads `inFlight` and `justDragged` from paint and the row click. The frame
+   does not import the drag. A top-level read across the cycle can TDZ. A
+   flight's Escape is its own transient layer on `layers.ts`, pushed at lift
+   above the drawer's and popped when it ends, so one press cancels the flight
+   and leaves the drawer up. Neither module adds a keydown listener.
 5. **Drawer registry cycle.** `bottom_drawer_modes.ts`, `bottom_hub.ts`,
    `bottom_drawer.ts`, `workflows_mode.ts` and the other content modules import
    each other. The records contain literals and thunks:
    `paint: () => warmMenu.paintWarmSheet()`, never an import-time read of
    `warmMenu.paintWarmSheet`. Registry reads and calls stay inside functions.
    `sheet_parts.ts` is a leaf for shared DOM construction. A top-level read
-   across the cycle can TDZ. Escape stays the one listener in `bottom_drawer.ts`;
-   a mode consumes it through `escape()`. Centred sheets consume their own
-   clicks and capture Escape in `sheet.ts`.
+   across the cycle can TDZ. A mode states no Escape: the drawer is one ground
+   layer on `layers.ts`, and anything a mode opens above it (a flight, a menu)
+   is its own layer above that. Centred sheets consume their own clicks in
+   `sheet.ts` and take Escape as a layer.
 
 ## Field or predicate: who decides a session's state
 
@@ -1694,8 +1769,9 @@ computed follows from who already knows.
   panel uses its actual local live half for current sendability; invalid routing
   data cannot remove its owned card's close/dismiss controls.
 - **Ship the answer, not the ingredient.** When the host has already decided,
-  the wire carries the decision and `webview/` paints it — `CardView.canControl`,
-  in the idiom `ThreadView` already uses for `canSend` and `canAttach`. A raw value the webview re-derives is one
+  the wire carries the decision and `webview/` paints it — `CardView.canControl`
+  and `canInterrupt`, in the idiom `ThreadView` already uses for `canSend`,
+  `canAttach` and `canModel`. A raw value the webview re-derives is one
   more place the decision can be wrong, and the two copies drift silently
   because both compile.
 - **Share a utility only for a composition the host never makes.** `panelDrives`

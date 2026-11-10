@@ -32,8 +32,6 @@ type ModeSpec = {
       closed?: () => void;
       empty?: () => boolean;
       emptyWord?: () => HTMLElement;
-      /** True when the mode consumed Escape. */
-      escape?: () => boolean;
     }
   | { available: false }
 );
@@ -74,7 +72,6 @@ const MODES = [
     closed: () => workflows.closed(),
     empty: () => workflows.empty(),
     emptyWord: () => workflows.emptyWord(),
-    escape: () => workflows.escape(),
     bar: () => ({ tip: 'All workflows', label: 'All workflows' }),
     beat: false
   },

@@ -339,7 +339,7 @@ describe('scoped Linear transport', () => {
       options.assignees.map((p) => p.id),
       ['anyone', 'unassigned', 'u1', 'u2']
     );
-    const rows = await source.list('team-a', { ...ALL, states: ['s1'] });
+    const rows = await source.issues('team-a', { ...ALL, states: ['s1'] });
     assert.equal(rows[0]?.key, '["connection-one","iss_1"]');
     assert.equal(rows[0]?.state.value, 'state-ready');
     assert.equal(rows[0]?.scopeId, 'team-a');
@@ -368,7 +368,7 @@ describe('scoped Linear transport', () => {
         body.variables.after === undefined ? page([first], 'next') : page([first, last]);
       return Promise.resolve(new Response(JSON.stringify({ data: { issues } })));
     });
-    const rows = await new LinearSource('token').list('team-a', {
+    const rows = await new LinearSource('token').issues('team-a', {
       assignee: 'user-9',
       states: ['state-ready'],
       priorities: ['2']
@@ -407,7 +407,7 @@ describe('scoped Linear transport', () => {
         )
       );
       await assert.rejects(
-        new LinearSource('token').list('team-a', ALL),
+        new LinearSource('token').issues('team-a', ALL),
         /Rate limited|incomplete/i
       );
       assert.equal(calls, 2);
@@ -436,7 +436,7 @@ describe('scoped Linear transport', () => {
       });
     });
     await assert.rejects(
-      new LinearSource('token').list('team-a', ALL, controller.signal),
+      new LinearSource('token').issues('team-a', ALL, controller.signal),
       /abort/i
     );
     assert.equal(calls, 2);
@@ -488,7 +488,7 @@ describe('scoped Linear transport', () => {
         Promise.resolve(new Response(JSON.stringify(body), { status }))
       );
       await assert.rejects(
-        new LinearSource('token').list('team-a', ALL),
+        new LinearSource('token').issues('team-a', ALL),
         (error) =>
           error instanceof Error &&
           error.message === message &&
@@ -510,7 +510,7 @@ describe('scoped Linear transport', () => {
       Promise.resolve(new Response(JSON.stringify({ data: {} })))
     );
     await assert.rejects(new LinearSource('token').options('team-a'), /incomplete/i);
-    await assert.rejects(new LinearSource('token').list('team-a', ALL), /incomplete/i);
+    await assert.rejects(new LinearSource('token').issues('team-a', ALL), /incomplete/i);
   });
 });
 
@@ -557,5 +557,91 @@ describe('individual Linear details', () => {
       assignee: { null: true }
     });
     assert.deepEqual(issueFilter(ALL, 'team-a'), { team: { id: { eq: 'team-a' } } });
+  });
+});
+
+describe('Linear reads and their options memo', () => {
+  /** A team with one state, counting each query by its operation; `hold` parks the next options read. */
+  function tracker(t: import('node:test').TestContext) {
+    const calls = { options: 0, issues: [] as unknown[] };
+    const held: (() => void)[] = [];
+    let hold = false;
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as {
+        query: string;
+        variables: Record<string, unknown>;
+      };
+      if (body.query.includes('issuePriorityValues')) {
+        calls.options++;
+        if (hold) await new Promise<void>((resolve) => held.push(resolve));
+      }
+      if (body.query.includes('Backlog')) calls.issues.push(body.variables.filter);
+      const data = body.query.includes('TicketMembers')
+        ? { team: { members: page([]) } }
+        : body.query.includes('TicketStates')
+          ? { team: { states: page([{ id: 's1', name: 'Todo', type: 'unstarted' }]) } }
+          : body.query.includes('issuePriorityValues')
+            ? { viewer: { id: 'me' }, issuePriorityValues: [{ priority: 1, label: 'Urgent' }] }
+            : { issues: page(response.issues.nodes) };
+      return new Response(JSON.stringify({ data }));
+    });
+    return {
+      calls,
+      held,
+      hold: (on: boolean) => {
+        hold = on;
+      }
+    };
+  }
+
+  it('reuses one read of a team options for later filter changes on that team', async (t) => {
+    const { calls } = tracker(t);
+    const source = new LinearSource('token');
+    const first = await source.read('team-a', ALL);
+    assert.deepEqual(
+      first.options.states.map((s) => s.value),
+      ['s1']
+    );
+    assert.equal(calls.options, 1);
+    const filtered = await source.read('team-a', { ...ALL, states: ['s1'] });
+    assert.equal(calls.options, 1);
+    assert.deepEqual(filtered.filter.states, ['s1']);
+    assert.deepEqual(filtered.options, first.options);
+    assert.equal(calls.issues.length, 2);
+    await source.read('team-b', ALL);
+    assert.equal(calls.options, 2, 'another team reads its own options');
+  });
+
+  it('reads options again after invalidate, and keeps no answer that invalidate overtook', async (t) => {
+    const fake = tracker(t);
+    const source = new LinearSource('token');
+    await source.read('team-a', ALL);
+    source.invalidate();
+    fake.hold(true);
+    const overtaken = source.read('team-a', ALL);
+    for (let spin = 0; !fake.held.length; spin++) {
+      assert.ok(spin < 1000, 'the read after invalidate never asked for options');
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.equal(fake.calls.options, 2);
+    source.invalidate();
+    fake.hold(false);
+    fake.held.shift()!();
+    await overtaken;
+    await source.read('team-a', ALL);
+    assert.equal(fake.calls.options, 3, 'the overtaken options were memoised');
+  });
+
+  it('prunes a state the options do not list before the issues request', async (t) => {
+    const { calls } = tracker(t);
+    const read = await new LinearSource('token').read('team-a', {
+      ...ALL,
+      states: ['s1', 'gone'],
+      priorities: ['1', '3']
+    });
+    assert.deepEqual(read.filter, { ...ALL, states: ['s1'], priorities: ['1'] });
+    assert.deepEqual(calls.issues, [
+      { team: { id: { eq: 'team-a' } }, state: { id: { in: ['s1'] } }, priority: { in: [1] } }
+    ]);
   });
 });

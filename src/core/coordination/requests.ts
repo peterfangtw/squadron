@@ -215,7 +215,8 @@ type RequestFields =
        * **Flat, like the three above it, and deliberately not one nested
        * target.** In memory these four travel as a `LaunchTarget`
        * (`core/model.ts`), and this is the one boundary where that value is
-       * taken apart. A nested field would make an older window — which reads
+       * taken apart. `launchTargetOf` (`request_codec.ts`) is the one read
+       * back. A nested field would make an older window — which reads
        * this file with a cast and no version decoder — ignore the *whole*
        * selection and fall back to its own inheritance and its own global
        * effort, rather than ignoring one field it does not know.
@@ -431,7 +432,6 @@ export type NoEnvelopeClash<T extends never = Clash> = T;
  * dock selection follow the initiator, not only the window that holds the pipe.
  */
 export type Reply = {
-  startupVersion?: 1;
   attemptId?: string;
   /** Close execution failures are retryable; an ordinary negative reply is a refusal. */
   closeFailure?: 'unavailable' | 'failed' | 'gone';
@@ -450,7 +450,12 @@ export type Reply = {
   messageFacts?: readonly MessageFact[];
   models?: ModelListing;
   remoteSelection?: { defaultTarget: import('../model').LaunchTarget };
-  notStarted?: true;
+  /**
+   * What a start came to (`core/start_outcome.ts`): on every `open` reply and
+   * every `remoteStartFilesV1` refusal. Absent on either is unknown — a handler
+   * that threw. Other kinds say doubt with `unsure`.
+   */
+  outcome?: import('../start_outcome').StartWord;
   selectionInvalid?: true;
   reason?: string;
   queued?: number;
@@ -725,7 +730,13 @@ export async function claimRequests(
           reply = read.request ? await handle(read.request) : { ok: false, reason: MALFORMED };
         } catch (error) {
           // The handler may have performed the action before it threw.
-          reply = { ok: false, reason: String(error), unsure: true };
+          reply = {
+            ok: false,
+            reason: String(error),
+            ...(read.request?.kind === 'open' || read.request?.kind === 'remoteStartFilesV1'
+              ? { outcome: 'unknown' as const }
+              : { unsure: true as const })
+          };
         }
         await fs
           .writeFile(file.replace(REQUEST_SUFFIX, REPLY_SUFFIX), JSON.stringify(reply))

@@ -205,12 +205,12 @@ describe('new-job picker decisions', () => {
 
   it('permits a new attempt only on positive evidence that no child started', () => {
     const draft = picker.revise(models(), { kind: 'start', target: {}, source: undefined });
-    assert.deepEqual(picker.startRecovery(draft, { reason: 'invalid', notStarted: true }), {
+    assert.deepEqual(picker.startRecovery(draft, { reason: 'invalid', outcome: 'stopped' }), {
       kind: 'retry',
       folder,
       reason: 'invalid'
     });
-    const unknown = picker.startRecovery(draft, { reason: 'no reply' });
+    const unknown = picker.startRecovery(draft, { reason: 'no reply', outcome: 'unknown' });
     assert.equal(unknown.kind, 'uncertain');
     assert.ok(unknown.kind === 'uncertain');
     assert.equal(unknown.draft.stage, 'starting');

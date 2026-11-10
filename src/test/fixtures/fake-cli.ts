@@ -59,7 +59,8 @@ import { logEnvironment } from './env_log';
  */
 /**
  * The argv this fixture was launched with, appended one JSON array per spawn to
- * the file `FAKE_CLI_ARGV` names.
+ * the file `FAKE_CLI_ARGV` names. Its `.launches.jsonl` sidecar records the
+ * child's own pid and cwd; Windows cannot read another process's cwd.
  *
  * The only witness there is to what went on a launch line. A card states what
  * the *panel* passed to `connect` — the same local `launch` was handed one
@@ -70,16 +71,17 @@ import { logEnvironment } from './env_log';
  * set no such variable, and a fixture guessing at a path leaves a file in
  * whatever `HOME` those happen to point at.
  */
-const recordArgv = (): void => {
+const recordLaunch = (): void => {
   const file = process.env.FAKE_CLI_ARGV;
   if (!file) return;
   try {
     fs.appendFileSync(file, JSON.stringify(process.argv.slice(2)) + '\n');
+    fs.appendFileSync(file + '.launches.jsonl', JSON.stringify({ pid: process.pid, cwd: process.cwd() }) + '\n');
   } catch {
     // A fixture that cannot write its own log still has a session to run.
   }
 };
-recordArgv();
+recordLaunch();
 logEnvironment();
 
 type FakeAuth = {

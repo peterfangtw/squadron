@@ -1,4 +1,5 @@
 import * as holds from './holds';
+import * as warmRows from '../ui/warm_rows';
 import { ui, vscode } from './state';
 
 type Session = { pid: number; startedAt: number };
@@ -21,7 +22,7 @@ export function set(session: Session, on: boolean): void {
   const card = ui.state.groups
     .flatMap((group) => group.sessions)
     .find((candidate) => key(candidate) === key(session));
-  if (!card?.canControl || !card.warm || card.warm.held === 'unsupported') return;
+  if (!card?.canControl || !warmRows.warmable(card.warm)) return;
   choices.hold(key(card), on);
   vscode.postMessage({ type: 'setWarm', pid: card.pid, startedAt: card.startedAt, on });
 }

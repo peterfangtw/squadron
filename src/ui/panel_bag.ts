@@ -100,6 +100,8 @@ export function acceptEnds(sessions: readonly { pid: number; startedAt: number }
       if (!sessions.some(({ pid, startedAt }) => card.pid === pid && card.startedAt === startedAt))
         continue;
       card.closing = true;
+      // An end takes Interrupt away (`offersInterrupt`) until the next push says so.
+      card.canInterrupt = false;
       delete card.endStuck;
       delete card.endFailure;
     }

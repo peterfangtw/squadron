@@ -63,7 +63,7 @@ describe('the setting seeds a draft', () => {
     const p = openPanel(t);
     typeIn(draft(p, { models: EFFORT_MODELS, model: 'opus', efforts: { opus: 'high' } }), 'begin');
     enter(p);
-    assert.equal(lastOpen(p).effort, 'high');
+    assert.equal(lastOpen(p).target?.effort, 'high');
   });
 
   /** Unset states nothing, rather than an empty string the adapter would have
@@ -72,7 +72,11 @@ describe('the setting seeds a draft', () => {
     const p = openPanel(t);
     typeIn(draft(p, { model: 'haiku' }), 'begin');
     enter(p);
-    assert.equal('effort' in lastOpen(p), false, 'an unset setting still named an effort');
+    assert.equal(
+      'effort' in (lastOpen(p).target ?? {}),
+      false,
+      'an unset setting still named an effort'
+    );
   });
 
   /** With no row there is no native vocabulary against which the stored value
@@ -81,7 +85,7 @@ describe('the setting seeds a draft', () => {
     const p = openPanel(t);
     typeIn(draft(p, { models: [], efforts: { opus: 'high' } }), 'begin');
     enter(p);
-    const open = lastOpen(p);
+    const open = lastOpen(p).target ?? {};
     assert.equal(open.model, undefined, 'an empty list named a model');
     assert.equal('effort' in open, false, 'an unverified effort reached the start');
   });
@@ -101,7 +105,7 @@ describe('the setting seeds a draft', () => {
     const p = openPanel(t);
     assert.equal(value(draft(p, { model: 'mystery', efforts: { mystery: 'ultra' } })), 'mystery');
     assert.deepEqual(sent(p), { model: 'mystery' });
-    assert.equal(lastOpen(p).effort, undefined, 'a typed id carried an unverified effort');
+    assert.equal(lastOpen(p).target?.effort, undefined, 'a typed id carried an unverified effort');
   });
 
   /** The other half of that: an unlisted id that *does* spell a brand out
@@ -200,7 +204,7 @@ describe('the draft’s model pill', () => {
     assert.equal(value(draft(p, { models: [] })), 'default');
     typeIn(p, 'begin');
     enter(p);
-    assert.equal(lastOpen(p).model, undefined, 'an empty list still named a model');
+    assert.equal(lastOpen(p).target?.model, undefined, 'an empty list still named a model');
   });
 
   /** The pick states itself on the pill at once, rather than waiting for a push
@@ -238,9 +242,13 @@ describe('the draft’s model pill', () => {
     assert.equal(value(p), 'Haiku');
     typeIn(p, 'begin');
     enter(p);
-    const open = lastOpen(p);
-    assert.equal(open.model, 'haiku', 'the pick did not reach the start');
-    assert.equal('effort' in open, false, 'Haiku carried the old model’s effort');
+    const open = lastOpen(p).target;
+    assert.equal(open?.model, 'haiku', 'the pick did not reach the start');
+    assert.equal(
+      open !== undefined && 'effort' in open,
+      false,
+      'Haiku carried the old model’s effort'
+    );
   });
 
   it('opens a picked model on the effort saved for it', (t) => {
@@ -249,6 +257,6 @@ describe('the draft’s model pill', () => {
     pick(pillMenu(p), 'Opus', '1M').click();
     typeIn(p, 'begin');
     enter(p);
-    assert.equal(lastOpen(p).effort, 'low');
+    assert.equal(lastOpen(p).target?.effort, 'low');
   });
 });

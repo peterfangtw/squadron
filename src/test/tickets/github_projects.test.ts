@@ -257,9 +257,9 @@ it('filters one cached selected-project snapshot, invalidates on refresh and dro
   await source.read('q', all);
   await source.read('p', all);
   assert.equal(reads, 4, 'a retired project snapshot was retained');
-  clock += github.REFRESH_MS + 1;
+  clock += 60 * 60_000;
   await source.read('p', all);
-  assert.equal(reads, 5, 'an expired snapshot stayed cached');
+  assert.equal(reads, 4, 'the source expired its own snapshot');
 });
 
 it('warns about inaccessible content while preserving readable issues and rejecting other partial errors', async (t) => {

@@ -1342,7 +1342,8 @@ describe('the card list', () => {
         (b) => b.dataset.tip
       );
     assert.deepEqual(titles(), [COPY, 'End session']);
-    const { turnPending: _, ...opened } = sent;
+    // Rebuilt rather than spread: the push ships the host's answer afresh.
+    const opened = cardView({ pid: 9, status: 'busy', owned: true });
     p.push(stateMessage([groupView({ sessions: [opened] })]));
     assert.deepEqual(titles(), ['Interrupt turn', COPY, 'End session']);
   });
@@ -1361,7 +1362,8 @@ describe('the card list', () => {
       );
     assert.deepEqual(titles(), ['Interrupt turn', COPY, 'End session'], 'not the resting card');
 
-    p.push(stateMessage([groupView({ sessions: [{ ...running, closing: true }] })]));
+    const ending = cardView({ pid: 9, status: 'busy', owned: true, closing: true });
+    p.push(stateMessage([groupView({ sessions: [ending] })]));
     // End stays: an end that was not honoured is exactly when a second one is
     // wanted, and the dock's own End is on screen for this session either way.
     assert.deepEqual(titles(), [COPY, 'End session']);

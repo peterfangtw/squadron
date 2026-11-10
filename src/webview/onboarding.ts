@@ -10,6 +10,7 @@
 import { accountRow, authSheetOpen, startLogin } from './accounts';
 import { orchestratorsRow } from './board_settings';
 import { $, el } from './dom';
+import * as layers from './layers';
 import { ui, vscode } from './state';
 
 const dialog = $('onboarding') as HTMLDialogElement;
@@ -59,15 +60,36 @@ let doneHere = false;
  *  nothing — every 3s rebuild would take the focus and the hover with it. */
 let painted = '';
 
-// Escape taken on the keydown, not left to the native `cancel` that is its
-// default action: a cancel comes after dispatch, by which time the window's
-// interrupt (composer.ts) has heard a key nobody consumed. Preventing the
-// keydown also suppresses that cancel; the listener below keeps any other
-// close request.
-dialog.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
-  event.preventDefault();
-  dismiss();
+/**
+ * On the layer stack while it is up. Escape is taken on the keydown, not left
+ * to the native `cancel` that is its default action: a cancel comes after
+ * dispatch, by which time the window's interrupt (composer.ts) has heard a key
+ * nobody consumed. The stack prevents the keydown, which also suppresses that
+ * cancel; the listener below keeps any other close request. Gated, the key is
+ * still taken and nothing closes.
+ */
+let layer: layers.Handle | undefined;
+
+function showModal(): void {
+  dialog.showModal();
+  if (layer?.open) return;
+  layer = layers.push({
+    kind: 'onboarding',
+    close: finish,
+    escape: () => {
+      if (!dialog.open) return false;
+      dismiss();
+      return true;
+    },
+    root: () => [dialog]
+  });
+}
+
+dialog.addEventListener('close', () => {
+  // A reopen in the same task as the close finds this event behind it.
+  if (dialog.open) return;
+  layer?.pop();
+  layer = undefined;
 });
 dialog.addEventListener('cancel', (event) => {
   event.preventDefault();
@@ -94,7 +116,7 @@ export function renderOnboarding(): void {
   if (!wanted || authSheetOpen()) return;
   if (!dialog.open) {
     painted = '';
-    dialog.showModal();
+    showModal();
   }
   paint();
 }

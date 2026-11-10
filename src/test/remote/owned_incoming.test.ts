@@ -224,8 +224,10 @@ for (const brand of ['claude', 'grok', 'codex'] as const) {
             );
             assert.equal(refused?.ok, false);
             assert.equal(
-              refused?.notStarted,
-              changed.expectedHost.osStartedAt === capability.host.osStartedAt ? true : undefined
+              refused?.outcome,
+              changed.expectedHost.osStartedAt === capability.host.osStartedAt
+                ? 'stopped'
+                : 'unknown'
             );
             assert.equal(created, undefined);
           }
@@ -312,7 +314,7 @@ it(
           child.publish,
           () => Promise.resolve(true)
         ),
-        { ok: false, notStarted: true }
+        { ok: false, outcome: 'stopped' }
       );
       assert.equal(sent, 0);
       assert.equal(await child.transport.exited, true);
@@ -355,7 +357,7 @@ it(
           write,
           () => Promise.resolve(true)
         ),
-        { ok: false, unsure: true }
+        { ok: false, outcome: 'unknown' }
       );
       fail = false;
       const proof = await accepted.owner.evidence(

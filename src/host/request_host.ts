@@ -10,6 +10,7 @@ import { windowTokens } from '../core/catalog';
 import * as admit from '../core/coordination/admit';
 import { lineageAlive, readLineage } from '../core/coordination/lineage';
 import { readReports } from '../core/coordination/reports';
+import { launchTargetOf } from '../core/coordination/request_codec';
 import { MALFORMED, Reply, Request } from '../core/coordination/requests';
 import * as origin from '../core/coordination/origin';
 import type { RemoteFilesStart } from '../core/coordination/serve_owned';
@@ -31,6 +32,7 @@ import { incomingHolderNow, readHolder } from '../core/remote/holder';
 import { serveAttach, type AttachPort } from '../core/remote/serve_attach';
 import { serveFetchFile } from '../core/remote/serve_fetch';
 import { scanProcesses } from '../core/scan';
+import { startReply } from '../core/start_outcome';
 import { ReadWorkflow, armWorkflow, cannotRunHere } from '../core/workflows/workflows';
 import { OverviewPanel } from './panel';
 import type { RemoteHost } from './remote';
@@ -139,12 +141,7 @@ export function createRequestHost({
     }
     const reply = await serveRequest(classified);
     return classified.request.kind === 'open'
-      ? {
-          ...reply,
-          startupVersion: 1,
-          attemptId: classified.request.id,
-          ...(!reply.ok && !reply.unsure ? { notStarted: true } : {})
-        }
+      ? { ...startReply(reply), attemptId: classified.request.id }
       : reply;
   }
 
@@ -165,7 +162,7 @@ export function createRequestHost({
       return {
         ok: false,
         reason: 'That folder is no longer open in this window.',
-        notStarted: true,
+        outcome: 'stopped',
         selectionInvalid: true
       };
     }
@@ -178,7 +175,7 @@ export function createRequestHost({
         ...(target === undefined ? {} : { target })
       });
     } catch (error) {
-      return { ok: false, reason: String(error), unsure: true };
+      return { ok: false, reason: String(error), outcome: 'unknown' };
     }
   }
 
@@ -201,7 +198,7 @@ export function createRequestHost({
       return {
         ok: false,
         reason: 'That folder is no longer open in this window.',
-        notStarted: true,
+        outcome: 'stopped',
         selectionInvalid: true
       };
     const admitted = async (): Promise<boolean> => {
@@ -217,7 +214,7 @@ export function createRequestHost({
       );
     };
     if (!(await admitted()))
-      return { ok: false, reason: 'Incoming destination or holder changed.', notStarted: true };
+      return { ok: false, reason: 'Incoming destination or holder changed.', outcome: 'stopped' };
     try {
       return await startOwned({
         cwd: start.attempt.cwd,
@@ -225,7 +222,7 @@ export function createRequestHost({
         incoming: { files: start, admitted }
       });
     } catch (error) {
-      return { ok: false, reason: String(error), unsure: true };
+      return { ok: false, reason: String(error), outcome: 'unknown' };
     }
   }
 
@@ -294,15 +291,10 @@ export function createRequestHost({
           log(`spawn refused: ${request.cwd} — ${refusal.reason ?? ''}`);
           return refusal;
         }
-        const asked = brandForStart(request.brand);
-        if (!asked.ok) return { ...asked, cause: 'pick' };
+        const picked = openTarget(request);
+        if (!picked.ok) return { ...picked, cause: 'pick' };
         const identity = resolveSpawnIdentity(
-          {
-            brand: asked.brand,
-            model: request.model,
-            window: request.window,
-            effort: request.effort
-          },
+          picked.target,
           parentIdentity(request.parentSessionId),
           OverviewPanel.listedModels()
         );
@@ -377,19 +369,13 @@ export function createRequestHost({
       // An older requester sends neither `brand` nor `model`; `startOwned` folds
       // that the same way as `''` — the account default, which is what every
       // start did before any of this.
-      const asked = brandForStart(request.brand);
-      if (!asked.ok) return { ...asked, cause: 'pick' };
+      const picked = openTarget(request);
+      if (!picked.ok) return { ...picked, cause: 'pick' };
       return await startOwned({
         cwd: request.cwd,
         resume: request.resume,
         name: request.name,
-        // Absence keeps startOwned's account default; future named brands were refused above.
-        target: {
-          ...(asked.brand === undefined ? {} : { brand: asked.brand }),
-          ...(request.model === undefined ? {} : { model: request.model }),
-          ...(request.window === undefined ? {} : { window: request.window }),
-          ...(request.effort === undefined ? {} : { effort: request.effort })
-        }
+        target: picked.target
       });
     }
 
@@ -463,4 +449,22 @@ export function createRequestHost({
       ownedPort
     );
   }
+}
+
+/** The flat fields of an open request, as the target a start runs on. */
+function openTarget(request: {
+  brand?: string;
+  model?: string;
+  window?: number;
+  effort?: string;
+}): { ok: true; target: LaunchTarget } | { ok: false; reason: string } {
+  const asked = brandForStart(request.brand);
+  if (!asked.ok) return asked;
+  const target = launchTargetOf({
+    brand: asked.brand,
+    model: request.model,
+    window: request.window,
+    effort: request.effort
+  });
+  return target ? { ok: true, target } : { ok: false, reason: MALFORMED };
 }

@@ -10,6 +10,7 @@
  */
 
 import { el, imeKey } from './dom';
+import * as layers from './layers';
 
 /** A number being typed: digits with at most one point, or nothing yet. The
  *  point stays visible while typing, since refusing it would turn "32.5" into
@@ -44,14 +45,16 @@ export function numInput(o: {
     if (SHAPE.test(input.value)) typed = input.value;
     else input.value = typed;
   });
+  layers.claim(input);
   input.addEventListener('keydown', (e) => {
     if (imeKey(e)) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       input.blur();
     } else if (e.key === 'Escape') {
-      // The draft goes, and the surface the field sits in stays: the sheet's
-      // own Escape listener is on the document, past this one.
+      // The draft goes, and the surface the field sits in stays: the field
+      // claims the key from the layer stack, which would otherwise hear it
+      // first. Stopped as well, for any document listener past this one.
       e.preventDefault();
       e.stopPropagation();
       input.value = input.dataset.value ?? '';

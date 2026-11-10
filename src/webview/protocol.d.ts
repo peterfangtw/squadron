@@ -93,8 +93,8 @@ interface CardView {
    * stop on the session.
    *
    * The host projects normalized kind facts, keeping local close/dismiss
-   * controls independent of routing metadata and caller authority. `endable`
-   * in `webview/chat.ts` asks whether there is a turn to end right now.
+   * controls independent of routing metadata and caller authority. Whether
+   * there is a turn to end right now is `canInterrupt`.
    *
    * Required, unlike `closing` and `owned` beside it, because absence would be a
    * lie with a verb behind it: a card that forgot to state this would silently
@@ -102,6 +102,12 @@ interface CardView {
    * deliberately outside it (`board_card.ts`).
    */
   canControl: boolean;
+  /**
+   * Interrupt is offered: the head button, Escape and a dialog's Cancel in the
+   * dock, and the card's button outside a dialog. Decided once by `toCard`
+   * (`ui/views.ts` `offersInterrupt`); every surface reads it.
+   */
+  canInterrupt: boolean;
   /**
    * This window drives the session over its pipe.
    *
@@ -629,8 +635,9 @@ interface ThreadView extends CardView {
   who: string;
   /** This session's brand's start list. Absent: the composer uses the gear's union. */
   models?: ModelView[];
-  /** False when this thread cannot target its next message through messages.send. */
-  canModel?: false;
+  /** The next message can be sent on a model of the reader's pick
+   *  (`composeThread`). The composer's model pill reads only this. */
+  canModel: boolean;
   blockedReason?: string;
   /**
    * Its child has gone. Stated because `canSend` cannot tell the two unsendable
@@ -772,10 +779,17 @@ type TicketSourceMarkId = 'linear' | 'github';
 interface TicketSourcePresentation {
   label: string;
   mark?: TicketSourceMarkId;
-  connectLabel: string;
-  connectHint: string;
   reconfigureLabel?: string;
   disconnectLabel?: string;
+}
+
+/** One row of the unlinked prompt: what choosing that source will ask for. */
+interface TicketSourceOffer {
+  sourceId: string;
+  label: string;
+  mark?: TicketSourceMarkId;
+  /** What its connect flow asks for, e.g. `Personal API key`. */
+  detail: string;
 }
 
 interface TicketScope {
@@ -808,9 +822,10 @@ interface TicketSourceStatus {
   connections?: TicketConnection[];
   linked: boolean;
   sourceId: string;
-  generation: number;
+  /** The store's selection token, linked or not. Every selection-scoped post
+   *  echoes it, and the tab compares it only through `core/ticket_token.ts`. */
+  token: TicketSelectionToken;
   presentation: TicketSourcePresentation;
-  selectionSeq: number;
   scopeId?: string;
   scopes?: TicketScope[];
   loading?: boolean;
@@ -819,6 +834,11 @@ interface TicketSourceStatus {
   error?: string;
   options?: TicketOptions;
   filter?: TicketFilterView;
+  /** The sources not yet connected: a row each on the unlinked prompt, a
+   *  `Connect` item each in a linked board menu. */
+  offers?: TicketSourceOffer[];
+  /** The source whose connect prompt is open in the IDE, held until it returns. */
+  connecting?: string;
 }
 
 /** How much of one rate-limit window is spent. `resetsAt` is epoch seconds. */
@@ -866,6 +886,9 @@ interface UsageView {
  * `core/model` can, `core/workflows/workflows` cannot (it reaches `fs`).
  */
 type BrandId = import('../core/model').BrandId;
+
+/** A start's pick, whole — core's `LaunchTarget`, not a second copy of its fields. */
+type LaunchTarget = import('../core/model').LaunchTarget;
 
 /**
  * One row of the accounts popover. Every integrated CLI is live
@@ -1729,29 +1752,34 @@ type RevealMessage = {
   draftId?: string;
 };
 
-/** A negative reply without no-start proof remains unknown, including legacy replies. */
+/**
+ * A start's outcome as the host decided it (`core/start_outcome.ts`), and the
+ * sentence to paint. The webview reads no flags and writes no fallback words.
+ */
+type StartWord = import('../core/start_outcome').StartWord;
+
+/** Posted only when a draft's start did not hand off; success is the `reveal`. */
 type OpenResultMessage = {
   type: 'openResult';
   draftId: string;
-  ok: boolean;
-  reason?: string;
-  unsure?: true;
-  notStarted?: true;
+  outcome: Exclude<StartWord, 'started'>;
+  notice: string;
 };
 
+/** Multi-shot: `waiting` may repeat before one final word. */
 type StartupStatusMessage = {
   type: 'startupStatus';
   attemptId: string;
-  state: 'waiting' | 'unknown' | 'stopped' | 'started';
+  state: StartWord | 'waiting';
+  notice: string;
   stage?: string;
-  reason?: string;
   pid?: number;
   startedAt?: number;
 };
 
 type ResumeResultMessage = { type: 'resumeResult'; requestId: string; attemptId?: string } & (
-  | { ok: true; pid: number; startedAt: number }
-  | { ok: false; reason: string; unsure?: true; notStarted?: true }
+  | { outcome: 'started'; notice: string; pid: number; startedAt: number }
+  | { outcome: Exclude<StartWord, 'started'>; notice: string }
 );
 
 /**
@@ -2135,6 +2163,11 @@ type PanelMessage =
    *  `landed: false` only — a failed write, or a push for a folder this window
    *  no longer has open. */
   | { type: 'themeChoice'; theme: ThemeName; landed: boolean }
+  /** A `selectTicketScope` the store refused, echoing the token it was sent
+   *  with. Sent only on refusal: an accepted pick is a push naming it. Every
+   *  later push carries a token older than the pick, so without this
+   *  the tab would keep the optimistic board until the generation moved. */
+  | ({ type: 'ticketScopeChoice'; landed: false; scopeId: string } & TicketSelectionToken)
   /** A `setRemoteAllowlist` the host could not save, and why, worded.
    *  `account` is the newest added account the messenger refused, given back
    *  to an empty field to correct; the rest of that edit was saved. */
@@ -2550,11 +2583,11 @@ type WebviewMessage =
    *
    * Posted at the **first send of a draft**, never at the press of New — the
    * draft lives in the webview until there is something to say, and this
-   * message is what spawns. `brand`, `model` and `window` are the draft's own
-   * pick and are what the start runs on. The gear's `model`/`contextWindow` is
-   * where that pick *opens*, not what it is: the draft states its answer here
-   * even when nobody touched the pill, so a start is never decided by a setting
-   * read in a window the reader is not looking at.
+   * message is what spawns. `target` is the draft's pick, whole, and is what
+   * the start runs on. The gear's `model`/`contextWindow` is where that pick
+   * *opens*, not what it is: the draft states its answer here even when nobody
+   * touched the pill, so a start is never decided by a setting read in a
+   * window the reader is not looking at.
    *
    * **The prompt is never here.** The draft's text stays in the webview: the
    * host answers with a `reveal` naming the same `draftId`, and the webview
@@ -2569,23 +2602,11 @@ type WebviewMessage =
   | {
       type: 'open';
       cwd: string;
-      /** Absent means Claude — same default as `startOwned`. */
-      brand?: BrandId;
-      /** `''` is the account's own default, as a spawn already passes. */
-      model?: string;
-      /** The tokens of the picked row; absent names no window at all. */
-      window?: number;
       /**
-       * How hard the session is to think, in the selected brand's own
-       * spelling. Absent sends no override at all and lets the CLI decide —
-       * it is not a value, and no adapter is handed an invented one.
-       *
-       * Rides here for the reason `model` does: one place decides what a start
-       * runs on, and it is the message. `squadron.efforts` is read into the
-       * state push and seeds this, the way `squadron.model` seeds the pick —
-       * `startOwned` reads no setting.
+       * The draft's pick, whole. Absent, or a target with no brand, means
+       * Claude — the same default as `startOwned`.
        */
-      effort?: string;
+      target?: LaunchTarget;
       /** The draft's first line, to label the card until the CLI titles the
        *  conversation itself. Not a name: it never reaches `--name`, because a
        *  CLI files one of those the way it files a `/rename` and then titles
@@ -2617,8 +2638,6 @@ type WebviewMessage =
       requestId: string;
       cwd: string;
       sessionId: string;
-      /** Absent means Claude — same default as `startOwned`. The picker always sends it. */
-      brand?: BrandId;
       /** A name somebody stated for this conversation, which is the only kind
        *  of title a picker row ever carries (`core/conversations.ts` reads the
        *  rest as a prompt standing in). Reaches `--name`; `placeholder` does not. */
@@ -2627,25 +2646,13 @@ type WebviewMessage =
        *  reads like a fresh one instead of `agent-3f` until the CLI titles it. */
       placeholder?: string;
       /**
-       * What this resume starts on, stated rather than left to the host.
-       *
-       * `''` is the account's own default. It rides here for the same reason it
-       * rides on `open`: one place decides what a start runs on, and it is the
-       * message. This picker has no model control of its own, so what it states
-       * is the gear's setting, which is what a resume has always started on.
+       * What this resume starts on, whole. The row's brand is always stated.
+       * This picker has no model control of its own, so the model it states is
+       * the gear's setting, or `''` when that setting names another brand.
+       * The effort is dropped with that model: a native value from one model
+       * is not evidence that another brand's model accepts it.
        */
-      model?: string;
-      /** The tokens of the picked row; absent names no window at all. */
-      window?: number;
-      /**
-       * What this resume is to reason at, in the row's brand's own spelling.
-       * Absent sends no override.
-       *
-       * Validated against the model beside it and dropped when that model is
-       * dropped on a brand mismatch. A native value from one model is not
-       * evidence that another brand's model accepts it.
-       */
-      effort?: string;
+      target?: LaunchTarget;
     }
   /** Put a reference to this session on the clipboard, for pasting into another
    *  session's prompt — `@squadron[pid][transcript]`, written by the host
@@ -2728,7 +2735,8 @@ type WebviewMessage =
   | { type: 'setWarmSetting'; key: string; minutes: number }
   | { type: 'setTheme'; theme: ThemeName }
   | { type: 'setSound'; level: SoundLevel }
-  | ({ type: 'connectTicketSource'; provider?: string } & TicketSelectionToken)
+  /** `provider` is the source the pressed control painted; the host has no default. */
+  | ({ type: 'connectTicketSource'; provider: string } & TicketSelectionToken)
   /**
    * Whether the backlog is on screen: the tickets tab up *and* the dock open.
    * Gates nothing — an opening flip only asks the host to refresh now instead

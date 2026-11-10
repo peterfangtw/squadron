@@ -129,6 +129,42 @@ describe('signInFor', () => {
     assert.equal(cli.asks, 2);
   });
 
+  it('keeps each binary its own answer under one account', async () => {
+    // A window whose path setting names another binary (a wrapper, a fixture)
+    // reads the same config stamp and may answer differently.
+    const other: AccountRowStatus = { loggedIn: true, email: 'other@example.com' };
+    let asks = 0;
+    const cli: AccountSource = {
+      stamp: () => Promise.resolve('s1'),
+      status: (override) => {
+        asks += 1;
+        return Promise.resolve(override ? other : IN);
+      }
+    };
+    const shim = path.resolve('/opt/shim/claude');
+    assert.deepEqual(
+      await signin.signInFor('claude', cli, { now: 1, home, override: shim, force: true }),
+      other
+    );
+    assert.deepEqual(await signin.signInFor('claude', cli, { now: 2, home }), IN);
+    assert.equal(asks, 2);
+    assert.deepEqual(await signin.signInFor('claude', cli, { now: 3, home }), IN);
+    assert.deepEqual(
+      await signin.signInFor('claude', cli, { now: 4, home, override: shim }),
+      other
+    );
+    assert.equal(asks, 2);
+    assert.deepEqual(await signin.storedSignIn('claude', { home }), IN);
+    assert.deepEqual(await signin.storedSignIn('claude', { home, override: shim }), other);
+  });
+
+  it('reads a blank override as the default search', async () => {
+    const cli = port('s1', IN);
+    await signin.signInFor('claude', cli.port, { now: 1, home, override: '  ' });
+    await signin.signInFor('claude', cli.port, { now: 2, home });
+    assert.equal(cli.asks, 1);
+  });
+
   it('asks on a record it cannot read', async () => {
     const file = path.join(home, '.squadron', 'signin.claude.json');
     await fs.mkdir(path.dirname(file), { recursive: true });
@@ -188,6 +224,18 @@ describe('signInFor', () => {
     assert.equal(cli.asks, 1);
   });
 
+  it('does not join a pass running for another binary', async () => {
+    const cli = port('s1', IN);
+    const { gate, open } = opened();
+    cli.gate = gate;
+    const shim = path.resolve('/opt/shim/codex');
+    const first = signin.signInFor('codex', cli.port, { now: 1, home });
+    const second = signin.signInFor('codex', cli.port, { now: 2, home, override: shim });
+    open();
+    await Promise.all([first, second]);
+    assert.equal(cli.asks, 2);
+  });
+
   it('asks again after an ask already running when forced', async () => {
     const cli = port('s1', IN);
     const { gate, open } = opened();
@@ -232,6 +280,15 @@ describe('refreshCatalog', () => {
     assert.equal(cli.refreshes, 1);
     cli.stamp = 's2';
     await signin.refreshCatalog('codex', cli.adapter, { signedIn: true, now: 3 });
+    assert.equal(cli.refreshes, 2);
+  });
+
+  it('refreshes again when the path setting names another binary', async () => {
+    const cli = catalog('s1');
+    const shim = path.resolve('/opt/shim/codex');
+    await signin.refreshCatalog('codex', cli.adapter, { signedIn: true, now: 1 });
+    await signin.refreshCatalog('codex', cli.adapter, { signedIn: true, now: 2, override: shim });
+    await signin.refreshCatalog('codex', cli.adapter, { signedIn: true, now: 3, override: shim });
     assert.equal(cli.refreshes, 2);
   });
 

@@ -628,25 +628,77 @@ export function workBusy(workspace, directory, finalizer) {
       ))
   )
     return true;
+  let table;
+  const snapshot = () => (table ??= processes.snapshot());
   for (const file of fs.readdirSync(directory).filter((f) => /^job-[^.]+\.json$/.test(f))) {
-    const job = read(path.join(directory, file));
-    if (job?.version === 1) {
-      const state = read(path.join(directory, file + '.state.json'));
-      const closed = read(path.join(directory, file + '.closed.json'));
-      if (
-        !sameJob(state, job) ||
-        !['finished', 'interrupted'].includes(state.phase) ||
-        !Array.isArray(state.members) ||
-        !state.members.every(processes.validIdentity) ||
-        !sameJob(closed, job) ||
-        closed.state !== digest(JSON.stringify(state))
-      )
-        return true;
-      continue;
-    }
-    return true;
+    if (jobBusy(path.join(directory, file), snapshot)) return true;
   }
   return false;
+}
+
+function jobBusy(file, snapshot, seen = new Set()) {
+  const job = read(file);
+  if (job?.version !== 1) return true;
+  const state = read(file + '.state.json');
+  const closed = read(file + '.closed.json');
+  if (
+    sameJob(state, job) &&
+    ['finished', 'interrupted'].includes(state.phase) &&
+    Array.isArray(state.members) &&
+    state.members.every(processes.validIdentity) &&
+    sameJob(closed, job) &&
+    closed.state === digest(JSON.stringify(state))
+  )
+    return false;
+  seen.add(file);
+  return process.platform === 'win32' || !ended(file, job, snapshot, seen);
+}
+
+/**
+ * A job its owner never closed — the owner killed between the wrapper's exit
+ * and the close — is over once the owner and every member any record names
+ * are gone by pid and start, and so is the wrapper's group, which holds a
+ * descendant no read saw, and a nested timed step's. A descendant that left
+ * the group any other way, unseen, is outside this.
+ * Not on win32: no group there, and no descendant witness yet (#277).
+ */
+function ended(file, job, snapshot, seen) {
+  if (!processes.validIdentity(job.owner)) return false;
+  const records = ['.state.json', '.bound.json', '.confirmed.json']
+    .map((suffix) => read(file + suffix))
+    .filter((record) => sameJob(record, job));
+  const ready = read(file + '.ready.json');
+  const wrapper = sameJob(ready, job) ? ready.wrapper : undefined;
+  // No wrapper on record: one may have been spawned and not yet said so.
+  if (!processes.validIdentity(wrapper) || !records.some((r) => Array.isArray(r.members)))
+    return false;
+  const prefix = path.basename(file) + '.cancel-';
+  for (const name of fs.readdirSync(path.dirname(file)).filter((n) => n.startsWith(prefix))) {
+    const observed = read(path.join(path.dirname(file), name));
+    if (!sameJob(observed, job) || !Array.isArray(observed.members)) return false;
+    records.push(observed);
+  }
+  const members = [job.owner, wrapper, ...records.flatMap((r) => r.members ?? [])];
+  const table = snapshot();
+  return (
+    table.complete &&
+    members.every(processes.validIdentity) &&
+    members.every((m) => !processes.sameIdentity(m, processes.identity(m.pid, table))) &&
+    !alive(-wrapper.pid) &&
+    !nestedBusy(file, job, snapshot, seen)
+  );
+}
+
+/** A timed runner under the job holds its step in a group of its own, named only by its holder. */
+function nestedBusy(file, job, snapshot, seen) {
+  const holder = read(path.join(job.gate, 'holder'));
+  if (holder?.parentJob?.file !== file || !sameJob(holder.parentJob, job)) return false;
+  if (live(holder) || (Number.isSafeInteger(holder.pgid) && holder.pgid > 0 && alive(-holder.pgid)))
+    return true;
+  const nested = holder.job?.file;
+  if (typeof nested !== 'string') return false;
+  // A cycle proves nothing over.
+  return seen.has(nested) || !fs.existsSync(nested) || jobBusy(nested, snapshot, seen);
 }
 
 export async function runOwned({

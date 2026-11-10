@@ -433,6 +433,81 @@ describe('workflow editor', () => {
     // A default of `''` here would clear every file's output on save.
     assert.equal('output' in (msg.steps[0] ?? {}), false);
   });
+
+  // The editor's layer shuts the drawer. Two of these doors used to close it
+  // themselves; the other three left it raised.
+  it('leaves the bottom drawer closed from every editor door', (t) => {
+    const shut = (p: Panel, door: string): void => {
+      assert.equal(
+        p.window.document.getElementById('bottomdrawer')?.hidden,
+        true,
+        `${door} left the drawer open`
+      );
+      assert.equal(
+        p.window.document.getElementById('wfeditor')?.hidden,
+        false,
+        `${door} opened no editor`
+      );
+    };
+
+    {
+      const p = openPanel(t);
+      p.push(stateMessage(board(), { workflows: [ship] }));
+      select(p);
+      openSheet(p);
+      p.window.document.querySelector<HTMLElement>('#bottomdrawer-body .wsnew')?.click();
+      shut(p, 'the list New');
+    }
+
+    {
+      const p = openPanel(t);
+      p.push(stateMessage(board(), { workflows: [ship] }));
+      select(p);
+      openSheet(p);
+      sheetItems(p)[0]?.querySelector<HTMLElement>('.act.edit')?.click();
+      shut(p, 'the row Edit');
+    }
+
+    {
+      const p = openPanel(t);
+      p.push(stateMessage(board(), { workflows: [ship] }));
+      select(p);
+      openSheet(p);
+      p.window.document.querySelector<HTMLElement>('#wattach .fpill')?.click();
+      const foot = p.window.document.querySelector<HTMLElement>('#wattach .fmenu .faction');
+      assert.match(foot?.textContent ?? '', /New workflow/);
+      foot?.click();
+      shut(p, 'New workflow…');
+    }
+
+    {
+      const p = openPanel(t);
+      p.push(stateMessage(board(), { workflows: [ship] }));
+      select(p);
+      attachWorkflow(p, ship.label);
+      openSheet(p);
+      p.window.document.querySelector<HTMLElement>('#wattach .wflow .wedit')?.click();
+      shut(p, 'Edit on the chip');
+    }
+
+    {
+      const p = openPanel(t);
+      p.push(stateMessage(board(), { workflows: [] }));
+      select(p);
+      const warm = p.window.document.querySelector<HTMLElement>('#bottomhub .warm-tab');
+      assert.ok(warm, 'no Warm word');
+      warm.click();
+      assert.equal(
+        p.window.document.getElementById('bottomdrawer')?.hidden,
+        false,
+        'Warm did not open'
+      );
+      const create = p.window.document.querySelector<HTMLElement>('#bottomhub .fpill');
+      assert.match(create?.textContent ?? '', /New workflow/);
+      create?.click();
+      shut(p, 'the empty-machine New');
+    }
+  });
 });
 
 describe('Escape in the board editor', () => {

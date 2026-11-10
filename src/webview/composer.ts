@@ -23,7 +23,6 @@ import { attachFormatbar } from './formatbar';
 import { resolveModel } from '../core/model_names';
 import { isMidTurn, sameSessionStart } from '../core/model';
 import { icon } from '../ui/icons';
-import { lightboxOpen } from './lightbox';
 
 /**
  * What the CLI attaches, copied from `pastes.ts` because this bundle cannot
@@ -942,14 +941,14 @@ function boxKeys(e: KeyboardEvent): boolean {
  * Escape ends the turn, as in the terminal, wherever focus is: opening a dock
  * focuses nothing, and a click on a turn takes focus from the composer.
  *
- * It is the last owner. On the window, it hears the key after every document
- * listener. A surface that shuts on Escape (a sheet, the drawer, a menu, the ask
- * layer) calls `preventDefault` or stops it, so one press never both dismisses
- * and interrupts. The tip does neither: hiding it is passive, and consuming
- * Escape would kill it over the dock's Interrupt button.
+ * It is the last owner, outside the layer stack (`layers.ts`). On the window's
+ * bubble phase, it hears only a key no layer and no field took: those call
+ * `preventDefault`, so one press never both dismisses and interrupts. The tip
+ * does neither: hiding it is passive, and consuming Escape would kill it over
+ * the dock's Interrupt button.
  */
 window.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || e.defaultPrevented || !ui.selected || lightboxOpen()) return;
+  if (e.key !== 'Escape' || e.defaultPrevented || !ui.selected) return;
   // The board editor covers the board, and its Escape is Back (editor.ts).
   if (editing()) return;
   if (imeKey(e)) return;

@@ -2,12 +2,19 @@ import * as tickets from '../tickets';
 
 export const SOURCE_ID = 'linear';
 
-export const PRESENTATION: TicketSourcePresentation = {
+// Required: every shipped source offers the same re-key and disconnect.
+export const PRESENTATION: Required<TicketSourcePresentation> = {
   label: 'Linear',
   mark: 'linear',
-  connectLabel: 'Connect Linear',
-  connectHint: 'Connect Linear to see your backlog here.',
-  reconfigureLabel: 'Paste a different Linear API key'
+  reconfigureLabel: 'Paste a different Linear API key',
+  disconnectLabel: 'Disconnect Linear'
+};
+
+export const OFFER: TicketSourceOffer = {
+  sourceId: SOURCE_ID,
+  label: 'Linear',
+  mark: 'linear',
+  detail: 'Personal API key'
 };
 
 export function priorityValue(value: number): TicketPriority {
@@ -48,12 +55,30 @@ export const LINEAR_ENDPOINT = 'https://api.linear.app/graphql';
  * profile it launches, pointing a real host at a canned reply on localhost so
  * the suite that gates every deploy needs no Linear account.
  */
-export function trackerEndpoint(
-  scopes:
-    { globalValue?: string; workspaceValue?: string; workspaceFolderValue?: string } | undefined
-): string {
+export function trackerEndpoint(scopes: tickets.SettingScopes): string {
   return tickets.configuredEndpoint(scopes, LINEAR_ENDPOINT);
 }
+
+/** The keychain record: the personal API key, stored as the bare string. */
+export type LinearRecord = { apiKey: string };
+
+export const CONNECTOR: tickets.TicketConnector<LinearRecord> = {
+  offer: OFFER,
+  presentation: PRESENTATION,
+  secretKey: 'squadron.linear.apiKey',
+  settingsSection: 'linear',
+  endpointSetting: 'linear.endpoint',
+  endpoint: trackerEndpoint,
+  encode: (record) => record.apiKey,
+  decode: (raw) => (raw ? { apiKey: raw } : undefined),
+  open: (record, context) => ({
+    sourceId: SOURCE_ID,
+    generation: context.generation,
+    source: new LinearSource(record.apiKey, context.endpoint),
+    presentation: PRESENTATION,
+    legacyTeamKey: context.setting('linear.team') || undefined
+  })
+};
 
 const PAGE_INFO = 'pageInfo { hasNextPage endCursor }';
 
@@ -241,6 +266,9 @@ export function toTickets(
 
 /** Linear's key and user-scoped endpoint are supplied by the host. */
 export class LinearSource implements tickets.TicketSource {
+  /** One scope's options, reused by every read until `invalidate`, which the store calls as content expires. */
+  private memo: { scopeId: string; options: TicketOptions } | undefined;
+  private memoEpoch = 0;
   constructor(
     private readonly apiKey: string,
     private readonly endpoint: string = LINEAR_ENDPOINT,
@@ -265,7 +293,36 @@ export class LinearSource implements tickets.TicketSource {
     return [...scopes.values()].sort((a, b) => a.label.localeCompare(b.label));
   }
 
-  async list(
+  /**
+   * A filter that names nothing prunable goes out beside a cold options read;
+   * any other waits for the options, so a gone state or priority never reaches
+   * the request.
+   */
+  async read(
+    scopeId: string,
+    requested: TicketFilterView,
+    signal?: AbortSignal
+  ): Promise<tickets.TicketRead> {
+    const memo = this.memo?.scopeId === scopeId ? this.memo.options : undefined;
+    if (!memo && !tickets.prunable(requested)) {
+      const [rows, options] = await Promise.all([
+        this.issues(scopeId, requested, signal),
+        this.options(scopeId, signal)
+      ]);
+      return { tickets: rows, options, filter: requested };
+    }
+    const options = memo ?? (await this.options(scopeId, signal));
+    const filter = tickets.normalizeFilter(requested, options);
+    return { tickets: await this.issues(scopeId, filter, signal), options, filter };
+  }
+
+  invalidate(): void {
+    this.memo = undefined;
+    this.memoEpoch++;
+  }
+
+  /** The team's complete filtered board, deduplicated across pages. */
+  async issues(
     scopeId: string,
     filter: TicketFilterView,
     signal?: AbortSignal
@@ -332,7 +389,15 @@ export class LinearSource implements tickets.TicketSource {
     };
   }
 
+  /** The team's filter choices, memoised for later reads unless invalidated meanwhile. */
   async options(scopeId: string, signal?: AbortSignal): Promise<TicketOptions> {
+    const epoch = this.memoEpoch;
+    const options = await this.teamOptions(scopeId, signal);
+    if (epoch === this.memoEpoch) this.memo = { scopeId, options };
+    return options;
+  }
+
+  private async teamOptions(scopeId: string, signal?: AbortSignal): Promise<TicketOptions> {
     signal = readSignal(signal);
     if (!scopeId) throw incomplete();
     const [users, states, meta] = await Promise.all([

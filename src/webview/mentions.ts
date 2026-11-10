@@ -15,6 +15,7 @@
  */
 
 import { el, imeKey } from './dom';
+import * as layers from './layers';
 import * as mentionText from './mention_text';
 import type { Mention, MentionSources, RecentId } from './mention_text';
 
@@ -361,7 +362,10 @@ function draw(
       node.append(el('div', line.crumb ? 'mnhead mncrumb' : 'mnhead', line.head));
       continue;
     }
-    const button = el('button', line.gated ? 'mnrow gated' : 'mnrow') as HTMLButtonElement;
+    const button = el(
+      'button',
+      ['mnrow', line.gated && 'gated', line.titled && 'titled'].filter(Boolean).join(' ')
+    ) as HTMLButtonElement;
     // Inside no form, but stated anyway: the default is `submit`, and a stray
     // one in a webview is a navigation nobody asked for.
     button.type = 'button';
@@ -445,6 +449,13 @@ function pick(box: MentionTarget, line: mentionText.Row): void {
  */
 export function attachMentions(box: MentionTarget, attachment: Attachment): void {
   attachments.set(box.node, { target: box, attachment });
+  // The layer stack hears Escape before this box's own precedence below, so
+  // an open menu or a dismissable run claims it there: one Escape shuts the
+  // menu, never also the surface around the box.
+  layers.claim(
+    box.node,
+    (e) => e.target === box.node && takesEscape(box, e) && plain(e) && !imeKey(e)
+  );
   box.node.dataset.mentions = '';
   box.node.addEventListener('blur', () => {
     if (run?.box === box || owner === box) closeMentionMenu();
@@ -479,15 +490,9 @@ document.addEventListener(
     // an arrow is otherwise the caret — which in a multi-line prose box it stays
     // whenever no menu is up.
     const arrow = e.key === 'ArrowDown' || e.key === 'ArrowUp';
-    // Every modifier yields, not just Shift: a row is picked by a bare key,
-    // and a modified one is whatever the box under the menu makes it. An IME's
-    // Enter sent to a menu row eats the character it commits, and
-    // `stopPropagation` means nothing downstream can recover it.
-    const plain = !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey;
     if (
-      ((menuOwner() === box && (e.key === 'Enter' || e.key === 'Escape' || arrow)) ||
-        (run?.box === box && e.key === 'Escape')) &&
-      plain &&
+      ((menuOwner() === box && (e.key === 'Enter' || arrow)) || takesEscape(box, e)) &&
+      plain(e) &&
       !imeKey(e)
     ) {
       e.preventDefault();
@@ -513,6 +518,21 @@ document.addEventListener(
   },
   true
 );
+
+/** An open menu, or a run the reader can still dismiss, owns Escape. */
+function takesEscape(box: MentionTarget, e: KeyboardEvent): boolean {
+  return e.key === 'Escape' && (menuOwner() === box || run?.box === box);
+}
+
+/**
+ * Every modifier yields, not just Shift: a row is picked by a bare key, and a
+ * modified one is whatever the box under the menu makes it. An IME's Enter
+ * sent to a menu row eats the character it commits, and `stopPropagation`
+ * means nothing downstream can recover it.
+ */
+function plain(e: KeyboardEvent): boolean {
+  return !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey;
+}
 
 // A press anywhere else shuts it. The menu's rows are excluded because a pick
 // is a press and lands here first. So is the open menu's own box, not the

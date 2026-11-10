@@ -1,6 +1,7 @@
 import { DEFAULT_BRAND } from '../brands';
 import * as listings from '../model_listing';
 import type { LaunchTarget } from '../model';
+import type { FailedWord } from '../start_outcome';
 import type { Offered } from './jobs';
 import type { Place } from './model';
 import * as words from './words';
@@ -186,11 +187,11 @@ export function revise(draft: PickerDraft, revision: Revision): PickerDraft {
 
 export function startRecovery(
   draft: PickerDraft,
-  failure: { reason: string; notStarted?: true }
+  failure: { reason: string; outcome: FailedWord }
 ):
   | { kind: 'retry'; folder: Offered; reason: string }
   | { kind: 'uncertain'; draft: PickerDraft; reason: string } {
-  if (failure.notStarted === true && draft.folder)
+  if (failure.outcome === 'stopped' && draft.folder)
     return { kind: 'retry', folder: draft.folder, reason: failure.reason };
   const issue = words.startUnknown(failure.reason);
   return { kind: 'uncertain', draft: { ...draft, issue }, reason: issue };

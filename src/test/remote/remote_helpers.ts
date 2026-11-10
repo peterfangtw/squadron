@@ -414,11 +414,11 @@ export class TestWindow {
   }
 
   protected async startFor(start: RemoteStart): Promise<Started> {
-    if (this.gone) return { ok: false, reason: 'gone', notStarted: true };
+    if (this.gone) return { ok: false, reason: 'gone', outcome: 'stopped' };
     const resolved = listings.remoteTarget(start, (await this.models()).models, () => undefined);
     if (!resolved.ok) return resolved;
     if (start.selection !== undefined && path.resolve(start.cwd) !== path.resolve(this.folder)) {
-      return { ok: false, reason: 'Choose again', notStarted: true, selectionInvalid: true };
+      return { ok: false, reason: 'Choose again', outcome: 'stopped', selectionInvalid: true };
     }
     const live = await this.start({
       cwd: start.cwd,

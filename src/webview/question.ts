@@ -13,6 +13,7 @@ import { closeTicketDetail } from './ticket_details';
  */
 
 import { el, imeKey } from './dom';
+import * as layers from './layers';
 import { ask, chats, clearWantAskIf, qlaunch, question, scrim, ui, vscode } from './state';
 import { awaiting, morph, paintIfChanged } from './kit';
 import { bailBox, focusHeld, heldBox, rebuild, sendKey, sweepHeld, type Holder } from './boxes';
@@ -610,11 +611,23 @@ function cancelButton(t: ThreadView): HTMLButtonElement | undefined {
   return cancel;
 }
 
+/** The ask layer's place on the stack, while it is shown. */
+let layer: layers.Handle | undefined;
+
 /** Opening must focus #question: digits and Enter are bound there, not on document. */
 function showAsk(): void {
   closeTicketDetail();
   ask.hidden = false;
   scrim.hidden = false;
+  layer ??= layers.push({
+    kind: 'dialog',
+    close: () => {
+      clearReplay();
+      hideAsk();
+    },
+    escape: onAskEscape,
+    root: () => [ask, scrim]
+  });
   // Focus the container, not an option: repaint never replaces it, so keys survive staging.
   question.focus();
 }
@@ -627,6 +640,8 @@ function hideAsk(): void {
   if (ask.hidden) return;
   ask.hidden = true;
   scrim.hidden = true;
+  layer?.pop();
+  layer = undefined;
   if (!qlaunch.hidden) qlaunch.focus();
 }
 
@@ -1206,10 +1221,24 @@ scrim.onclick = () => {
   hideAsk();
 };
 
+/**
+ * Escape is the layer's only while focus is inside the block: `#input` is a
+ * sibling, and its Escape is the interrupt. First Escape leaves a field for the
+ * list and restores digits; the next closes the layer.
+ */
+function onAskEscape(e: KeyboardEvent): boolean {
+  if (!(e.target instanceof Node && question.contains(e.target))) return false;
+  const box = e.target instanceof Element ? e.target.closest('.prose') : null;
+  if (box) question.focus();
+  else {
+    clearReplay();
+    hideAsk();
+  }
+  return true;
+}
+
 // Keys belong to the block, not the document: `#input` is a sibling, so nothing
-// here can swallow a keystroke meant for the composer's own box. Escape rides
-// the same listener rather than a second one on the document — focus is inside
-// here whenever the layer is open, which is exactly when Escape should close it.
+// here can swallow a keystroke meant for the composer's own box.
 //
 // They drive the oldest ask on screen, which is the one the launcher names. A
 // permission dialog takes no keystroke at all: allowing a tool call is not
@@ -1225,18 +1254,7 @@ question.addEventListener('keydown', (e) => {
   // conversion on it, and that must not also take the reader out of the box.
   if (imeKey(e)) return;
   const box = e.target instanceof Element ? e.target.closest('.prose') : null;
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    // First Escape leaves a field for the list and restores digits; the next
-    // closes the layer.
-    if (box) question.focus();
-    else {
-      clearReplay();
-      hideAsk();
-    }
-    return;
-  }
-  // After Escape so records can still close from the keyboard. Disable answer
+  // Records still close from the keyboard: Escape is the layer's. Disable answer
   // keys in records: otherwise Enter could send a live ask's staged picks behind one.
   if (replay) return;
   const t = chats.thread();

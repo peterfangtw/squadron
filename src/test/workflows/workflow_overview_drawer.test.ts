@@ -89,6 +89,24 @@ describe('workflow observe drawer', () => {
     assert.ok(rank(drawer(p)) < rank(doc.getElementById('scrim')), 'a question still covers it');
   });
 
+  it('returns focus to its door when it closes', (t) => {
+    const p = openFollowing(t);
+    const live = chip(p);
+    assert.ok(live);
+    live.focus();
+    live.click();
+    assert.equal(drawer(p)?.hidden, false);
+    const close = drawer(p)?.querySelector<HTMLElement>('.rdhead .x');
+    assert.ok(close);
+    close.focus();
+    assert.notEqual(p.window.document.activeElement, live, 'focus never entered the rail');
+    close.dispatchEvent(
+      new p.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    );
+    assert.ok(drawer(p)?.hidden, 'Escape left the rail open');
+    assert.equal(p.window.document.activeElement, live);
+  });
+
   it('leaves focus on the live chip when opening it closes the drawer', (t) => {
     const p = openFollowing(t);
     const live = chip(p);

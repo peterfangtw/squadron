@@ -116,18 +116,66 @@ describe('the tickets tab', () => {
     ]);
   });
 
-  it('offers to connect when no source is linked', (t) => {
+  it('offers one connect prompt with a row per source when none is linked', (t) => {
     const p = openPanel(t);
     p.push(stateMessage([groupView()], { ticketSource: { ...ticketSourceView(), linked: false } }));
 
     const open = $(p, '#board-tickets');
     assert.match(open?.textContent ?? '', /Tickets/);
     open?.click();
-    $(p, '.tkconnect')?.click();
+    assert.match(
+      $(p, '#tk-list .tkpick .tkstate-title')?.textContent ?? '',
+      /Connect a ticket source/
+    );
+    assert.equal($(p, '#tk-list .tkconnect'), null, 'a second CTA beside the rows');
+    assert.equal($(p, '#tk-list [data-act="connectChoose"]'), null, 'the IDE chooser is back');
+    const rows = [...p.window.document.querySelectorAll<HTMLButtonElement>('#tk-list .tksrc')];
+    assert.deepEqual(
+      rows.map((row) => [
+        row.querySelector('.nm')?.textContent,
+        row.querySelector('.what')?.textContent,
+        row.querySelector('.mk svg') !== null
+      ]),
+      [
+        ['Linear', 'Personal API key', true],
+        ['GitHub Projects', 'Classic token with read:project', true]
+      ]
+    );
+    rows[1]?.click();
     assert.deepEqual(p.posted, [
       { type: 'ticketsOpen', open: true },
-      { type: 'connectTicketSource', generation: 1, selectionSeq: 0, scopeId: 'team-a' }
+      {
+        type: 'connectTicketSource',
+        generation: 1,
+        selectionSeq: 0,
+        scopeId: 'team-a',
+        provider: 'github'
+      }
     ]);
+  });
+
+  it('holds the row whose connect prompt is open', (t) => {
+    const p = openPanel(t);
+    p.push(
+      stateMessage([groupView()], {
+        ticketSource: { ...ticketSourceView(), linked: false, connecting: 'linear' }
+      })
+    );
+    $(p, '#board-tickets')?.click();
+    const [linear, github] = [
+      ...p.window.document.querySelectorAll<HTMLButtonElement>('#tk-list .tksrc')
+    ];
+    assert.equal(linear?.disabled, true);
+    assert.equal(linear?.querySelector('.what')?.textContent, 'Waiting for the key…');
+    assert.equal(github?.disabled, false);
+    assert.equal(github?.querySelector('.what')?.textContent, 'Classic token with read:project');
+
+    // The prompt returned: the row is offered again, the same element.
+    p.push(stateMessage([groupView()], { ticketSource: { ...ticketSourceView(), linked: false } }));
+    const again = $(p, '#tk-list .tksrc');
+    assert.equal(again, linear);
+    assert.equal((again as HTMLButtonElement | null)?.disabled, false);
+    assert.equal(again?.querySelector('.what')?.textContent, 'Personal API key');
   });
 
   it('keeps the Tickets label beside its count', (t) => {
@@ -866,7 +914,7 @@ describe('the tickets tab', () => {
     p.push(stateMessage([groupView()], { ticketSource: { ...ticketSourceView(), linked: false } }));
     $(p, '#board-tickets')?.click();
 
-    const connect = $(p, '.tkconnect');
+    const connect = $(p, '#tk-list .tksrc');
     assert.ok(connect);
     connect?.click();
     assert.ok(p.posted.some((m) => m.type === 'connectTicketSource'));
@@ -1215,14 +1263,9 @@ describe('a non-Linear ticket source', () => {
     const p = openPanel(t);
     const source: TicketSourceStatus = ticketSourceView({
       sourceId: 'markdown:acme/tasks/work',
-      generation: 7,
-      selectionSeq: 0,
+      token: { generation: 7, selectionSeq: 0, scopeId: 'team-a' },
       scopeId: 'team-a',
-      presentation: {
-        label: 'Markdown tracker',
-        connectLabel: 'Connect Markdown tracker',
-        connectHint: 'Choose a repository.'
-      },
+      presentation: { label: 'Markdown tracker' },
       filter: { assignee: 'anyone', states: [], priorities: [] },
       options: {
         scopeId: 'team-a',
@@ -1309,7 +1352,10 @@ describe('a non-Linear ticket source', () => {
       ?.click();
     p.push(
       stateMessage([], {
-        ticketSource: { ...filterLinear({}), generation: 2 },
+        ticketSource: {
+          ...filterLinear({}),
+          token: { generation: 2, selectionSeq: 0, scopeId: 'team-a' }
+        },
         tickets: [ticket()]
       })
     );
@@ -1470,7 +1516,7 @@ describe('selected team toolbar', () => {
       stateMessage([], {
         ticketSource: {
           ...filterLinear(),
-          selectionSeq: 2,
+          token: { generation: 1, selectionSeq: 2, scopeId: 'team-a' },
           filter: { assignee: 'anyone', states: [], priorities: [] }
         },
         tickets: []
@@ -1478,6 +1524,33 @@ describe('selected team toolbar', () => {
     );
     assert.ok($(p, '#tk-filter .fpill'));
     assert.equal($(p, '#tk-list .tk'), null);
+  });
+  it('returns to the served board when the host refuses a pick, but not for an overtaken one', (t) => {
+    const p = openPanel(t);
+    const state = () => stateMessage([], { ticketSource: filterLinear({}), tickets: [ticket()] });
+    p.push(state());
+    $(p, '#board-tickets')?.click();
+    const pick = (label: string) => {
+      $(p, '#tk-source .fpill')?.click();
+      const option = [...p.window.document.querySelectorAll<HTMLElement>('#tk-source .mitem')].find(
+        (n) => n.textContent?.includes(label)
+      );
+      assert.ok(option);
+      option.click();
+    };
+    const refused = (selectionSeq: number, scopeId: string) =>
+      p.push({ type: 'ticketScopeChoice', landed: false, generation: 1, selectionSeq, scopeId });
+    pick('Operations');
+    pick('Engineering');
+    refused(1, 'team-b');
+    p.push(state());
+    assert.equal($(p, '#tk-list .tk'), null);
+    pick('Operations');
+    p.push(state());
+    refused(3, 'team-b');
+    assert.ok($(p, '#tk-list .tk'));
+    assert.match($(p, '#tk-source')?.textContent ?? '', /Engineering/);
+    assert.doesNotMatch($(p, '#tk-list')?.textContent ?? '', /Loading/);
   });
   it('renders service errors literally and Retry keeps the selected identity', (t) => {
     const p = openPanel(t);
@@ -1523,7 +1596,8 @@ describe('selected team toolbar', () => {
       type: 'connectTicketSource',
       generation: 1,
       selectionSeq: 0,
-      scopeId: 'team-a'
+      scopeId: 'team-a',
+      provider: 'linear'
     });
   });
 });

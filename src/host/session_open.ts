@@ -9,6 +9,7 @@ import type { Conversation } from '../core/conversations';
 import type { LaunchTarget } from '../core/model';
 import { liveRecords, readPublished } from '../core/published';
 import { scanProcesses } from '../core/scan';
+import { startOutcome, startupState } from '../core/start_outcome';
 import { refFor } from '../core/session_ref';
 import {
   cancelStartup,
@@ -86,14 +87,7 @@ export async function openSession(
     // comes back this way: a missing binary, a failed preflight, a brand and
     // model that do not go together.
     if (draftId !== undefined) {
-      panel.post({
-        type: 'openResult',
-        draftId,
-        ok: false,
-        reason: started.reason,
-        ...(started.notStarted ? { notStarted: true } : {}),
-        ...(started.unsure ? { unsure: true } : {})
-      });
+      panel.post({ type: 'openResult', draftId, ...startOutcome(started) });
       return;
     }
     vscode.window.showWarningMessage(started.reason);
@@ -118,7 +112,7 @@ async function startPanelSession(ask: Parameters<typeof openSession>[1]): Promis
   } catch (error) {
     return {
       ok: false,
-      notStarted: true,
+      outcome: 'stopped',
       reason: `The scratch working directory is unavailable: ${error instanceof Error ? error.message : String(error)}`
     };
   }
@@ -129,10 +123,10 @@ async function startPanelSession(ask: Parameters<typeof openSession>[1]): Promis
     placeholder: ask.placeholder
   }).catch((error: unknown): StartResult => ({
     ok: false,
-    unsure: true,
+    outcome: 'unknown',
     reason: error instanceof Error ? error.message : 'The session start could not be confirmed.'
   }));
-  if (allocation && !started.ok && started.notStarted)
+  if (allocation && !started.ok && started.outcome === 'stopped')
     await scratch.discardEmptyScratch(allocation);
   return started;
 }
@@ -149,20 +143,9 @@ export async function reconcileStartup(
   panel.post({
     type: 'startupStatus',
     attemptId: id,
-    state: status.pending
-      ? 'waiting'
-      : !result || (!result.ok && result.unsure)
-        ? 'unknown'
-        : result.ok
-          ? 'started'
-          : 'stopped',
+    ...startupState(status.pending, result),
     stage: status.stage,
-    ...(result?.ok
-      ? { pid: result.pid, startedAt: result.startedAt }
-      : {
-          reason:
-            result?.reason ?? 'The start could not be confirmed. Keep this text and check again.'
-        })
+    ...(result?.ok ? { pid: result.pid, startedAt: result.startedAt } : {})
   });
 }
 
@@ -372,46 +355,39 @@ export async function resume(
   if (opening) {
     aliasStartup(ask.requestId, opening.id);
     const previous = await opening.result;
-    if (!previous.ok && previous.unsure) await reconcileStart(opening.id);
+    if (!previous.ok && previous.outcome === 'unknown') await reconcileStart(opening.id);
     const reconciled = startupStatus(opening.id).result;
-    if (reconciled?.ok === false && reconciled.notStarted && pendingResumes.get(key) === opening)
+    if (
+      reconciled?.ok === false &&
+      reconciled.outcome === 'stopped' &&
+      pendingResumes.get(key) === opening
+    )
       pendingResumes.delete(key);
   }
   if (!opening) {
     const result = resumeConversation(panel, ask).catch((error: unknown): StartResult => ({
       ok: false,
-      unsure: true,
+      outcome: 'unknown',
       reason: error instanceof Error ? error.message : 'The conversation could not be resumed.'
     }));
     opening = { id: ask.requestId, result };
     pendingResumes.set(key, opening);
     void result.then((settled) => {
-      if ((settled.ok || settled.notStarted) && pendingResumes.get(key)?.id === ask.requestId)
+      if (
+        (settled.ok || settled.outcome === 'stopped') &&
+        pendingResumes.get(key)?.id === ask.requestId
+      )
         pendingResumes.delete(key);
     });
   }
   const received = await opening.result;
   const result = startupStatus(opening.id).result ?? received;
   if (panel.disposed) return;
+  const reply = { type: 'resumeResult', requestId: ask.requestId, attemptId: opening.id } as const;
   panel.post(
     result.ok
-      ? {
-          type: 'resumeResult',
-          requestId: ask.requestId,
-          attemptId: opening.id,
-          ok: true,
-          pid: result.pid,
-          startedAt: result.startedAt
-        }
-      : {
-          type: 'resumeResult',
-          requestId: ask.requestId,
-          attemptId: opening.id,
-          ok: false,
-          reason: result.reason,
-          ...(result.notStarted ? { notStarted: true } : {}),
-          ...(result.unsure ? { unsure: true } : {})
-        }
+      ? { ...reply, ...startOutcome(result), pid: result.pid, startedAt: result.startedAt }
+      : { ...reply, ...startOutcome(result) }
   );
   if (result.ok) revealSession(panel, result.pid, result.startedAt);
 }
@@ -424,7 +400,7 @@ async function resumeConversation(
   const brand = sessionBrand(ask.target?.brand);
   const pick: LaunchTarget = { ...ask.target, brand };
   if (!cwd || !sessionId) {
-    return { ok: false, notStarted: true, reason: 'Choose a conversation to resume.' };
+    return { ok: false, outcome: 'stopped', reason: 'Choose a conversation to resume.' };
   }
   const running = panel.sessions.find(
     (s) => s.sessionId === sessionId && sessionBrand(s.brand) === brand && !sessionEnded(s.pid)
@@ -442,7 +418,7 @@ async function resumeConversation(
   } catch (error) {
     return {
       ok: false,
-      notStarted: true,
+      outcome: 'stopped',
       reason:
         error instanceof Error
           ? error.message

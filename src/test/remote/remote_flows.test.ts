@@ -210,7 +210,7 @@ for (const brand of BRANDS) {
       prompt: 'same words',
       correlation: startCorrelation
     });
-    assert.deepEqual(started, { ok: false, reason: asking.UNANSWERED, unsure: true });
+    assert.deepEqual(started, { ok: false, reason: asking.UNANSWERED, outcome: 'unknown' });
     assert.equal(b.pids().length, 1);
     const pid = b.pids()[0];
     assert.ok(pid);

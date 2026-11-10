@@ -58,6 +58,9 @@ export type Row = {
   /** Draws `›`: pressing it opens a further step. */
   more?: true;
   gated?: true;
+  /** `meta` is the row's title rather than what tells it apart: it follows
+   *  the name and is cut to the row's one line. */
+  titled?: true;
   act: Act;
 };
 
@@ -290,7 +293,9 @@ function rowsOf(sources: MentionSources, kind: MentionKind, query: string): Row[
   }
   if (kind === 'skill') return (sources.skills ?? []).filter(has).map(skillRow);
   if (kind === 'ticket')
-    return ticketRows(sources.tickets).filter((row) => has(row.name) || has(row.meta));
+    return ticketRows(
+      (sources.tickets ?? []).filter((ticket) => has(ticket.identifier) || has(ticket.title))
+    );
   return namable(sources.sessions)
     .filter((card) => has(card.name))
     .map(sessionRow);
@@ -303,8 +308,9 @@ function ticketRows(tickets: readonly TicketView[] | undefined): Row[] {
       ? [
           {
             kind: 'ticket' as const,
-            name: ticket.identifier,
+            name: ticketRefs.ticketNumber(ticket.identifier),
             meta: ticket.title,
+            titled: true as const,
             act: {
               mention: { kind: 'ticket' as const, label: `@${ticket.identifier}`, expansion },
               recent: { kind: 'ticket' as const, key: ticket.key, url: ticket.url }

@@ -7,11 +7,10 @@ it('explains hidden content, preserves readable issues and offers credential rec
   const p = openPanel(t);
   const source = ticketSourceView({
     sourceId: 'github',
+    token: { sourceId: 'github', generation: 1, selectionSeq: 0, scopeId: 'team-a' },
     boards: [],
     presentation: {
       label: 'GitHub',
-      connectLabel: 'Connect GitHub Projects',
-      connectHint: 'Connect GitHub Projects',
       reconfigureLabel: 'Update GitHub Projects credentials'
     },
     options: {
@@ -41,7 +40,8 @@ it('explains hidden content, preserves readable issues and offers credential rec
     sourceId: 'github',
     generation: 1,
     selectionSeq: 0,
-    scopeId: 'team-a'
+    scopeId: 'team-a',
+    provider: 'github'
   });
   p.push(stateMessage([], { ticketSource: source, tickets: [] }));
   assert.doesNotMatch(
@@ -109,9 +109,7 @@ it('selects colliding board IDs by source and exposes another connection', (t) =
   const linear = ticketSourceView().presentation;
   const github: TicketSourcePresentation = {
     label: 'GitHub',
-    mark: 'github',
-    connectLabel: 'Connect GitHub',
-    connectHint: 'Connect GitHub'
+    mark: 'github'
   };
   p.push(
     stateMessage([], {
@@ -265,9 +263,76 @@ it('settles a pending assignee pick when a complete refreshed population removes
   );
 });
 
-it('separates connection actions without adding a Linear disconnect row', (t) => {
+it('separates connection actions and offers a disconnect row per source', (t) => {
   const p = openPanel(t);
-  const source = ticketSourceView();
+  const source = ticketSourceView({ offers: [] });
+  const linear = { ...source.presentation, disconnectLabel: 'Disconnect Linear' };
+  const github: TicketSourcePresentation = {
+    label: 'GitHub',
+    mark: 'github',
+    disconnectLabel: 'Disconnect GitHub'
+  };
+  p.push(
+    stateMessage([], {
+      tickets: [],
+      ticketSource: {
+        ...source,
+        connections: [
+          { sourceId: 'linear', presentation: linear },
+          { sourceId: 'github', presentation: github }
+        ]
+      }
+    })
+  );
+  p.window.document.querySelector<HTMLElement>('#board-tickets')?.click();
+  p.window.document.querySelector<HTMLElement>('.scope-button')?.click();
+  assert.ok(p.window.document.querySelector('#tk-source [role="separator"]'));
+  assert.deepEqual(
+    [...p.window.document.querySelectorAll('.mitem')]
+      .map((n) => n.textContent ?? '')
+      .filter((text) => text.startsWith('Disconnect ')),
+    ['Disconnect Linear', 'Disconnect GitHub']
+  );
+});
+
+it('offers Disconnect for a Linear connection as it does for GitHub', (t) => {
+  const p = openPanel(t);
+  const source = ticketSourceView({ offers: [] });
+  const linear = { ...source.presentation, disconnectLabel: 'Disconnect Linear' };
+  p.push(
+    stateMessage([], {
+      tickets: [],
+      ticketSource: { ...source, connections: [{ sourceId: 'linear', presentation: linear }] }
+    })
+  );
+  p.window.document.querySelector<HTMLElement>('#board-tickets')?.click();
+  p.window.document.querySelector<HTMLElement>('.scope-button')?.click();
+  const action = [...p.window.document.querySelectorAll<HTMLElement>('.mitem')].find(
+    (n) => n.textContent === 'Disconnect Linear'
+  );
+  assert.ok(action);
+  action.click();
+  assert.deepEqual(p.posted.at(-1), {
+    type: 'disconnectTicketSource',
+    provider: 'linear',
+    generation: 1,
+    selectionSeq: 0,
+    scopeId: 'team-a'
+  });
+});
+
+it('offers a direct connect row for each source not yet connected', (t) => {
+  const p = openPanel(t);
+  const source = ticketSourceView({
+    offers: [
+      {
+        sourceId: 'github',
+        label: 'GitHub Projects',
+        mark: 'github',
+        detail: 'Classic token with read:project'
+      }
+    ]
+  });
   p.push(
     stateMessage([], {
       tickets: [],
@@ -279,10 +344,45 @@ it('separates connection actions without adding a Linear disconnect row', (t) =>
   );
   p.window.document.querySelector<HTMLElement>('#board-tickets')?.click();
   p.window.document.querySelector<HTMLElement>('.scope-button')?.click();
-  assert.ok(p.window.document.querySelector('#tk-source [role="separator"]'));
+  const labels = [...p.window.document.querySelectorAll<HTMLElement>('.mitem')].map(
+    (n) => n.textContent
+  );
+  assert.ok(!labels.includes('Connect a ticket source…'), 'the IDE chooser is back');
+  assert.ok(!labels.includes('Connect Linear'), 'a connected source is offered again');
+  const connect = [...p.window.document.querySelectorAll<HTMLElement>('.mitem')].find(
+    (n) => n.textContent === 'Connect GitHub Projects'
+  );
+  assert.ok(connect);
+  connect.click();
+  assert.deepEqual(p.posted.at(-1), {
+    type: 'connectTicketSource',
+    provider: 'github',
+    generation: 1,
+    selectionSeq: 0,
+    scopeId: 'team-a'
+  });
+});
+
+it('offers no connect row once every source is connected', (t) => {
+  const p = openPanel(t);
+  const source = ticketSourceView({ offers: [] });
+  p.push(
+    stateMessage([], {
+      tickets: [],
+      ticketSource: {
+        ...source,
+        connections: [
+          { sourceId: 'linear', presentation: source.presentation },
+          { sourceId: 'github', presentation: { ...source.presentation, label: 'GitHub' } }
+        ]
+      }
+    })
+  );
+  p.window.document.querySelector<HTMLElement>('#board-tickets')?.click();
+  p.window.document.querySelector<HTMLElement>('.scope-button')?.click();
   assert.equal(
     [...p.window.document.querySelectorAll('.mitem')].some((n) =>
-      n.textContent?.startsWith('Disconnect ')
+      n.textContent?.startsWith('Connect ')
     ),
     false
   );

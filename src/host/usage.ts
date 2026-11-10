@@ -13,8 +13,11 @@ export function accountUsage(runtime: Reconciler, log: (line: string) => void): 
   const known = async (): Promise<(BrandUsage & { generation: string })[]> => {
     const result: (BrandUsage & { generation: string })[] = [];
     for (const brand of BRANDS) {
-      const source = adapter(brand)?.usage;
-      if (!source || (await storedSignIn(brand))?.loggedIn !== true) continue;
+      const cli = adapter(brand);
+      const source = cli?.usage;
+      if (!cli || !source) continue;
+      if ((await storedSignIn(brand, { override: configuredPath(cli) }))?.loggedIn !== true)
+        continue;
       try {
         result.push({
           brand,

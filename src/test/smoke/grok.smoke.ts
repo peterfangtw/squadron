@@ -121,8 +121,7 @@ section('Grok from the draft’s own pick, in the real IDE', () => {
         model: 'grok-4.7'
       });
       assert.equal(result.ok, false);
-      assert.equal(result.startupVersion, 1);
-      assert.equal(result.notStarted, true);
+      assert.equal(result.outcome, 'stopped');
       assert.equal(!result.ok && result.cause, 'pick');
       assert.deepEqual(await pids(), initial);
     } finally {

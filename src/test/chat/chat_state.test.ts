@@ -24,6 +24,7 @@ const card = (pid: number, startedAt: number): CardView => ({
   status: 'idle',
   reading: { word: 'idle', tally: 'idle' },
   canControl: true,
+  canInterrupt: false,
   startedAt,
   updatedAt: startedAt,
   cacheTtlMs: 60 * 60_000
@@ -84,6 +85,7 @@ const thread = (pid: number, startedAt: number): ThreadView => ({
   exchanges: [],
   canSend: true,
   canAttach: true,
+  canModel: true,
   who: 'claude'
 });
 

@@ -12,6 +12,7 @@
  */
 
 import { el, imeKey } from './dom';
+import * as layers from './layers';
 
 export type SheetSpec = {
   /** Scrim id. Auth keeps `ascrim` so its tests stay pointed at one node. */
@@ -55,6 +56,8 @@ type Live = {
 
 /** One of these sheets at a time — login and MCP must not stack. */
 let live: Live | undefined;
+/** The live sheet's place on the stack. A same-id repaint keeps it. */
+let layer: layers.Handle | undefined;
 
 /**
  * Show a sheet. Same id again replaces its children (auth repaints progress
@@ -113,6 +116,16 @@ export function openSheet(spec: SheetSpec): Sheet {
   live = rec;
   if (spec.interactionScope) rec.unblock = blockBackground(root, spec.interactionScope);
   armKeys();
+  if (!layer?.open) {
+    layer = layers.push({
+      kind: 'sheet',
+      close: () => {
+        if (live) dismiss(live);
+      },
+      escape: onSheetEscape,
+      root: () => [live?.root]
+    });
+  }
   return { element: sheet, head, title, body, foot, close };
 }
 
@@ -146,6 +159,8 @@ function hide(id: string, explicit = false): void {
   live.root.hidden = true;
   live.root.replaceChildren();
   live = undefined;
+  layer?.pop();
+  layer = undefined;
   disarmKeys();
   if (restore && restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true });
 }
@@ -208,13 +223,15 @@ function onSheetKey(e: KeyboardEvent): void {
     }
     return;
   }
-  if (e.key !== 'Escape') return;
-  if (live.scope === 'board' && !live.root.contains(document.activeElement)) return;
+}
+
+function onSheetEscape(): boolean {
+  if (!live) return false;
+  if (live.scope === 'board' && !live.root.contains(document.activeElement)) return false;
   // A locked sheet refuses the key and still owns it: one modal over the board
   // passing it on would end the turn of the session behind it.
-  e.preventDefault();
-  e.stopImmediatePropagation();
   if (!live.locked) dismiss(live);
+  return true;
 }
 
 function onFocus(e: FocusEvent): void {
@@ -224,7 +241,7 @@ function onFocus(e: FocusEvent): void {
 
 function armKeys(): void {
   if (keysOn) return;
-  // Window capture precedes the lower image viewer's document capture.
+  // Tab containment only; Escape is the layer stack's.
   window.addEventListener('keydown', onSheetKey, true);
   document.addEventListener('focusin', onFocus, true);
   keysOn = true;

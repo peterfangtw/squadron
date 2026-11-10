@@ -122,7 +122,9 @@ export function verbs(answers: Partial<Record<string, Act | Stopped | Ended>> = 
     start(input) {
       calls.push({ verb: 'start', args: [input] });
       const refused = answers.start;
-      if (refused && !refused.ok) return Promise.resolve(refused);
+      // A canned refusal names no word, so it proves nothing stopped.
+      if (refused && !refused.ok)
+        return Promise.resolve({ ok: false, reason: refused.reason, outcome: 'unknown' });
       pid++;
       return Promise.resolve({
         ok: true,

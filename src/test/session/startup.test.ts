@@ -11,8 +11,7 @@ describe('startup attempt ownership', () => {
       Promise.reject(new StartupUnknown('Reconcile the original reservation.'))
     );
     assert.equal(result.ok, false);
-    assert.equal(result.ok === false && result.unsure, true);
-    assert.equal(result.ok === false && result.notStarted, undefined);
+    assert.equal(result.ok === false && result.outcome, 'unknown');
   });
 
   it('reconciles uncertain cancellation after a promptless handoff', async (t) => {
@@ -23,10 +22,9 @@ describe('startup attempt ownership', () => {
     await attempt.run(() => Promise.resolve({ ok: true, pid: 1, startedAt: 1, brand: 'claude' }));
     const cancelled = await attempt.cancelHandoff();
     assert.equal(cancelled?.ok, false);
-    assert.equal(cancelled?.ok === false && cancelled.unsure, true);
+    assert.equal(cancelled?.ok === false && cancelled.outcome, 'unknown');
     const confirmed = await attempt.reconcile();
-    assert.equal(confirmed?.ok === false && confirmed.notStarted, true);
-    assert.equal(confirmed?.ok === false && confirmed.unsure, undefined);
+    assert.equal(confirmed?.ok === false && confirmed.outcome, 'stopped');
   });
 
   it('returns one terminal outcome to duplicate callers without repeating work', async () => {
@@ -49,9 +47,7 @@ describe('startup attempt ownership', () => {
       ok: false,
       cause: 'pick',
       reason: 'Unavailable pick.',
-      notStarted: true,
-      unsure: undefined,
-      startupVersion: 1,
+      outcome: 'stopped',
       attemptId: 'one'
     });
     assert.equal(calls, 1);
@@ -119,8 +115,7 @@ describe('startup attempt ownership', () => {
     t.mock.timers.tick(10);
     const result = await outcome;
     assert.equal(result.ok, false);
-    assert.equal(result.ok === false && result.unsure, true);
-    assert.equal(result.ok === false && result.notStarted, undefined);
+    assert.equal(result.ok === false && result.outcome, 'unknown');
   });
 
   it('retires its deadline at handoff and settles its outcome once', async (t) => {

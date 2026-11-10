@@ -1020,7 +1020,7 @@ describe('pending job lifecycle', () => {
         starts++;
         assert.equal((await store.readConversations())[0]?.held?.picker?.stage, 'starting');
         if (outcome === 'throw') throw new Error('child may already exist');
-        return { ok: false, reason: 'no reply' };
+        return { ok: false, reason: 'no reply', outcome: 'unknown' };
       };
       await t.begin();
       await t.tap('Use window default');
@@ -1039,7 +1039,12 @@ describe('pending job lifecycle', () => {
     const original = t.world.verbs.start.bind(t.world.verbs);
     t.world.verbs.start = async (input) => {
       if (++starts === 1)
-        return { ok: false, reason: 'catalog changed', notStarted: true, selectionInvalid: true };
+        return {
+          ok: false,
+          reason: 'catalog changed',
+          outcome: 'stopped',
+          selectionInvalid: true
+        };
       return original(input);
     };
     await t.begin();

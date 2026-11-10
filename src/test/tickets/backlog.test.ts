@@ -2,7 +2,8 @@ import * as assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import * as backlog from '../../core/backlog';
 import * as tickets from '../../core/tickets';
-import { ticketPriority, ticketSourceView, ticketState } from '../ticket_fixtures';
+import * as linear from '../../core/tickets/linear';
+import { opened, ticketPriority, ticketSourceView, ticketState } from '../ticket_fixtures';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -34,27 +35,29 @@ const row = (id: string): tickets.Ticket => ({
 });
 class Source implements tickets.TicketSource {
   catalogs: ReturnType<typeof deferred<TicketScope[]>>[] = [];
-  lists: {
+  reads: {
     scopeId: string;
     filter: TicketFilterView;
     signal?: AbortSignal;
-    result: ReturnType<typeof deferred<tickets.Ticket[]>>;
+    result: ReturnType<typeof deferred<tickets.TicketRead>>;
   }[] = [];
-  optionReads: { scopeId: string; result: ReturnType<typeof deferred<TicketOptions>> }[] = [];
+  invalidations = 0;
   discoverScopes(): Promise<TicketScope[]> {
     const result = deferred<TicketScope[]>();
     this.catalogs.push(result);
     return result.promise;
   }
-  list(scopeId: string, filter: TicketFilterView, signal?: AbortSignal): Promise<tickets.Ticket[]> {
-    const result = deferred<tickets.Ticket[]>();
-    this.lists.push({ scopeId, filter, signal, result });
+  read(
+    scopeId: string,
+    filter: TicketFilterView,
+    signal?: AbortSignal
+  ): Promise<tickets.TicketRead> {
+    const result = deferred<tickets.TicketRead>();
+    this.reads.push({ scopeId, filter, signal, result });
     return result.promise;
   }
-  options(scopeId: string): Promise<TicketOptions> {
-    const result = deferred<TicketOptions>();
-    this.optionReads.push({ scopeId, result });
-    return result.promise;
+  invalidate(): void {
+    this.invalidations++;
   }
   details: { signal?: AbortSignal; result: ReturnType<typeof deferred<TicketDetail>> }[] = [];
   detail(_scopeId: string, _id: string, signal?: AbortSignal): Promise<TicketDetail> {
@@ -62,9 +65,9 @@ class Source implements tickets.TicketSource {
     this.details.push({ signal, result });
     return result.promise;
   }
-  async ready(id = 'ENG-1', index = this.lists.length - 1): Promise<void> {
-    this.lists[index]!.result.resolve([row(id)]);
-    this.optionReads[index]!.result.resolve(OPTIONS);
+  async ready(id = 'ENG-1', index = this.reads.length - 1): Promise<void> {
+    const read = this.reads[index]!;
+    read.result.resolve({ tickets: [row(id)], options: OPTIONS, filter: read.filter });
     await drain();
   }
 }
@@ -92,10 +95,10 @@ describe('one selected ticket board', () => {
     selectionSeq
   });
   async function catalog(scopes = SCOPES): Promise<void> {
-    store.state(configured);
+    store.state(opened(configured));
     source.catalogs.at(-1)!.resolve(scopes);
     await drain();
-    store.state(configured);
+    store.state(opened(configured));
   }
   async function selected(): Promise<void> {
     store.restoreSelection({ sourceId: 'linear', scopeId: 'team-a' });
@@ -104,44 +107,41 @@ describe('one selected ticket board', () => {
 
   it('never issues an unscoped read and requires a choice for multiple or no teams', async () => {
     await catalog();
-    assert.equal(source.lists.length, 0);
-    assert.deepEqual(store.state(configured).status?.scopes, SCOPES);
+    assert.equal(source.reads.length, 0);
+    assert.deepEqual(store.state(opened(configured)).status?.scopes, SCOPES);
     store.reset();
     await catalog([]);
-    assert.equal(source.lists.length, 0);
-    assert.deepEqual(store.state(configured).status?.scopes, []);
+    assert.equal(source.reads.length, 0);
+    assert.deepEqual(store.state(opened(configured)).status?.scopes, []);
     store.refetch();
-    store.state(configured);
+    store.state(opened(configured));
     assert.equal(source.catalogs.length, 3);
     source.catalogs[2]!.resolve([SCOPES[0]!]);
     await drain();
-    store.state(configured);
-    assert.equal(source.lists.at(-1)?.scopeId, 'team-a');
+    store.state(opened(configured));
+    assert.equal(source.reads.at(-1)?.scopeId, 'team-a');
   });
   it('migrates a legacy team key, prefers saved identity, and never substitutes for a missing saved team', async () => {
     configured.legacyTeamKey = 'OPS';
     await catalog();
-    assert.equal(source.lists[0]?.scopeId, 'team-b');
+    assert.equal(source.reads[0]?.scopeId, 'team-b');
     store.reset();
     store.restoreSelection({ sourceId: 'linear', scopeId: 'team-a' });
     await catalog();
-    assert.equal(source.lists[1]?.scopeId, 'team-a');
+    assert.equal(source.reads[1]?.scopeId, 'team-a');
     store.reset();
     store.restoreSelection({ sourceId: 'linear', scopeId: 'gone' });
     await catalog([SCOPES[0]!]);
-    assert.equal(store.state(configured).status?.scopeId, undefined);
-    assert.equal(source.lists.length, 2);
+    assert.equal(store.state(opened(configured)).status?.scopeId, undefined);
+    assert.equal(source.reads.length, 2);
   });
-  it('auto-selects a sole team and publishes tickets and required options atomically', async () => {
+  it('auto-selects a sole team and publishes tickets and options from one read', async () => {
     await catalog([SCOPES[0]!]);
-    source.lists[0]!.result.resolve([row('ENG-1')]);
-    await drain();
-    assert.equal(store.state(configured).tickets, undefined);
-    assert.equal(store.state(configured).status?.options, undefined);
-    source.optionReads[0]!.result.resolve(OPTIONS);
-    await drain();
-    assert.equal(store.state(configured).tickets?.[0]?.identifier, 'ENG-1');
-    assert.deepEqual(store.state(configured).status?.options, OPTIONS);
+    assert.equal(store.state(opened(configured)).tickets, undefined);
+    assert.equal(store.state(opened(configured)).status?.options, undefined);
+    await source.ready();
+    assert.equal(store.state(opened(configured)).tickets?.[0]?.identifier, 'ENG-1');
+    assert.deepEqual(store.state(opened(configured)).status?.options, OPTIONS);
   });
   it('resets filters and removes the prior board immediately, accepts B to A before echoes and retires old A', async () => {
     await selected();
@@ -151,85 +151,105 @@ describe('one selected ticket board', () => {
       sourceId: 'linear',
       scopeId: 'team-b'
     });
-    assert.equal(store.state(configured).tickets, undefined);
-    assert.equal(store.state(configured).status?.options, undefined);
-    assert.deepEqual(store.state(configured).status?.filter, ALL);
+    assert.equal(store.state(opened(configured)).tickets, undefined);
+    assert.equal(store.state(opened(configured)).status?.options, undefined);
+    assert.deepEqual(store.state(opened(configured)).status?.filter, ALL);
     store.selectScope('team-a', token('team-a', 2));
-    store.state(configured);
-    assert.equal(source.lists.at(-1)?.scopeId, 'team-a');
+    store.state(opened(configured));
+    assert.equal(source.reads.at(-1)?.scopeId, 'team-a');
     await source.ready('ENG-NEW');
     await source.ready('OPS-OLD', 1);
-    assert.equal(store.state(configured).tickets?.[0]?.identifier, 'ENG-NEW');
+    assert.equal(store.state(opened(configured)).tickets?.[0]?.identifier, 'ENG-NEW');
     assert.equal(store.selectScope('team-b', token('team-b', 1)), undefined);
     assert.equal(store.setFilter(ALL, token()), undefined);
   });
-  it('retains same-scope rows and options on refresh failure, Retry bypasses TTL and retries options', async () => {
+  it('refuses a board the catalog no longer lists without moving the selection', async () => {
+    await selected();
+    await source.ready();
+    store.refetchCatalog();
+    await catalog([SCOPES[0]!]);
+    assert.equal(store.selectScope('team-b', token('team-b', 1)), undefined);
+    assert.equal(store.state(opened(configured)).status?.token.selectionSeq, 0);
+    assert.equal(store.state(opened(configured)).status?.scopeId, 'team-a');
+  });
+  it('retains same-scope rows and options on refresh failure, and Retry drops the source cache and reads again', async () => {
     await selected();
     await source.ready();
     store.refetch();
-    store.state(configured);
-    source.lists[1]!.result.resolve([row('ENG-2')]);
-    source.optionReads[1]!.result.reject(new Error('Service unavailable'));
+    assert.equal(source.invalidations, 1);
+    store.state(opened(configured));
+    source.reads[1]!.result.reject(new Error('Service unavailable'));
     await drain();
-    const failed = store.state(configured);
+    const failed = store.state(opened(configured));
     assert.equal(failed.tickets?.[0]?.identifier, 'ENG-1');
     assert.deepEqual(failed.status?.options, OPTIONS);
     assert.equal(failed.status?.error, 'Service unavailable');
-    assert.equal(source.lists.length, 2);
+    assert.equal(source.reads.length, 2);
     store.refetch();
-    store.state(configured);
+    assert.equal(source.invalidations, 2);
+    store.state(opened(configured));
     await source.ready('ENG-3');
-    assert.equal(store.state(configured).tickets?.[0]?.identifier, 'ENG-3');
+    assert.equal(store.state(opened(configured)).tickets?.[0]?.identifier, 'ENG-3');
     assert.equal(source.catalogs.length, 1);
   });
   it('throttles failed discovery and Retry retries discovery instead of reading issues', async () => {
-    store.state(configured);
+    store.state(opened(configured));
     source.catalogs[0]!.reject(new Error('offline'));
     await drain();
-    assert.equal(store.state(configured).status?.error, 'offline');
-    store.state(configured);
+    assert.equal(store.state(opened(configured)).status?.error, 'offline');
+    store.state(opened(configured));
     assert.equal(source.catalogs.length, 1);
     store.refetch();
-    store.state(configured);
+    store.state(opened(configured));
     assert.equal(source.catalogs.length, 2);
-    assert.equal(source.lists.length, 0);
+    assert.equal(source.reads.length, 0);
   });
   it('cancels obsolete filters immediately, fences late completion, and caches until TTL expires', async () => {
     await selected();
     store.setFilter({ ...ALL, priorities: ['1'] }, token());
     store.setFilter({ ...ALL, priorities: ['2'] }, token());
-    store.state(configured);
-    assert.equal(source.lists.length, 2);
-    assert.equal(source.lists[0]?.signal?.aborted, true);
+    store.state(opened(configured));
+    assert.equal(source.reads.length, 2);
+    assert.equal(source.reads[0]?.signal?.aborted, true);
     await source.ready('OLD', 0);
-    assert.equal(store.state(configured).tickets, undefined);
-    assert.equal(store.state(configured).status?.loading, true);
-    assert.deepEqual(source.lists[1]?.filter.priorities, ['2']);
+    assert.equal(store.state(opened(configured)).tickets, undefined);
+    assert.equal(store.state(opened(configured)).status?.loading, true);
+    assert.deepEqual(source.reads[1]?.filter.priorities, ['2']);
     await source.ready('NEW');
-    store.state(configured);
-    assert.equal(source.lists.length, 2);
+    store.state(opened(configured));
+    assert.equal(source.reads.length, 2);
     clock += backlog.TICKET_TTL_MS + 1;
-    store.state(configured);
-    assert.equal(source.lists.length, 3);
+    store.state(opened(configured));
+    assert.equal(source.reads.length, 3);
   });
-  it('reuses scoped options for filter changes and retires an original A read after A to B to A', async () => {
+  it('drops the source cache once content expires, timed from the first read attempt', async () => {
+    await selected();
+    assert.equal(source.reads.length, 1);
+    clock += 3000;
+    await source.ready();
+    clock += backlog.TICKET_TTL_MS - 3000 + 1;
+    assert.equal(source.invalidations, 0);
+    store.state(opened(configured));
+    assert.equal(source.reads.length, 2);
+    assert.equal(source.invalidations, 1, 'the cache outlived the content read beside it');
+  });
+  it('keeps the source cache for filter changes and retires an original A read after A to B to A', async () => {
     await selected();
     store.selectScope('team-b', token('team-b', 1));
-    store.state(configured);
+    store.state(opened(configured));
     store.selectScope('team-a', token('team-a', 2));
-    store.state(configured);
+    store.state(opened(configured));
     await source.ready('CURRENT', 2);
-    source.lists[0]!.result.reject(new Error('old A'));
-    source.optionReads[0]!.result.resolve(OPTIONS);
+    source.reads[0]!.result.reject(new Error('old A'));
     await drain();
-    assert.equal(store.state(configured).tickets?.[0]?.identifier, 'CURRENT');
-    assert.equal(store.state(configured).status?.error, undefined);
-    store.setFilter({ ...ALL, priorities: ['1'] }, token('team-a', 2));
-    store.state(configured);
-    assert.equal(source.optionReads.length, 3);
-    source.lists[3]!.result.resolve([row('FILTERED')]);
-    await drain();
-    assert.equal(store.state(configured).tickets?.[0]?.identifier, 'FILTERED');
+    assert.equal(store.state(opened(configured)).tickets?.[0]?.identifier, 'CURRENT');
+    assert.equal(store.state(opened(configured)).status?.error, undefined);
+    const invalidations = source.invalidations;
+    store.setFilter({ ...ALL, priorities: ['2'] }, token('team-a', 2));
+    store.state(opened(configured));
+    assert.equal(source.invalidations, invalidations);
+    await source.ready('FILTERED', 3);
+    assert.equal(store.state(opened(configured)).tickets?.[0]?.identifier, 'FILTERED');
     store.dispose();
   });
   it('fences current links and ignores success, rejection and notification after credential replacement or disposal', async () => {
@@ -238,19 +258,75 @@ describe('one selected ticket board', () => {
     assert.equal(store.openTarget(row('ENG-1').key, token()), row('ENG-1').url);
     assert.equal(store.openTarget(row('ENG-1').key, token('team-b')), undefined);
     store.refetch();
-    store.state(configured);
-    store.state({ ...configured, generation: 2 });
+    store.state(opened(configured));
+    store.state(opened({ ...configured, generation: 2 }));
     changes = 0;
-    source.lists[1]!.result.reject(new Error('old'));
-    source.optionReads[1]!.result.resolve(OPTIONS);
+    source.reads[1]!.result.reject(new Error('old'));
     await drain();
     assert.equal(changes, 0);
-    assert.equal(store.state({ ...configured, generation: 2 }).tickets, undefined);
+    assert.equal(store.state(opened({ ...configured, generation: 2 })).tickets, undefined);
     store.dispose();
     source.catalogs.at(-1)!.resolve(SCOPES);
     await drain();
-    assert.deepEqual(store.state(configured), {});
+    assert.deepEqual(store.state(opened(configured)), {});
     assert.equal(changes, 0);
+  });
+});
+
+describe('filters against a real source', () => {
+  it('prunes a Linear state the team no longer has before the issues request', async (t) => {
+    let states = [
+      { id: 's1', name: 'Todo', type: 'unstarted', position: 1 },
+      { id: 's2', name: 'Doing', type: 'started', position: 2 }
+    ];
+    const issueFilters: unknown[] = [];
+    const page = (nodes: unknown[]) => ({
+      nodes,
+      pageInfo: { hasNextPage: false, endCursor: null }
+    });
+    t.mock.method(globalThis, 'fetch', (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as {
+        query: string;
+        variables: Record<string, unknown>;
+      };
+      const data = body.query.includes('TicketScopes')
+        ? { teams: page([{ id: 'team-a', key: 'ENG', name: 'Engineering' }]) }
+        : body.query.includes('TicketMembers')
+          ? { team: { members: page([]) } }
+          : body.query.includes('TicketStates')
+            ? { team: { states: page(states) } }
+            : body.query.includes('issuePriorityValues')
+              ? { viewer: { id: 'me' }, issuePriorityValues: [] }
+              : (issueFilters.push(body.variables.filter), { issues: page([]) });
+      return Promise.resolve(new Response(JSON.stringify({ data })));
+    });
+    let clock = 1000;
+    const store = new backlog.TicketStore({ onChange: () => undefined, now: () => clock });
+    const configured: tickets.ConfiguredSource = {
+      sourceId: linear.SOURCE_ID,
+      generation: 1,
+      source: new linear.LinearSource('key'),
+      presentation: linear.PRESENTATION
+    };
+    const settle = async () => {
+      for (let i = 0; i < 5; i++) {
+        store.state(opened(configured));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    };
+    await settle();
+    store.setFilter({ ...ALL, states: ['s2'] }, store.identity()!);
+    await settle();
+    assert.deepEqual(issueFilters.at(-1), {
+      state: { id: { in: ['s2'] } },
+      team: { id: { eq: 'team-a' } }
+    });
+    states = states.slice(0, 1);
+    clock += backlog.TICKET_TTL_MS + 1;
+    await settle();
+    assert.deepEqual(issueFilters.at(-1), { team: { id: { eq: 'team-a' } } });
+    assert.deepEqual(store.state(opened(configured)).status?.filter, ALL);
+    store.dispose();
   });
 });
 
@@ -273,10 +349,10 @@ describe('selection storage and errors', () => {
       presentation: ticketSourceView().presentation
     };
     store.restoreSelection({ sourceId: 'linear', scopeId: 'team-a' });
-    store.state(configured);
+    store.state(opened(configured));
     source.catalogs[0]!.resolve(SCOPES);
     await drain();
-    store.state(configured);
+    store.state(opened(configured));
     await drain();
     // The first save is still pending when two more selections arrive.
     store.selectScope('team-b', { generation: 1, selectionSeq: 1, scopeId: 'team-b' });
@@ -327,14 +403,15 @@ describe('on-demand detail lifetime', () => {
       presentation: ticketSourceView().presentation
     };
     store.restoreSelection({ sourceId: 'markdown', scopeId: 'team-a' });
-    store.state(configured);
+    store.state(opened(configured));
     source.catalogs[0]!.resolve(SCOPES);
     await drain();
-    store.state(configured);
-    source.lists[0]!.result.resolve([
-      { ...row('ENG-1'), key: tickets.ticketKey('markdown', 'ENG-1') }
-    ]);
-    source.optionReads[0]!.result.resolve(OPTIONS);
+    store.state(opened(configured));
+    source.reads[0]!.result.resolve({
+      tickets: [{ ...row('ENG-1'), key: tickets.ticketKey('markdown', 'ENG-1') }],
+      options: OPTIONS,
+      filter: ALL
+    });
     await drain();
     const token = store.identity()!;
     const key = tickets.ticketKey('markdown', 'ENG-1');

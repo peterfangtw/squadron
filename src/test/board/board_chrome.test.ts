@@ -63,7 +63,7 @@ describe('startup before host data arrives', () => {
     assert.doesNotMatch(d.getElementById('bottomdrawer-body')?.textContent ?? '', /not available/);
 
     p.push(stateMessage([]));
-    assert.match(d.getElementById('tk-list')?.textContent ?? '', /Connect Linear/);
+    assert.match(d.getElementById('tk-list')?.textContent ?? '', /Connect a ticket source/);
     assert.doesNotMatch(d.getElementById('bottomdrawer-body')?.textContent ?? '', /Loading/);
     d.querySelector<HTMLButtonElement>('#nav .gear')?.click();
     assert.doesNotMatch(d.getElementById('settings-general')?.textContent ?? '', /Loading/);

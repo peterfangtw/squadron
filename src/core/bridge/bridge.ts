@@ -214,7 +214,7 @@ export class Bridge {
       putActionNotice: (record, notice, over, place) =>
         this.putActionNotice(record, notice, over, place),
       start: (record, message, input) =>
-        this.deliveryAttempt(() => this.incoming.start(record, message, input)),
+        this.startAttempt(() => this.incoming.start(record, message, input)),
       begun: (started, windowId, cwd, label) => this.begun(started, windowId, cwd, label),
       stopped: () => this.stopped
     });
@@ -783,7 +783,7 @@ export class Bridge {
     if (!(await this.messages.attempt(record, message))) return;
     const pointer = routed.past === '' ? undefined : recordFile(routed.past);
     const prompt = freshPrompt(routed.text, pointer);
-    const started = await this.deliveryAttempt(() =>
+    const started = await this.startAttempt(() =>
       this.incoming.start(record, message, {
         windowId: routed.windowId,
         cwd: routed.cwd,
@@ -794,7 +794,7 @@ export class Bridge {
       })
     );
     if (!started.ok) {
-      if ('notStarted' in started && started.notStarted) {
+      if (started.outcome === 'stopped') {
         if (message) await this.closeIncoming(record.id, message.correlation, 'closed');
         await this.messages.finish(record, message);
       }
@@ -1318,6 +1318,14 @@ export class Bridge {
     } catch (error) {
       return { ok: false, reason: message(error), unsure: true };
     }
+  }
+
+  /** A start through `deliveryAttempt`: its doubt is an unknown outcome. */
+  private async startAttempt(call: () => Promise<Started>): Promise<Started> {
+    const started = await this.deliveryAttempt(call);
+    return started.ok || 'outcome' in started
+      ? started
+      : { ok: false, reason: started.reason, outcome: 'unknown' };
   }
 
   /** Fresh ids for a record's notices and actions, base 36, above every id it

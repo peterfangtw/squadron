@@ -7,6 +7,7 @@ import * as scan from './scan';
 import type { SessionHandle } from './adapter';
 import { closeUnprompted, type SessionTransport } from './session';
 import type { BrandId } from './model';
+import type { FailedWord } from './start_outcome';
 import type {
   HostIdentity,
   IncomingAccess,
@@ -203,8 +204,8 @@ export class OwnedIncoming {
     send: () => Promise<import('./coordination/route').Act>,
     publish: () => Promise<boolean>,
     admitted: () => Promise<boolean>
-  ): Promise<{ ok: boolean; notStarted?: true; unsure?: true }> {
-    if (this.launch) return { ok: false, unsure: true };
+  ): Promise<{ ok: true } | { ok: false; outcome: FailedWord }> {
+    if (this.launch) return { ok: false, outcome: 'unknown' };
     if (
       !incoming.sameHost(attempt.host, this.receiverIdentity.host) ||
       attempt.cwd !== this.receiverIdentity.cwd ||
@@ -214,7 +215,7 @@ export class OwnedIncoming {
     ) {
       const exited = await closeUnprompted(this.transport);
       this.session.close();
-      return exited ? { ok: false, notStarted: true } : { ok: false, unsure: true };
+      return { ok: false, outcome: exited ? 'stopped' : 'unknown' };
     }
     this.launch = Object.freeze({
       version: 1,
@@ -231,15 +232,15 @@ export class OwnedIncoming {
     ) {
       const exited = await closeUnprompted(this.transport);
       this.session.close();
-      return exited ? { ok: false, notStarted: true } : { ok: false, unsure: true };
+      return { ok: false, outcome: exited ? 'stopped' : 'unknown' };
     }
     let result: import('./coordination/route').Act;
     try {
       result = await send();
     } catch {
-      return { ok: false, unsure: true };
+      return { ok: false, outcome: 'unknown' };
     }
-    if (!result.ok) return { ok: false, unsure: true };
+    if (!result.ok) return { ok: false, outcome: 'unknown' };
     this.launch = Object.freeze({
       ...this.launch,
       stage: 'accepted',
@@ -249,10 +250,10 @@ export class OwnedIncoming {
         ? { dismissed: true as const }
         : {})
     });
-    if (!this.held()) return { ok: false, unsure: true };
+    if (!this.held()) return { ok: false, outcome: 'unknown' };
     this.revision++;
     const written = await this.publishRequired(publish);
-    return written && this.held() ? { ok: true } : { ok: false, unsure: true };
+    return written && this.held() ? { ok: true } : { ok: false, outcome: 'unknown' };
   }
 
   deliver(
@@ -381,7 +382,7 @@ export class IncomingLaunches {
       return Promise.resolve({
         ok: false,
         reason: 'Invalid incoming launch request.',
-        notStarted: true
+        outcome: 'stopped'
       });
     const digest = crypto
       .createHash('sha256')
@@ -394,14 +395,14 @@ export class IncomingLaunches {
         : Promise.resolve({
             ok: false,
             reason: 'Conflicting original launch request.',
-            unsure: true
+            outcome: 'unknown'
           });
     const result = Promise.resolve()
       .then(create)
       .catch(() => ({
         ok: false,
         reason: 'Incoming startup outcome unknown.',
-        unsure: true as const
+        outcome: 'unknown' as const
       }));
     this.attempts.set(start.attempt.attemptId, { digest, result });
     return result;

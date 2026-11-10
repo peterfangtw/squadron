@@ -15,6 +15,7 @@
 
 import { $, el, q } from './dom';
 import * as bottomDrawer from './bottom_drawer';
+import * as layers from './layers';
 import * as workflows from './workflows_mode';
 
 /** How long a press anywhere on a row must rest before it becomes a lift. */
@@ -42,6 +43,9 @@ type Flight = {
   at: number;
   /** The auto-scroll frame, or 0 when the pointer is not near an edge. */
   scroll: number;
+  /** A transient layer above the drawer for the flight's life: Escape cancels
+   *  the flight and nothing else, wherever the caret is. */
+  layer: layers.Handle;
 };
 
 let flight: Flight | undefined;
@@ -200,7 +204,8 @@ function lift(node: HTMLElement, pointerId: number, x: number, y: number): void 
     dy: y - box.top,
     y,
     at: from,
-    scroll: 0
+    scroll: 0,
+    layer: layers.push({ kind: 'flight', close: cancelFlight, escape: 'consume' })
   };
   showLine();
 }
@@ -227,7 +232,9 @@ function endFlight(): void {
   flight.line.remove();
   flight.row.classList.remove('lifted');
   document.body.classList.remove('dragging-wf');
+  const { layer } = flight;
   flight = undefined;
+  layer.pop();
 }
 
 function drop(): void {

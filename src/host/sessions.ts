@@ -1,7 +1,7 @@
 import * as usageCoordination from '../core/coordination/usage';
 import { CLOSE_ALL_MS, within, type Consumer } from '../core/shutdown';
 import { reserveStartup, type Reservation } from '../core/coordination/startup_records';
-import { StartupAttempt, type StartOutcome } from '../core/startup';
+import { StartupAttempt, type AttemptResult, type StartOutcome } from '../core/startup';
 import { SessionLifetime } from '../core/session_lifetime';
 /**
  * The sessions this window started and drives, as opposed to the ones it merely
@@ -136,7 +136,7 @@ type Entry = {
 export type StartResult = StartOutcome;
 
 /** The pick itself was refused. A missing pid is not this: the child never chose a model. */
-function pickRefused(reason: string): StartResult {
+function pickRefused(reason: string): AttemptResult {
   return { ok: false, reason, cause: 'pick' };
 }
 
@@ -253,7 +253,7 @@ export async function reconcileStart(id: string): Promise<void> {
   const record = starts.get(id);
   if (!record) return;
   const result = await record.attempt.reconcile();
-  if (result?.ok === false && result.notStarted && record.lifetime) {
+  if (result?.ok === false && result.outcome === 'stopped' && record.lifetime) {
     await record.reservation?.release();
     lifetimes.delete(record.lifetime);
     if (record.entry && entries.get(record.entry.pid) === record.entry)
@@ -276,7 +276,7 @@ export async function cancelStartup(id: string): Promise<void> {
   ) {
     record.outcome = {
       ok: false,
-      unsure: true,
+      outcome: 'unknown',
       reason: 'The session is already active. Inspect it before sending again.'
     };
     return;
@@ -287,7 +287,7 @@ export async function cancelStartup(id: string): Promise<void> {
   void publishStopping(entry);
   const cancelling = record.attempt.cancelHandoff();
   const cancelled = await cancelling;
-  if (cancelled?.ok === false && cancelled.notStarted) {
+  if (cancelled?.ok === false && cancelled.outcome === 'stopped') {
     await record.reservation?.release();
     lifetimes.delete(entry.lifetime);
   }
@@ -637,21 +637,25 @@ export async function startOwned(start: StartOptions): Promise<StartResult> {
   if (prior)
     return prior.fingerprint === fingerprint
       ? prior.result
-      : Promise.resolve({ ok: false, unsure: true, reason: 'Conflicting session start identity.' });
+      : Promise.resolve({
+          ok: false,
+          outcome: 'unknown',
+          reason: 'Conflicting session start identity.'
+        });
   if (shuttingDown)
-    return Promise.resolve({ ok: false, notStarted: true, reason: 'This window is closing.' });
+    return Promise.resolve({ ok: false, outcome: 'stopped', reason: 'This window is closing.' });
   // Only terminal receipts are evicted; active starts always retain their owner.
   if (starts.size >= 256)
     for (const [key, value] of starts) {
       const outcome = value.outcome ?? value.attempt.outcome;
-      if (outcome?.ok || (outcome && !outcome.unsure)) starts.delete(key);
+      if (outcome?.ok || outcome?.outcome === 'stopped') starts.delete(key);
       if (starts.size < 192) break;
     }
   const attempt = new StartupAttempt(id, undefined, log);
   const record: StartRecord = {
     attempt,
     fingerprint,
-    result: Promise.resolve({ ok: false, unsure: true, reason: 'Starting.' })
+    result: Promise.resolve({ ok: false, outcome: 'unknown', reason: 'Starting.' })
   };
   starts.set(id, record);
   record.result = attempt
@@ -663,7 +667,7 @@ export async function startOwned(start: StartOptions): Promise<StartResult> {
           void publish(record.entry);
         } else {
           record.entry.ready = undefined;
-          if (result.notStarted) void stopPublishing(record.entry, 'startup stopped');
+          if (result.outcome === 'stopped') void stopPublishing(record.entry, 'startup stopped');
           else {
             stoppingEntries.add(record.entry);
             void publishStopping(record.entry);
@@ -697,8 +701,7 @@ export async function startOwned(start: StartOptions): Promise<StartResult> {
       attempt.finish('unknown');
       const result: StartResult = {
         ok: false,
-        unsure: true,
-        startupVersion: 1,
+        outcome: 'unknown',
         attemptId: id,
         reason: error instanceof Error ? error.message : String(error)
       };
@@ -708,7 +711,7 @@ export async function startOwned(start: StartOptions): Promise<StartResult> {
   return record.result;
 }
 
-async function performStart(start: StartOptions, record: StartRecord): Promise<StartResult> {
+async function performStart(start: StartOptions, record: StartRecord): Promise<AttemptResult> {
   const attempt = record.attempt;
 
   const config = vscode.workspace.getConfiguration('squadron');
@@ -1267,7 +1270,7 @@ async function performStart(start: StartOptions, record: StartRecord): Promise<S
       return {
         ok: false,
         reason: 'Incoming owner evidence is unavailable.',
-        ...(exited ? { notStarted: true } : { unsure: true })
+        outcome: exited ? 'stopped' : 'unknown'
       };
     }
     const result = await proof.start(
@@ -1300,7 +1303,7 @@ async function performStart(start: StartOptions, record: StartRecord): Promise<S
       }
     );
     if (!result.ok) {
-      if (result.notStarted) {
+      if (result.outcome === 'stopped') {
         entries.delete(pid);
         await stopPublishing(entry, 'incoming start refused');
       }

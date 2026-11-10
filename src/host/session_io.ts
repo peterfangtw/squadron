@@ -260,8 +260,7 @@ export async function buildThread(
       lineage: buildLineage(sessions).get(session.pid),
       skillsHere: await skills.skillsForSession(session),
       workflow,
-      canModel:
-        session.source === 'owned' && live?.exit === undefined && owned?.messages !== undefined,
+      messages: owned?.messages !== undefined,
       // Read reach from Session, where the launch line survives a fold.
       models: modelsForSession(
         session.brand,

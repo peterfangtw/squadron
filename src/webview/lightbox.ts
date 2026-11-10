@@ -1,6 +1,7 @@
 /** The board's image viewer: open/close state and interaction stay webview-side. */
 
 import { $, q } from './dom';
+import * as layers from './layers';
 
 const root = $('lightbox');
 const scrim = $('lscrim');
@@ -13,6 +14,7 @@ const zoomStep = 0.5;
 const panStep = 40;
 
 let source: HTMLElement | undefined;
+let layer: layers.Handle | undefined;
 let scale = 1;
 let x = 0;
 let y = 0;
@@ -73,7 +75,7 @@ function zoomFromKeyboard(delta: number): void {
   zoomTo(scale + delta, fitLeft + fitWidth / 2, fitTop + fitHeight / 2);
 }
 
-export function lightboxOpen(): boolean {
+function lightboxOpen(): boolean {
   return !root.hidden;
 }
 
@@ -97,6 +99,19 @@ export function openLightbox({
   scrim.hidden = false;
   root.hidden = false;
   measureFit();
+  if (!layer?.open) {
+    layer = layers.push({
+      kind: 'lightbox',
+      close: closeLightbox,
+      // A dialog's keys are its own, even with the image over it.
+      escape: (e) => {
+        if (e.target instanceof Element && e.target.closest('#ask')) return false;
+        closeLightbox();
+        return true;
+      },
+      root: () => [root, scrim]
+    });
+  }
   root.focus();
 }
 
@@ -106,6 +121,8 @@ export function closeLightbox(): void {
   root.hidden = true;
   scrim.hidden = true;
   image.removeAttribute('src');
+  layer?.pop();
+  layer = undefined;
   source?.focus();
   source = undefined;
 }
@@ -114,14 +131,8 @@ export function onLightboxKey(e: KeyboardEvent): void {
   if (!lightboxOpen()) return;
   const target = e.target;
   if (target instanceof Element && target.closest('#ask')) return;
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    closeLightbox();
-    return;
-  }
   // The dock stays live beside the image, so a key typed in the composer is
-  // the composer's — only Escape above reaches across.
+  // the composer's — only Escape, on the layer stack, reaches across.
   if (!(target instanceof Node && root.contains(target))) return;
   if (e.key === '+' || e.key === '=') zoomFromKeyboard(zoomStep);
   else if (e.key === '-') zoomFromKeyboard(-zoomStep);

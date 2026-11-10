@@ -22,6 +22,7 @@ const card = (pid: number, over: Partial<CardView> = {}): CardView => ({
   status: 'idle',
   reading: { word: 'idle', tally: 'idle' },
   canControl: true,
+  canInterrupt: false,
   startedAt: pid * 1000,
   updatedAt: 0,
   cacheTtlMs: 60 * 60_000,
@@ -34,6 +35,7 @@ const thread = (pid: number, over: Partial<ThreadView> = {}): ThreadView => ({
   exchanges: [],
   canSend: true,
   canAttach: true,
+  canModel: true,
   who: 'claude',
   ...over
 });

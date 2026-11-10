@@ -29,7 +29,9 @@ const SOURCE_WORDS: Record<WarmView['source'], string> = {
   configured: 'configured'
 };
 
-const HELD_CLAUSES: Record<Exclude<WarmHeldView, 'unsupported'>, WarmClause> = {
+type Warmable = WarmView & { held?: Exclude<WarmHeldView, 'unsupported'> };
+
+const HELD_CLAUSES: Record<NonNullable<Warmable['held']>, WarmClause> = {
   busy: { tone: 'quiet', text: 'working' },
   ask: { tone: 'held', text: 'Warm blocked: waiting on you' },
   queued: { tone: 'held', text: 'Warm blocked: a message is queued' },
@@ -41,8 +43,15 @@ const HELD_CLAUSES: Record<Exclude<WarmHeldView, 'unsupported'>, WarmClause> = {
   'no-cache': { tone: 'held', text: 'Warm blocked: no cache yet' }
 };
 
+/** Something here can ping this session: what offers its switch on the card
+ *  and the sheet, and what the bar may count. The one reading of `held`'s
+ *  `unsupported`, which `core/warm.ts` decides. */
+export function warmable(warm: WarmView | undefined): warm is Warmable {
+  return warm !== undefined && warm.held !== 'unsupported';
+}
+
 export function warmRow(card: CardView, warm: WarmView, now: number): WarmRow {
-  if (warm.held === 'unsupported') {
+  if (!warmable(warm)) {
     const text = card.canControl
       ? 'this session cannot be kept warm'
       : 'background session · nothing here can reach it';
@@ -99,11 +108,11 @@ export function warmStamp(
 /** A switch that is on and a session something here can ping: what the bar
  *  counts and what lights a card's footer. */
 export function keptWarm(warm: WarmView | undefined): boolean {
-  return warm?.on === true && warm.held !== 'unsupported';
+  return warmable(warm) && warm.on;
 }
 
-function onClause(card: CardView, warm: WarmView, now: number): WarmClause {
-  if (warm.held && warm.held !== 'unsupported') return HELD_CLAUSES[warm.held];
+function onClause(card: CardView, warm: Warmable, now: number): WarmClause {
+  if (warm.held) return HELD_CLAUSES[warm.held];
   if (warm.nextAt !== undefined) {
     return now < warm.nextAt
       ? { tone: 'next', text: `ping in ${span(warm.nextAt - now)}` }

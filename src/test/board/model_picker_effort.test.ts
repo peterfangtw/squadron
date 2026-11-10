@@ -394,7 +394,7 @@ describe('the effort pill', () => {
     assert.equal(effortPill(p)?.querySelector('.nm')?.textContent, 'medium');
     typeIn(p, 'begin');
     enter(p);
-    const { brand, model, window, effort } = lastOpen(p);
+    const { brand, model, window, effort } = lastOpen(p).target ?? {};
     assert.deepEqual(
       { brand, model, window, effort },
       {
@@ -436,7 +436,7 @@ describe('the effort pill', () => {
     assert.equal(effortPill(p)?.querySelector('.nm')?.textContent, 'medium');
     typeIn(p, 'begin');
     enter(p);
-    assert.equal(lastOpen(p).effort, 'medium');
+    assert.equal(lastOpen(p).target?.effort, 'medium');
   });
 
   it('PRD 3: resets to a model’s native default when it has no saved effort', (t) => {
@@ -468,7 +468,7 @@ describe('the effort pill', () => {
     assert.equal(effortPill(p)?.querySelector('.nm')?.textContent, 'high');
     typeIn(p, 'begin');
     enter(p);
-    assert.equal(lastOpen(p).effort, 'high');
+    assert.equal(lastOpen(p).target?.effort, 'high');
   });
 
   it('PRD 4: drops a stale global effort from Haiku', (t) => {
@@ -480,6 +480,6 @@ describe('the effort pill', () => {
     assert.equal(effortPill(p), null);
     typeIn(p, 'begin');
     enter(p);
-    assert.equal('effort' in lastOpen(p), false);
+    assert.equal('effort' in (lastOpen(p).target ?? {}), false);
   });
 });

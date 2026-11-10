@@ -56,7 +56,7 @@ boot.section('permission mode beside the model, in the real IDE', () => {
               contentWidth:
                 node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
               modeVisible: box.width > 0 && box.height > 0,
-              sameRow: Math.abs(box.top - modelBox.top) <= 1,
+              sameRow: Math.abs(box.top + box.height / 2 - modelBox.top - modelBox.height / 2) <= 1,
               overlaps: modelBox.right > box.left + 1 || box.right > sinceBox.left + 1,
               gap: box.left - modelBox.right,
               glyphVisible: getComputedStyle(glyph).display !== 'none',

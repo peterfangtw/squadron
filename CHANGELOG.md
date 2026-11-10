@@ -9,6 +9,27 @@ scalability", only when that benefit is supported; omit implementation details.
 Do not add a release note for edits to this guidance.
 -->
 
+## 0.6.24
+
+- Fable 5.2 is available in the Claude model picker.
+- Disconnecting Linear or GitHub Projects asks for confirmation first, from the board menu and from the command palette.
+- Ticket column headers match the size of session group titles.
+
+## 0.6.23
+
+- Escape and clicks close only the topmost surface: a menu, image, dialog or sheet over the bottom drawer no longer closes the drawer underneath, and closing a picker returns focus to the control that opened it.
+- The dock no longer offers Interrupt on a session that is ending, matching its card.
+- A session start that fails or cannot be confirmed shows the same message on every surface.
+- Ticket rows in the @ menu fit on one line.
+- Sign-in status is kept separately for each configured CLI binary, so changing a CLI path re-reads its accounts.
+- Refactoring for more reliable ticket sources and session starts.
+
+## 0.6.22
+
+- Connect Linear or GitHub Projects from one prompt in the Tickets tab, and connect, re-key or disconnect either source the same way from the board menu or the command palette.
+- GitHub Projects tickets refresh every minute, like Linear's, and filter menus no longer go stale.
+- Picking a board that is no longer available no longer leaves the Tickets tab stuck on Loading.
+
 ## 0.6.21
 
 - GitHub Projects token setup states exactly which scopes private and public repository issues need, and what to check when GitHub hides project items.

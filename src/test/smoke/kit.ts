@@ -54,10 +54,16 @@ import { shutDrawer } from './drawer_shut';
  * otherwise, which is every scenario here.
  */
 export async function openDraft(cwd?: string): Promise<void> {
-  const half =
+  const escapedCwd =
     cwd === undefined
+      ? undefined
+      : await panel()
+          .locator('body')
+          .evaluate((_, value) => CSS.escape(value), cwd);
+  const half =
+    escapedCwd === undefined
       ? panel().locator('.half[data-act="open"]').first()
-      : panel().locator(`.half[data-act="open"][data-cwd="${cwd}"]`).first();
+      : panel().locator(`.half[data-act="open"][data-cwd="${escapedCwd}"]`).first();
   await half.click();
   // The draft's own surface, which is how "the press did nothing" is told from
   // "the press opened something and the composer is slow".

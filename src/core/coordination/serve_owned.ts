@@ -16,6 +16,7 @@ import type {
   IncomingEvidenceQuery,
   IncomingAccess
 } from '../bridge/model';
+import { launchTargetOf } from './request_codec';
 import { MALFORMED, type RemoteStartFilesV1 } from './requests';
 import * as origin from './origin';
 import { brandForStart, refusal, type SessionHandle } from '../adapter';
@@ -49,9 +50,8 @@ export type ServePort = {
         ok: false;
         reason: string;
         cause?: 'pick';
-        notStarted?: true;
+        outcome: import('../start_outcome').FailedWord;
         selectionInvalid?: true;
-        unsure?: true;
       }
   >;
   incomingHolder?(): Promise<Holder | undefined>;
@@ -197,7 +197,7 @@ async function serveIncomingStart(
       ok: false,
       reason: INCOMING_UNAVAILABLE,
       incomingRefusal: 'unsupported-capability',
-      notStarted: true
+      outcome: 'stopped'
     };
   return port.incomingStarts.run(request, async () => {
     const capability = await port.incomingAccess?.();
@@ -206,7 +206,7 @@ async function serveIncomingStart(
         ok: false,
         reason: 'That starting window changed or is unavailable.',
         incomingRefusal: 'evidence-unavailable',
-        unsure: true
+        outcome: 'unknown'
       };
     const holder = await port.incomingHolder?.();
     if (
@@ -219,13 +219,13 @@ async function serveIncomingStart(
         ok: false,
         reason: 'Incoming start destination or holder changed.',
         incomingRefusal: 'evidence-unavailable',
-        notStarted: true
+        outcome: 'stopped'
       };
     return (
       port.startFiles?.(request) ?? {
         ok: false,
         reason: INCOMING_UNAVAILABLE,
-        notStarted: true
+        outcome: 'stopped'
       }
     );
   });
@@ -275,28 +275,40 @@ async function serveRemoteOpen(request: Of<'open'>, port: ServePort): Promise<Re
     return {
       ok: false,
       reason: REMOTE_OFF,
-      ...(request.selection === undefined ? {} : { notStarted: true })
+      outcome: 'stopped'
     };
   const asked = brandForStart(request.brand);
-  if (!asked.ok)
-    return request.selection === undefined
-      ? { ...asked, cause: 'pick' }
-      : {
-          ok: false,
-          reason: 'That model, context or effort is no longer available. Choose again.',
-          notStarted: true,
-          selectionInvalid: true
-        };
+  const target = asked.ok
+    ? launchTargetOf({
+        brand: asked.brand,
+        model: request.model,
+        window: request.window,
+        effort: request.effort
+      })
+    : undefined;
+  if (!asked.ok || !target) {
+    if (request.selection !== undefined) {
+      return {
+        ok: false,
+        reason: 'That model, context or effort is no longer available. Choose again.',
+        outcome: 'stopped',
+        selectionInvalid: true
+      };
+    }
+    return {
+      ok: false,
+      reason: asked.ok ? MALFORMED : asked.reason,
+      cause: 'pick',
+      outcome: 'stopped'
+    };
+  }
   // No `requestId`: a person's start writes no lineage and is not in the Fleet.
   const started = await port.start({
+    ...target,
     cwd: request.cwd,
     ...(request.prompt === undefined ? {} : { prompt: request.prompt }),
     ...(request.correlation === undefined ? {} : { correlation: request.correlation }),
     ...(request.name === undefined ? {} : { name: request.name }),
-    ...(asked.brand === undefined ? {} : { brand: asked.brand }),
-    ...(request.model === undefined ? {} : { model: request.model }),
-    ...(request.window === undefined ? {} : { window: request.window }),
-    ...(request.effort === undefined ? {} : { effort: request.effort }),
     ...(request.selection === undefined ? {} : { selection: request.selection })
   });
   const owned = started.ok ? port.owned(started.pid) : undefined;

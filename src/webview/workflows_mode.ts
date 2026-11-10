@@ -131,12 +131,7 @@ function newRow(): HTMLElement {
   const b = el('button', 'wsnew');
   b.dataset.key = 'ws:new';
   b.append(el('span', 'plus', '＋'), el('span', 'nm', 'New workflow'));
-  b.onclick = () => {
-    // Close the sheet because the editor takes the same board region.
-    // The button is inside the drawer, so focus cannot stay on it.
-    bottomDrawer.close();
-    openCreate();
-  };
+  b.onclick = () => openCreate();
   return b;
 }
 
@@ -250,9 +245,6 @@ function controls(w: SheetRow): HTMLElement[] {
     rowAction(w, 'edit', 'pencil', 'Edit', () => {
       const now = listed(id);
       if (!now) return;
-      // Close the sheet for the same board-region reason as newRow.
-      // The button is inside the drawer, so focus cannot stay on it.
-      bottomDrawer.close();
       openEdit(editable(now));
     }),
     // No answer to wait for: the copy arrives on the next poll like any other
@@ -380,12 +372,4 @@ export function emptyWord(): HTMLElement {
   const create = el('button', 'fpill on', '+ New workflow');
   create.onclick = () => openCreate();
   return create;
-}
-
-/** A flight consumes Escape. The frame has the one listener, and a second one
- *  would still close the drawer after this returns. */
-export function escape(): boolean {
-  if (!drag.inFlight()) return false;
-  drag.cancelFlight();
-  return true;
 }

@@ -13,15 +13,9 @@ section('GitHub Projects through the host', () => {
       if (await source.count()) {
         await source.click();
         await panel()
-          .getByRole('menuitemradio', { name: 'Connect a ticket source…', exact: true })
+          .getByRole('menuitemradio', { name: 'Connect GitHub Projects', exact: true })
           .click();
-      } else
-        await panel()
-          .getByRole('button', { name: 'Connect a ticket source…', exact: true })
-          .click();
-      await ctx.page.locator('.quick-input-widget').waitFor({ state: 'visible' });
-      await ctx.page.keyboard.type('GitHub Projects');
-      await ctx.page.keyboard.press('Enter');
+      } else await panel().locator('#tk-list .tksrc[data-provider="github"]').click();
       await ctx.page.getByText('I have a classic token', { exact: true }).waitFor();
       await ctx.page.keyboard.type('I have a classic token');
       await ctx.page.keyboard.press('Enter');
@@ -109,11 +103,29 @@ section('GitHub Projects through the host', () => {
     const restored = await head.boundingBox();
     assert.equal(restored?.y, before.y);
   });
-  step('disconnects GitHub through its source action and removes the connection', async () => {
+  step('offers the source not yet connected, straight to its own prompt', async () => {
     await panel().locator('#tk-source .scope-button').click();
-    await panel().getByRole('menuitemradio', { name: 'Disconnect GitHub', exact: true }).click();
+    const connect = (name: string) =>
+      panel().getByRole('menuitemradio', { name: 'Connect ' + name, exact: true });
+    assert.equal(await connect('GitHub Projects').count(), 0);
+    await connect('Linear').click();
+    await ctx.page.locator('.quick-input-title', { hasText: 'Connect Linear' }).waitFor();
+    await ctx.page.keyboard.press('Escape');
+    await ctx.page.locator('.quick-input-widget').waitFor({ state: 'hidden' });
+  });
+  step('disconnects GitHub through its source action once confirmed', async () => {
+    const modal = panel().locator('#cscrim');
+    const disconnect = async (answer: 'Cancel' | 'Disconnect') => {
+      await panel().locator('#tk-source .scope-button').click();
+      await panel().getByRole('menuitemradio', { name: 'Disconnect GitHub', exact: true }).click();
+      await modal.getByRole('button', { name: answer, exact: true }).click();
+      await modal.waitFor({ state: 'hidden' });
+    };
+    await disconnect('Cancel');
+    await panel().locator('.tk', { hasText: 'acme/web#12' }).waitFor();
+    await disconnect('Disconnect');
     await panel().locator('#tk-source', { hasText: 'No ticket source' }).waitFor();
     assert.equal(await panel().locator('#tk-list .tk').count(), 0);
-    await panel().getByRole('button', { name: 'Connect a ticket source…', exact: true }).waitFor();
+    await panel().locator('#tk-list .tksrc[data-provider="github"]:enabled').waitFor();
   });
 });

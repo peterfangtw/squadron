@@ -160,7 +160,9 @@ describe('ticket details beside chat', () => {
     assert.match(doc.querySelector('#ticket-detail')!.textContent, /No description/);
     p.push(
       stateMessage([groupView()], {
-        ticketSource: ticketSourceView({ generation: 2 }),
+        ticketSource: ticketSourceView({
+          token: { generation: 2, selectionSeq: 0, scopeId: 'team-a' }
+        }),
         tickets: [row]
       })
     );

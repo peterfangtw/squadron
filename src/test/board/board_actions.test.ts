@@ -278,7 +278,7 @@ describe('a draft promoted by its own reveal', () => {
       type: 'startupStatus',
       attemptId: draftId,
       state: 'unknown',
-      reason: 'Confirmation unavailable.'
+      notice: 'Confirmation unavailable.'
     });
     assert.equal(composerDisabled(p), true);
     assert.match(p.window.document.querySelector('#thread')?.textContent ?? '', /held original/);
@@ -303,7 +303,7 @@ describe('a draft promoted by its own reveal', () => {
       type: 'startupStatus',
       attemptId: first,
       state: 'stopped',
-      reason: 'Session start cancelled.'
+      notice: 'Session start cancelled.'
     });
     assert.equal(composerDisabled(p), false);
     p.window.document.querySelector<HTMLElement>('[data-act="dismiss-held"]')?.click();
@@ -348,9 +348,8 @@ describe('a draft promoted by its own reveal', () => {
     p.push({
       type: 'openResult',
       draftId,
-      ok: false,
-      notStarted: true,
-      reason: 'No grok binary on this machine.'
+      outcome: 'stopped',
+      notice: 'No grok binary on this machine.'
     });
     assert.equal(composerDisabled(p), false, 'the box stayed away after a refusal');
     assert.ok(

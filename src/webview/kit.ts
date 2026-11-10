@@ -12,6 +12,7 @@
 import morphdom from 'morphdom';
 import { placeAnchored, placeFlyout } from '../ui/place';
 import { LAYER_INSET, dot, el, imeKey, typingIn } from './dom';
+import * as layers from './layers';
 
 export type DropdownTrigger = {
   wrap: HTMLElement;
@@ -126,6 +127,9 @@ type OpenMenu = {
   /** What opened it, and what the focus goes back to when it closes. */
   trigger: HTMLElement;
   close: () => void;
+  /** Its place on the panel's layer stack: one entry per menu, so a flyout
+   *  is above its parent and Escape takes one level. */
+  layer: layers.Handle;
 };
 
 /**
@@ -143,13 +147,15 @@ const openMenus: OpenMenu[] = [];
 /** Close all menus innermost first, after a pick or before repainting the world. */
 export function closeMenu(): void {
   while (openMenus.length) {
-    openMenus.pop()?.close();
+    closeTopMenu();
   }
 }
 
 /** Close only the innermost menu; callers outside this module mean all menus. */
 function closeTopMenu(): void {
-  openMenus.pop()?.close();
+  const top = openMenus.pop();
+  top?.close();
+  top?.layer.pop();
 }
 
 /**
@@ -548,7 +554,28 @@ function wireMenu(o: {
     o.menu.hidden = false;
     o.trigger.setAttribute('aria-expanded', 'true');
     if (o.lit) o.trigger.classList.add(o.lit);
-    openMenus.push({ wrap: o.wrap, menu: o.menu, trigger: o.trigger, close });
+    openMenus.push({
+      wrap: o.wrap,
+      menu: o.menu,
+      trigger: o.trigger,
+      close,
+      layer: layers.push({
+        kind: 'menu',
+        // Shut from the top down to this one: a parent never closes under an
+        // open flyout.
+        close: () => {
+          const at = openMenus.findIndex((open) => open.menu === o.menu);
+          while (at !== -1 && openMenus.length > at) closeTopMenu();
+        },
+        escape: () => {
+          if (openMenus[openMenus.length - 1]?.menu !== o.menu) return false;
+          closeTopMenu();
+          o.trigger.focus();
+          return true;
+        },
+        root: () => [o.wrap, o.menu]
+      })
+    });
     o.place(o.menu);
     // Portalled menus can measure `offsetWidth` as 0 (or a wrong box) on the
     // same turn they leave `display: none` and land on `body`. A second place
@@ -765,21 +792,20 @@ function anchorFlyout(wrap: HTMLElement, menu: HTMLElement): void {
    took the shape as a spec instead and absorbed the pill with it. */
 
 /**
- * Escape closes one level because leaving a flyout means leaving that model
- * pick, not settings. A second Escape closes the parent. Left/right perform
- * those moves only in nested menus; top-level Left has no parent to return to.
+ * Left closes one level, as Escape does on the layer stack, because leaving a
+ * flyout means leaving that model pick, not settings. Left/right perform those
+ * moves only in nested menus; top-level Left has no parent to return to.
  */
 export function onMenuKey(e: KeyboardEvent): void {
   if (imeKey(e)) return;
   const top = openMenus[openMenus.length - 1];
   if (!top) return;
-  // Caret keys belong to editable fields; Escape still closes their menu.
+  // Caret keys belong to editable fields.
   const typing = typingIn(document.activeElement);
   if (
-    e.key === 'Escape' ||
-    (e.key === 'ArrowLeft' &&
-      (openMenus.length > 1 || top.menu.classList.contains('fly')) &&
-      !typing)
+    e.key === 'ArrowLeft' &&
+    (openMenus.length > 1 || top.menu.classList.contains('fly')) &&
+    !typing
   ) {
     e.preventDefault();
     e.stopPropagation();
@@ -820,10 +846,12 @@ export function onMenuKey(e: KeyboardEvent): void {
  *
  * The menu is asked as well as the wrap, because a portalled one is a child of
  * `document.body` while open (see `opensMenu`) — a wrap-only test would read
- * every click on its own rows as a click away.
+ * every click on its own rows as a click away. A press in a layer opened above
+ * the innermost menu is not away either: it is that layer's.
  */
 export function onMenuBlur(e: MouseEvent): void {
-  if (!openMenus.length) return;
+  const top = openMenus[openMenus.length - 1];
+  if (!top || layers.above(top.layer, e)) return;
   const at = e.target as Node;
   if (openMenus.some((open) => open.wrap.contains(at) || open.menu.contains(at))) return;
   closeTopMenu();

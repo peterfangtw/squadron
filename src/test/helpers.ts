@@ -17,6 +17,20 @@ import {
 
 export { disposeHome, homeEnv, modeBitsSkip, resetDir, tempHome, testPlatform, writeJson };
 
+/**
+ * `base` without `FORCE_COLOR`.
+ *
+ * Node writes a warning to stderr when `FORCE_COLOR` is set beside `NO_COLOR`,
+ * as `node:util` loads (Node 24, `internal/tty.js`). A child whose stderr is
+ * asserted to be the program's own must not inherit that pair. The shipped
+ * command still inherits the caller's color env.
+ */
+export function withoutForceColor(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env = { ...base };
+  delete env.FORCE_COLOR;
+  return env;
+}
+
 export function posixShell(): { bin: string; skip: false } | { skip: string } {
   if (testPlatform() !== 'win32') return { bin: 'sh', skip: false };
   const bin = gitBash();

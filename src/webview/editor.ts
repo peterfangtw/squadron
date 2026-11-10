@@ -27,6 +27,7 @@ import { sameDoc, type ComposeDoc } from '../ui/compose_doc';
 import { catalogMenu, effortPick } from './board_settings';
 import { keptBox, sweepHeld } from './boxes';
 import { closeMenu, menuItem } from './kit';
+import * as layers from './layers';
 import { attachMentions, closeMentionMenu } from './mentions';
 import { createProse, markdownDoc, type Prose } from './prose';
 import { attachFormatbar } from './formatbar';
@@ -74,6 +75,8 @@ type Draft = {
 };
 
 let draft: Draft | null = null;
+/** On the stack while a draft is open. Popped from `paintShell` on close. */
+let layer: layers.Handle | undefined;
 /** The draft's `shape` as it opened: what an Escape compares to before leaving. */
 let opened = '';
 
@@ -216,9 +219,23 @@ function paintShell(): void {
   const board = $('board');
   const root = $('wfeditor');
   if (draft) {
+    // Before the shell is shown, so the drawer is gone on the same turn.
+    // Passes Escape: Back is the fallback outside the stack, and consuming
+    // the key here would be a second Back.
+    if (!layer?.open) {
+      layer = layers.push({
+        kind: 'editor',
+        close: () => closeEditor(),
+        escape: 'pass',
+        excludes: ['bottomDrawer'],
+        root: () => [root]
+      });
+    }
     board.classList.add('editing');
     root.hidden = false;
   } else {
+    layer?.pop();
+    layer = undefined;
     board.classList.remove('editing');
     root.hidden = true;
     // The canvas node is moved into the editor while it is open. Put the empty
@@ -259,8 +276,9 @@ function shape(d: Draft): string {
  * Escape is Back. Over unsaved edits it takes two presses — Delete's rule, the
  * first arms and the second does it — so a key pressed by reflex cannot drop a
  * draft. A box keeps its Escape: one there is about the text, not the editor.
- * On the window, after every document owner has had the key: a wire, a menu
- * and the `@` menu take theirs first and say so with `preventDefault`.
+ * Outside the layer stack, on the window's bubble phase: a wire, a menu and
+ * the `@` menu take theirs first, on the stack or at their field, and say so
+ * with `preventDefault`.
  */
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented || !draft || busy(draft)) return;

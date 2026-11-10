@@ -152,6 +152,19 @@ describe('the add slot', () => {
 });
 
 describe('the resume picker', () => {
+  it('returns focus to the Resume control that opened it', (t) => {
+    const p = board(t);
+    const opener = halves(p).find((h) => h.dataset.act === 'resume');
+    assert.ok(opener);
+    opener.focus();
+    assert.equal(p.window.document.activeElement, opener, 'Resume cannot take focus');
+    opener.click();
+    assert.equal(p.window.document.activeElement, filterBox(p), 'the picker took focus');
+    key(p, 'Escape');
+    assert.equal(p.window.document.getElementById('picker')?.hidden, true);
+    assert.equal(p.window.document.activeElement, opener);
+  });
+
   it('reconciles an uncertain resume without offering a competing retry', (t) => {
     const p = board(t);
     openPicker(p);
@@ -160,9 +173,8 @@ describe('the resume picker', () => {
     p.push({
       type: 'resumeResult',
       requestId: request.requestId,
-      ok: false,
-      unsure: true,
-      reason: 'Opening outcome unknown.'
+      outcome: 'unknown',
+      notice: 'Opening outcome unknown.'
     });
     assert.equal(p.window.document.querySelector('[data-act="retry-resume"]'), null);
     openPicker(p);
@@ -186,7 +198,7 @@ describe('the resume picker', () => {
       type: 'startupStatus',
       attemptId: request.requestId,
       state: 'stopped',
-      reason: 'The session stopped.'
+      notice: 'The session stopped.'
     });
     assert.ok(p.window.document.querySelector('[data-act="retry-resume"]'));
   });
@@ -198,6 +210,7 @@ describe('the resume picker', () => {
       type: 'startupStatus',
       attemptId: posted(p).requestId,
       state: 'waiting',
+      notice: 'Starting session…',
       stage: 'child identity'
     });
     const text = p.window.document.querySelector('.resuming')?.textContent ?? '';
@@ -213,9 +226,8 @@ describe('the resume picker', () => {
       type: 'resumeResult',
       requestId: request.requestId,
       attemptId: 'original-resume',
-      ok: false,
-      unsure: true,
-      reason: 'The earlier resume is still stopping.'
+      outcome: 'unknown',
+      notice: 'The earlier resume is still stopping.'
     });
     p.window.document
       .querySelector<HTMLButtonElement>('.resuming [data-startup="status"]')
@@ -225,7 +237,12 @@ describe('the resume picker', () => {
       attemptId: 'original-resume',
       action: 'status'
     });
-    p.push({ type: 'startupStatus', attemptId: 'original-resume', state: 'stopped' });
+    p.push({
+      type: 'startupStatus',
+      attemptId: 'original-resume',
+      state: 'stopped',
+      notice: 'That session did not start.'
+    });
     assert.ok(p.window.document.querySelector('[data-act="retry-resume"]'));
   });
   it('says it is reading before the host answers', (t) => {
@@ -299,9 +316,8 @@ describe('the resume picker', () => {
       requestId: posted(p).requestId,
       cwd: '/dev/app',
       sessionId: 'abc',
-      brand: 'claude',
       name: 'Measure board columns',
-      model: ''
+      target: { brand: 'claude', model: '' }
     });
     assert.equal(p.window.document.getElementById('picker')?.hidden, true);
   });
@@ -328,7 +344,7 @@ describe('the resume picker', () => {
     });
     openPicker(p);
     rows(p)[0]?.click();
-    assert.equal(posted(p).effort, 'high');
+    assert.equal(posted(p).target?.effort, 'high');
   });
 
   /** The effort is native to the selected model, so dropping a cross-brand
@@ -360,7 +376,7 @@ describe('the resume picker', () => {
     halves(p)[0]?.click();
     answer(p, [conversationView({ brand: 'grok' })]);
     rows(p)[0]?.click();
-    const out = posted(p);
+    const out = posted(p).target ?? {};
     assert.equal(out.model, '', 'a Claude model rode a Grok resume');
     assert.equal('effort' in out, false, 'a Claude-only effort rode a Grok resume');
   });
@@ -370,7 +386,11 @@ describe('the resume picker', () => {
     const p = board(t);
     openPicker(p);
     rows(p)[0]?.click();
-    assert.equal('effort' in posted(p), false, 'an unset setting still named an effort');
+    assert.equal(
+      'effort' in (posted(p).target ?? {}),
+      false,
+      'an unset setting still named an effort'
+    );
   });
 
   it('resumes a sibling checkout in its own directory, and says which', (t) => {
@@ -486,7 +506,7 @@ describe('the resume picker', () => {
     halves(p)[0]?.click();
     answer(p, [conversationView({ brand: 'grok', sessionId: 'g1', title: 'Load the session' })]);
     rows(p)[0]?.click();
-    assert.equal((p.posted.at(-1) as { brand?: string }).brand, 'grok');
+    assert.equal(posted(p).target?.brand, 'grok');
   });
 
   it('asks the host to search the open’s snapshot once typing pauses', (t) => {
@@ -927,7 +947,14 @@ describe('resume startup feedback', () => {
       p.push(stateMessage([groupView({ cwd: '/dev/app', sessions })]));
     push([unrelated]);
     assert.ok(pending(p), 'an unrelated start cleared the resume');
-    p.push({ type: 'resumeResult', requestId, ok: true, pid: 21, startedAt: 300 });
+    p.push({
+      type: 'resumeResult',
+      requestId,
+      outcome: 'started',
+      notice: 'Session started.',
+      pid: 21,
+      startedAt: 300
+    });
     push([unrelated, cardView({ pid: 21, startedAt: 100 })]);
     assert.ok(pending(p), 'a different incarnation cleared the resume');
     push([unrelated, cardView({ pid: 21, startedAt: 300 })]);
@@ -942,9 +969,8 @@ describe('resume startup feedback', () => {
     p.push({
       type: 'resumeResult',
       requestId: first.requestId,
-      ok: false,
-      notStarted: true,
-      reason: 'Sign in first.'
+      outcome: 'stopped',
+      notice: 'Sign in first.'
     });
     assert.match(pending(p)?.textContent ?? '', /Sign in first/);
     assert.equal(pending(p)?.querySelector('.spinner'), null);
@@ -955,18 +981,16 @@ describe('resume startup feedback', () => {
     p.push({
       type: 'resumeResult',
       requestId: first.requestId,
-      ok: false,
-      notStarted: true,
-      reason: 'Old refusal'
+      outcome: 'stopped',
+      notice: 'Old refusal'
     });
     assert.ok(pending(p)?.querySelector('.spinner'));
     assert.doesNotMatch(pending(p)?.textContent ?? '', /Old refusal/);
     p.push({
       type: 'resumeResult',
       requestId: retry.requestId,
-      ok: false,
-      notStarted: true,
-      reason: 'Still signed out.'
+      outcome: 'stopped',
+      notice: 'Still signed out.'
     });
     pending(p)?.querySelector<HTMLButtonElement>('[data-act="dismiss-resume"]')?.click();
     assert.equal(pending(p), null);
@@ -994,7 +1018,8 @@ describe('resume startup feedback', () => {
     p.push({
       type: 'resumeResult',
       requestId: posted(p).requestId,
-      ok: true,
+      outcome: 'started',
+      notice: 'Session started.',
       pid: 21,
       startedAt: 300
     });
@@ -1011,9 +1036,8 @@ describe('resume startup feedback', () => {
     p.push({
       type: 'resumeResult',
       requestId: posted(p).requestId,
-      ok: false,
-      notStarted: true,
-      reason: 'No binary.'
+      outcome: 'stopped',
+      notice: 'No binary.'
     });
     assert.match(p.window.document.getElementById('input')?.textContent ?? '', /keep this draft/);
     assert.equal(p.posted.filter((msg) => msg.type === 'open').length, 0);
@@ -1056,9 +1080,9 @@ describe('the pick a resume carries', () => {
     const sent = resumed(p);
     assert.equal(sent?.type, 'resume');
     // The row's own brand still rides, which is what decides the CLI.
-    assert.equal(sent?.type === 'resume' ? sent.brand : undefined, 'grok');
-    assert.equal(sent?.type === 'resume' ? sent.model : undefined, '');
-    assert.equal(sent?.type === 'resume' ? sent.window : undefined, undefined);
+    assert.equal(sent?.type === 'resume' ? sent.target?.brand : undefined, 'grok');
+    assert.equal(sent?.type === 'resume' ? sent.target?.model : undefined, '');
+    assert.equal(sent?.type === 'resume' ? sent.target?.window : undefined, undefined);
   });
 
   /**
@@ -1078,8 +1102,8 @@ describe('the pick a resume carries', () => {
       })
     );
     const sent = resumed(p, 'claude');
-    assert.equal(sent?.type === 'resume' ? sent.model : undefined, 'opus');
-    assert.equal(sent?.type === 'resume' ? sent.window : undefined, 1_000_000);
+    assert.equal(sent?.type === 'resume' ? sent.target?.model : undefined, 'opus');
+    assert.equal(sent?.type === 'resume' ? sent.target?.window : undefined, 1_000_000);
   });
 
   /**
@@ -1104,10 +1128,10 @@ describe('the pick a resume carries', () => {
       })
     );
     const sent = resumed(p, 'claude');
-    assert.equal(sent?.type === 'resume' ? sent.brand : undefined, 'claude');
-    assert.equal(sent?.type === 'resume' ? sent.model : undefined, '');
+    assert.equal(sent?.type === 'resume' ? sent.target?.brand : undefined, 'claude');
+    assert.equal(sent?.type === 'resume' ? sent.target?.model : undefined, '');
     assert.equal(
-      sent?.type === 'resume' ? sent.window : undefined,
+      sent?.type === 'resume' ? sent.target?.window : undefined,
       undefined,
       'the dropped model left its window behind'
     );
@@ -1124,7 +1148,7 @@ describe('the pick a resume carries', () => {
       })
     );
     const sent = resumed(p, 'claude');
-    assert.equal(sent?.type === 'resume' ? sent.model : undefined, '');
+    assert.equal(sent?.type === 'resume' ? sent.target?.model : undefined, '');
   });
 
   /** And an unlisted id that names no brand rides: it is Claude's by default,
@@ -1138,6 +1162,6 @@ describe('the pick a resume carries', () => {
       })
     );
     const sent = resumed(p, 'claude');
-    assert.equal(sent?.type === 'resume' ? sent.model : undefined, 'claude-opus-4-5');
+    assert.equal(sent?.type === 'resume' ? sent.target?.model : undefined, 'claude-opus-4-5');
   });
 });

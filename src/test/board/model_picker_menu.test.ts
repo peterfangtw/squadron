@@ -276,10 +276,10 @@ describe('the model flyout', () => {
     assert.deepEqual(p.posted, [], 'the pick reached the host before the send did');
     typeIn(p, 'begin');
     enter(p);
-    const open = lastOpen(p);
-    assert.equal(open.brand, 'claude');
-    assert.equal(open.model, 'haiku');
-    assert.equal(open.window, 200_000);
+    const open = lastOpen(p).target;
+    assert.equal(open?.brand, 'claude');
+    assert.equal(open?.model, 'haiku');
+    assert.equal(open?.window, 200_000);
   });
 
   /** The two pills of one row are two different starts, and the value is the
@@ -289,7 +289,7 @@ describe('the model flyout', () => {
     pick(drill(p), 'Opus', '200k').click();
     typeIn(p, 'begin');
     enter(p);
-    assert.equal(lastOpen(p).window, 200_000);
+    assert.equal(lastOpen(p).target?.window, 200_000);
   });
 
   it('carries the other window when the other pill is pressed', (t) => {
@@ -297,7 +297,7 @@ describe('the model flyout', () => {
     pick(drill(p), 'Opus', '1M').click();
     typeIn(p, 'begin');
     enter(p);
-    assert.equal(lastOpen(p).window, 1_000_000);
+    assert.equal(lastOpen(p).target?.window, 1_000_000);
   });
 
   // The pick closes its own menu and relabels the pill under the finger.
@@ -735,7 +735,13 @@ describe('the model flyout over the Codex catalog shape', () => {
 
   it('draws Haiku 5.5 with the current models and keeps Haiku 4.5 under Older', (t) => {
     const fly = drill(openPanel(t), { models: [...catalogFor('claude')] });
-    assert.deepEqual(visible(fly), ['Opus 5.5', 'Sonnet 5.5', 'Haiku 5.5', 'Fable 5.1']);
+    assert.deepEqual(visible(fly), [
+      'Opus 5.5',
+      'Sonnet 5.5',
+      'Haiku 5.5',
+      'Fable 5.2',
+      'Fable 5.1'
+    ]);
     assert.deepEqual(pills(fly, 'Haiku 5.5'), ['1M', '200k']);
     fold(fly).click();
     assert.ok(visible(fly).includes('Haiku 4.5'));
@@ -754,7 +760,7 @@ describe('the model flyout over the Codex catalog shape', () => {
         model: 'claude-haiku-5-5',
         window
       });
-      assert.equal(lastOpen(p).effort, 'high');
+      assert.equal(lastOpen(p).target?.effort, 'high');
     });
   }
 

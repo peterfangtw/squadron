@@ -150,7 +150,9 @@ function rig(options: { reconciler?: boolean } = {}): Rig {
       end: () => false,
       start: (start) => {
         r.startCalls.push(start);
-        return Promise.resolve(r.startAs ?? { ok: false, reason: 'not started in this test' });
+        return Promise.resolve(
+          r.startAs ?? { ok: false, reason: 'not started in this test', outcome: 'stopped' }
+        );
       }
     },
     processes: () => {

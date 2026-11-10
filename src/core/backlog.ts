@@ -1,6 +1,13 @@
 import * as tickets from './tickets';
+import * as connections from './tickets/connections';
+import * as ticketToken from './ticket_token';
 
 export const TICKET_TTL_MS = 60_000;
+/** What one keychain read opened, and the connection generation it was read at. */
+export type TicketConnections = {
+  generation: number;
+  sources: readonly tickets.ConfiguredSource[];
+};
 export type TicketStoreOptions = {
   onChange: () => void;
   onDetailClosed?: (requestId: string) => void;
@@ -12,7 +19,9 @@ export class TicketStore {
   private detailRead:
     { requestId: string; key: string; url?: string; controller: AbortController } | undefined;
   private configured: tickets.ConfiguredSource | undefined;
-  private sources: tickets.ConfiguredSource[] = [];
+  private sources: readonly tickets.ConfiguredSource[] = [];
+  /** The connection generation the last `state` was handed; none after a reset. */
+  private generation: number | undefined;
   private catalogs = new Map<
     string,
     { scopes?: TicketScope[]; error?: tickets.TicketSourceError; at?: number }
@@ -31,9 +40,10 @@ export class TicketStore {
   private catalogEpoch = 0;
   private catalogController = new AbortController();
   private catalogReads = new Set<string>();
-  private optionsAt: number | undefined;
-  private refreshOptions = false;
+  /** When the current list was computed; cleared when it must be recomputed. */
   private fetchedAt: number | undefined;
+  /** When a read last reached past the source's cache. The TTL runs from here alone. */
+  private contentAt: number | undefined;
   private fetching = false;
   private again = false;
   private controller = new AbortController();
@@ -43,12 +53,17 @@ export class TicketStore {
     this.now = ports.now ?? Date.now;
   }
 
-  state(input: tickets.ConfiguredSource | tickets.ConfiguredSource[] | undefined): {
+  /**
+   * The tab's whole status, linked or not, and the token every selection-scoped
+   * post must echo. Unlinked, the offers are every connector and the token
+   * names only the generation.
+   */
+  state(input: TicketConnections): {
     tickets?: TicketView[];
     status?: TicketSourceStatus;
   } {
     if (this.disposed) return {};
-    const sources = input ? (Array.isArray(input) ? input : [input]) : [];
+    const sources = input.sources;
     if (
       JSON.stringify(sources.map((s) => [s.sourceId, s.generation])) !==
       JSON.stringify(this.sources.map((s) => [s.sourceId, s.generation]))
@@ -57,14 +72,32 @@ export class TicketStore {
       this.sources = sources;
       this.configured = sources.find((s) => s.sourceId === this.saved?.sourceId) ?? sources[0];
     }
+    this.generation = input.generation;
+    const offers = connections.CONNECTORS.filter(
+      (entry) => !sources.some((source) => source.sourceId === entry.offer.sourceId)
+    );
     const configured = this.configured;
-    if (!configured) return {};
+    const token = this.identity();
+    if (!configured || !token) {
+      const first = connections.CONNECTORS[0];
+      return first && token
+        ? {
+            status: {
+              linked: false,
+              sourceId: first.offer.sourceId,
+              token,
+              presentation: first.presentation,
+              offers: offers.map((entry) => entry.offer)
+            }
+          }
+        : {};
+    }
     for (const source of this.sources) {
       if (
         !this.catalogReads.has(source.sourceId) &&
         this.due(
           this.catalogs.get(source.sourceId)?.at,
-          this.catalogs.get(source.sourceId)?.error ? TICKET_TTL_MS : (source.refreshMs ?? Infinity)
+          this.catalogs.get(source.sourceId)?.error ? TICKET_TTL_MS : Infinity
         )
       )
         this.discover(source);
@@ -73,9 +106,16 @@ export class TicketStore {
       !this.fetching &&
       this.scopeId &&
       !this.catalogs.get(configured.sourceId)?.error &&
-      this.due(this.fetchedAt, configured.refreshMs)
-    )
+      (this.fetchedAt === undefined || this.due(this.contentAt))
+    ) {
+      // A filter pick reuses what the source cached until this deadline; stamped at the
+      // attempt, so a failed read also waits a TTL before the next.
+      if (this.due(this.contentAt)) {
+        if (this.contentAt !== undefined) configured.source.invalidate();
+        this.contentAt = this.now();
+      }
       this.load(configured, this.scopeId);
+    }
     const error = this.catalogs.get(configured.sourceId)?.error ?? this.error;
     return {
       tickets: this.snapshot?.tickets,
@@ -99,8 +139,7 @@ export class TicketStore {
           failure: this.catalogs.get(source.sourceId)?.error?.kind
         })),
         sourceId: configured.sourceId,
-        generation: configured.generation,
-        selectionSeq: this.selectionSeq,
+        token,
         scopeId: this.scopeId,
         scopes: this.scopes,
         presentation: configured.presentation,
@@ -109,7 +148,8 @@ export class TicketStore {
         loading: this.fetching || (!this.scopes && this.catalogReads.has(configured.sourceId)),
         stale: !!error,
         error: error?.message,
-        failure: error?.kind
+        failure: error?.kind,
+        offers: offers.map((entry) => entry.offer)
       }
     };
   }
@@ -118,26 +158,27 @@ export class TicketStore {
     this.saved = selection;
   }
 
+  /**
+   * The token the status ships. Unlinked it names the generation alone; before
+   * the first `state` after a reset there is none, so nothing is accepted.
+   */
   identity(): TicketSelectionToken | undefined {
-    return this.configured
-      ? {
-          ...(this.sources.length > 1 ? { sourceId: this.configured.sourceId } : {}),
-          generation: this.configured.generation,
-          selectionSeq: this.selectionSeq,
-          ...(this.scopeId ? { scopeId: this.scopeId } : {})
-        }
-      : undefined;
+    if (this.configured)
+      return {
+        ...(this.sources.length > 1 ? { sourceId: this.configured.sourceId } : {}),
+        generation: this.configured.generation,
+        selectionSeq: this.selectionSeq,
+        ...(this.scopeId ? { scopeId: this.scopeId } : {})
+      };
+    return this.generation === undefined
+      ? undefined
+      : { generation: this.generation, selectionSeq: 0 };
   }
 
+  /** Whether a post was made against the status this store last shipped. */
   accepts(token: TicketSelectionToken): boolean {
-    return (
-      !this.disposed &&
-      !!this.configured &&
-      (token.sourceId === undefined || token.sourceId === this.configured.sourceId) &&
-      token.generation === this.configured.generation &&
-      token.selectionSeq === this.selectionSeq &&
-      token.scopeId === this.scopeId
-    );
+    const shown = this.identity();
+    return !this.disposed && !!shown && ticketToken.sameToken(token, shown);
   }
 
   selectScope(
@@ -158,7 +199,7 @@ export class TicketStore {
     )
       return undefined;
     this.closeDetail();
-    this.configured?.source.invalidate?.();
+    this.configured?.source.invalidate();
     this.retire();
     this.configured = configured;
     this.scopes = scopes ?? this.scopes;
@@ -167,7 +208,7 @@ export class TicketStore {
     this.snapshot = undefined;
     this.filter = tickets.defaultFilter();
     this.fetchedAt = undefined;
-    this.optionsAt = undefined;
+    this.contentAt = undefined;
     this.error = undefined;
     return this.remember(configured.sourceId, scopeId);
   }
@@ -246,7 +287,7 @@ export class TicketStore {
   }
 
   refetchCatalog(): void {
-    for (const source of this.sources) source.source.invalidate?.();
+    for (const source of this.sources) source.source.invalidate();
     this.retire();
     this.catalogEpoch++;
     this.catalogController.abort();
@@ -254,14 +295,14 @@ export class TicketStore {
     this.catalogReads.clear();
     for (const catalog of this.catalogs.values()) catalog.at = undefined;
     this.fetchedAt = undefined;
-    this.optionsAt = undefined;
+    this.contentAt = undefined;
   }
 
-  refetch(options = true): void {
-    if (options) {
-      this.configured?.source.invalidate?.();
-      this.optionsAt = undefined;
-      this.refreshOptions = true;
+  /** Read again; `fresh` (Refresh) also drops what the source cached. */
+  refetch(fresh = true): void {
+    if (fresh) {
+      this.configured?.source.invalidate();
+      this.contentAt = undefined;
     }
     if (this.fetching) this.again = true;
     else {
@@ -274,11 +315,12 @@ export class TicketStore {
   }
 
   reset(): void {
-    for (const source of this.sources) source.source.invalidate?.();
+    for (const source of this.sources) source.source.invalidate();
     this.closeDetail();
     this.retire();
     this.configured = undefined;
     this.sources = [];
+    this.generation = undefined;
     this.catalogs.clear();
     this.catalogEpoch++;
     this.catalogController.abort();
@@ -291,7 +333,7 @@ export class TicketStore {
     this.filter = tickets.defaultFilter();
     this.error = undefined;
     this.fetchedAt = undefined;
-    this.optionsAt = undefined;
+    this.contentAt = undefined;
   }
 
   dispose(): void {
@@ -306,7 +348,6 @@ export class TicketStore {
     this.controller = new AbortController();
     this.fetching = false;
     this.again = false;
-    this.refreshOptions = false;
   }
   private due(at: number | undefined, ttl = TICKET_TTL_MS): boolean {
     return at === undefined || this.now() - at > ttl;
@@ -399,17 +440,8 @@ export class TicketStore {
     const revision = this.revision;
     const filter = this.filter;
     const signal = this.controller.signal;
-    const cachedOptions = !this.due(this.optionsAt) ? this.snapshot?.options : undefined;
-    this.refreshOptions = false;
     this.fetching = true;
-    const pending = configured.source.read
-      ? configured.source.read(scopeId, filter, signal)
-      : Promise.all([
-          (async () => configured.source.list(scopeId, filter, signal))(),
-          cachedOptions
-            ? Promise.resolve(cachedOptions)
-            : (async () => configured.source.options(scopeId, signal))()
-        ]).then(([rows, options]) => ({ tickets: rows, options, filter }));
+    const pending = (async () => configured.source.read(scopeId, filter, signal))();
     void pending
       .then((result) => {
         if (epoch !== this.epoch || revision !== this.revision) return;
@@ -417,9 +449,8 @@ export class TicketStore {
           tickets: result.tickets.map(tickets.toTicketView),
           options: result.options
         };
-        this.filter = result.filter;
+        this.filter = tickets.normalizeFilter(result.filter, result.options);
         this.error = undefined;
-        if (!cachedOptions && !this.refreshOptions) this.optionsAt = this.now();
       })
       .catch((error: unknown) => {
         if (epoch !== this.epoch) return;

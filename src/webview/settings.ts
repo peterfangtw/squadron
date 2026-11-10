@@ -2,6 +2,7 @@ import * as accounts from './accounts';
 import * as controls from './board_settings';
 import * as dom from './dom';
 import * as kit from './kit';
+import * as layers from './layers';
 import * as onboarding from './onboarding';
 import * as state from './state';
 import * as icons from '../ui/icons';
@@ -49,8 +50,37 @@ function open(): void {
   wanted = true;
   mount();
   render();
-  if (!dialog.open) dialog.showModal();
+  if (!dialog.open) showModal();
 }
+
+/** On the stack while the dialog is up, by whichever door it opened or shut:
+ *  `render` and `suspendForAuth` show and close it as well. A menu opened
+ *  inside it is pushed above it, so Escape takes the menu first. */
+let layer: layers.Handle | undefined;
+
+function showModal(): void {
+  dialog.showModal();
+  if (layer?.open) return;
+  layer = layers.push({
+    kind: 'settings',
+    close,
+    // `close` fires a task after `dialog.close()`, so the dialog can be shut
+    // while this is still on the stack.
+    escape: () => {
+      if (!dialog.open) return false;
+      close();
+      return true;
+    },
+    root: () => [dialog]
+  });
+}
+
+dialog.addEventListener('close', () => {
+  // A reopen in the same task as the close finds this event behind it.
+  if (dialog.open) return;
+  layer?.pop();
+  layer = undefined;
+});
 
 function close(): void {
   wanted = false;
@@ -59,17 +89,6 @@ function close(): void {
   document.querySelector<HTMLElement>('#nav .gear')?.focus();
 }
 
-document.addEventListener(
-  'keydown',
-  (event) => {
-    if (event.key !== 'Escape' || !dialog.open || dom.imeKey(event)) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    if (kit.heldOpen(dialog)) kit.onMenuKey(event);
-    else close();
-  },
-  true
-);
 dialog.addEventListener('cancel', (event) => {
   event.preventDefault();
   close();
@@ -182,7 +201,7 @@ export function render(): void {
       paintPage(page, category.id);
     });
   }
-  if (!dialog.open) dialog.showModal();
+  if (!dialog.open) showModal();
 }
 
 /** Rebuilds a page, putting the focus back on the same control. A text field

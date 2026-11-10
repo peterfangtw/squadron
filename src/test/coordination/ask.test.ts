@@ -120,7 +120,7 @@ describe('ask', () => {
         if (!names.some((name) => name.endsWith('.request.json'))) continue;
         await requests.claimRequests('w1', () => {
           if (throws) throw new Error('start failed after admission');
-          return { ok: false, startupVersion: 1, notStarted: true, reason: 'spawning is off' };
+          return { ok: false, outcome: 'stopped', reason: 'spawning is off' };
         });
         break;
       }

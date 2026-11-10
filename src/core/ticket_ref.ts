@@ -10,6 +10,15 @@ export function ticketRef(identifier: string, url: string): string | undefined {
   return encoded.length <= 8192 ? `@ticket[${identifier}][${encoded}]` : undefined;
 }
 
+/**
+ * The number a person says a ticket by, off any source's identifier: Linear's
+ * `ENG-42` as it is, GitHub's `acme/acme-web#42` as `#42`. An identifier in
+ * neither shape is returned whole.
+ */
+export function ticketNumber(identifier: string): string {
+  return /(?:[A-Za-z][A-Za-z0-9]*-\d+|#\d+)$/.exec(identifier)?.[0] ?? identifier;
+}
+
 const REF = /@ticket\[([^[\]\s]{1,128})\]\[([^[\]\s]{1,8192})\]/gu;
 
 export function findTickets(text: string): (TicketRef & { at: number; text: string })[] {

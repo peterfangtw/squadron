@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
@@ -180,9 +181,18 @@ export function modelsFile(brand: string, home?: string): string {
  * Whether this brand's CLI was last found signed in, and the stamp of its own
  * auth state that answer was taken against — `core/signin.ts`. Beside `usage`
  * for the reason that store is flat: each reader opens its one brand by name.
+ *
+ * One file per binary: the default search keeps the bare name, and a path
+ * setting gets its own, keyed by a digest of the setting. The stamp is the
+ * account's config, which a wrapper or fixture binary shares while answering
+ * differently.
  */
-export function signInFile(brand: string, home?: string): string {
-  return path.join(home ? path.join(home, '.squadron') : STATE_DIR, `signin.${brand}.json`);
+export function signInFile(brand: string, home?: string, override?: string): string {
+  const setting = override?.trim();
+  const key = setting
+    ? `.${crypto.createHash('sha256').update(setting).digest('hex').slice(0, 12)}`
+    : '';
+  return path.join(home ? path.join(home, '.squadron') : STATE_DIR, `signin.${brand}${key}.json`);
 }
 /**
  * Our own conversation records, one `<sessionId>.jsonl` each — roadmap row 54.

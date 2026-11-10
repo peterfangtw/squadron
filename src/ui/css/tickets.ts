@@ -422,6 +422,26 @@ export const css = /* css */ `
              color: var(--av-orange); background: var(--av-quote-bg); }
   .tkstale.tkempty { background: none; color: var(--av-fg-2); padding: 0 22px; }
   .tkstate-title { font-size: var(--av-fs-lg); }
+  /* The unlinked prompt: a row per source on .tk's surface (shared below), not
+     filled buttons — two of those would compete, and a row reads as a choice. */
+  .tkpick { gap: 6px; }
+  .tkpick .tkstate-title { color: var(--av-fg); font-weight: 600; }
+  .tkpick .lead { font-size: var(--av-fs-md); margin-bottom: 8px; }
+  .tksrcs { display: flex; flex-direction: column; gap: 7px; width: min(320px, 100%); }
+  .tksrc { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box;
+           padding: 9px 10px 9px 12px; border-radius: 8px; cursor: pointer; text-align: left;
+           font: inherit; color: var(--av-fg); border: 1px solid var(--av-border); }
+  .tksrc:hover:enabled { border-color: var(--av-focus); }
+  .tksrc:focus-visible { outline: 2px solid var(--av-focus); outline-offset: 1px; }
+  .tksrc:disabled { cursor: default; opacity: .7; }
+  .tksrc .mk { flex: none; width: 20px; height: 20px; display: grid; place-items: center; }
+  .tksrc .mk svg { width: 18px; height: 18px; display: block; }
+  .tksrc .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+  .tksrc .nm { font-size: var(--av-fs-md); font-weight: 600; }
+  .tksrc .what { font-size: var(--av-fs-sm); color: var(--av-fg-3); white-space: nowrap;
+                 overflow: hidden; text-overflow: ellipsis; }
+  .tksrc .go { flex: none; color: var(--av-fg-3); font-size: var(--av-fs-lg); line-height: 1; }
+  .tksrc:hover:enabled .go { color: var(--av-fg); }
 
   /* The track owns horizontal scrolling; each column's body scrolls vertically
      so its status and count stay visible without a second rendering loop. */
@@ -430,12 +450,12 @@ export const css = /* css */ `
   .tkcolumns:focus-visible { outline: 2px solid var(--av-focus); outline-offset: -2px; }
   .tkcolumns > .lane { flex: 0 0 272px; min-width: 0; display: flex; flex-direction: column; }
   .tkcolumns > .lane.shut { flex-basis: 40px; }
-  /* md: a status name is mixed case, and sm is the uppercase overline's floor.
+  /* lg: the same step as a session group's h2, the heading it stands in for.
      No top padding: the title starts where a session group's h2 does under the
      same head, and 8px + .lbody's 2px is h2's 10px to its grid. */
   .lane > .lhead { display: flex; align-items: center; gap: 7px; cursor: pointer;
              flex: none; width: 100%; padding: 0 2px 8px;
-             background: var(--av-bg); font-family: inherit; font-size: var(--av-fs-md);
+             background: var(--av-bg); font-family: inherit; font-size: var(--av-fs-lg);
              border: 0; text-align: left;
              font-weight: 600;
              color: var(--av-fg-2); user-select: none; }
@@ -459,7 +479,7 @@ export const css = /* css */ `
   .lane.shut > .lbody { display: none; }
 
   /* --av-rim switches off in light themes, where border and shadow separate cards. */
-  .tk, .tkclear { background: linear-gradient(var(--av-rim), var(--av-rim)), var(--av-lift);
+  .tk, .tkclear, .tksrc { background: linear-gradient(var(--av-rim), var(--av-rim)), var(--av-lift);
         box-shadow: inset 0 1px 0 var(--av-rim), 0 1px 3px var(--av-shadow-1); }
   .tk { border: 1px solid var(--av-border); border-radius: 8px; padding: 8px 10px;
         display: flex; flex-direction: column;

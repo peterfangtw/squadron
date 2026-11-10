@@ -2,7 +2,9 @@ import * as origin from './origin';
 import * as incoming from '../incoming';
 import type { IncomingDelivery, IncomingDenied } from '../bridge/model';
 import { isCorrelation, readMessageFacts } from '../message_facts';
-import type { ImageBlock, SendTarget } from '../model';
+import { isBrand } from '../brands';
+import { isStartWord } from '../start_outcome';
+import type { ImageBlock, LaunchTarget, SendTarget } from '../model';
 import type { Reply, Request, RequestBody } from './requests';
 
 /** What every request file carries, whatever its kind. */
@@ -232,6 +234,31 @@ function isImages(value: unknown): value is ImageBlock[] {
   );
 }
 
+/**
+ * The flat brand, model, window and effort of an open request file, as one
+ * LaunchTarget. An absent field stays absent. A present field of the wrong
+ * type, or a brand this build does not start, refuses the whole target:
+ * dropping the bad field would start a different pick.
+ */
+export function launchTargetOf(raw: {
+  brand?: unknown;
+  model?: unknown;
+  window?: unknown;
+  effort?: unknown;
+}): LaunchTarget | undefined {
+  const { brand, model, window, effort } = raw;
+  if (brand !== undefined && !isBrand(brand)) return undefined;
+  if (model !== undefined && !isString(model)) return undefined;
+  if (window !== undefined && !isNumber(window)) return undefined;
+  if (effort !== undefined && !isString(effort)) return undefined;
+  const target: LaunchTarget = {};
+  if (isBrand(brand)) target.brand = brand;
+  if (isString(model)) target.model = model;
+  if (isNumber(window)) target.window = window;
+  if (isString(effort)) target.effort = effort;
+  return target;
+}
+
 function isTarget(value: unknown): value is SendTarget {
   return (
     isRecord(value) &&
@@ -316,8 +343,6 @@ export function deliveryOf(raw: Fields): IncomingDelivery | IncomingDenied | und
 /** Invalid optional trust fields are stripped; invalid success receipts become an explicit refusal. */
 export function readReply(raw: unknown): Reply | undefined {
   if (!isRecord(raw) || typeof raw.ok !== 'boolean') return undefined;
-  if (raw.startupVersion !== undefined && raw.startupVersion !== 1)
-    return { ok: false, unsure: true, reason: 'Unsupported startup reply version.' };
   if (
     raw.closeFailure !== undefined &&
     (raw.ok ||
@@ -335,8 +360,10 @@ export function readReply(raw: unknown): Reply | undefined {
     incomingHolderEvidence: holderEvidence,
     fetchFile: fetch,
     incomingRefusal: refusal,
+    outcome: word,
     ...body
   } = raw;
+  const outcome = isStartWord(word) ? word : undefined;
   const messageFacts = readMessageFacts(facts);
   const incomingAccess = incoming.readIncomingAccess(access);
   const remoteLaunchEvidence = incoming.readRemoteLaunchEvidence(launch);
@@ -372,6 +399,7 @@ export function readReply(raw: unknown): Reply | undefined {
     };
   return {
     ...body,
+    ...(outcome === undefined ? {} : { outcome }),
     ...(messageFacts === undefined ? {} : { messageFacts }),
     ...(incomingAccess === undefined ? {} : { incomingAccess }),
     ...(remoteLaunchEvidence === undefined ? {} : { remoteLaunchEvidence }),

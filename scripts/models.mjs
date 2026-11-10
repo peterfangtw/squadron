@@ -27,14 +27,19 @@
  */
 import { execFile } from 'node:child_process';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 const OUT = path.join(import.meta.dirname, '..', 'out');
 
-const { CLAUDE_MODELS, GROK_MODELS } = await import(path.join(OUT, 'core', 'catalog.js'));
-const { listModels } = await import(path.join(OUT, 'core', 'claude', 'models.js'));
-const { claudeBinary } = await import(path.join(OUT, 'core', 'bin.js'));
+const { CLAUDE_MODELS, GROK_MODELS } = await import(
+  pathToFileURL(path.join(OUT, 'core', 'catalog.js')).href
+);
+const { listModels } = await import(
+  pathToFileURL(path.join(OUT, 'core', 'claude', 'models.js')).href
+);
+const { claudeBinary } = await import(pathToFileURL(path.join(OUT, 'core', 'bin.js')).href);
 
 const argv = process.argv.slice(2);
 const brand = argv[0];

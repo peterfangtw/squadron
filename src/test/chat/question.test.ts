@@ -7,6 +7,7 @@ import {
   askRequest,
   cardView,
   enter,
+  escape,
   groupView,
   newDraft,
   openPanel,
@@ -1597,6 +1598,27 @@ describe('cancelling the turn a dialog is blocking', () => {
     const p = openThread(t, unreachableThread({ status: 'waiting' }));
     assert.equal(cancel(p), null);
   });
+
+  for (const ending of [{ closing: true }, { endStuck: true }] as const) {
+    it(`offers no interrupt anywhere in the dock while ${Object.keys(ending)[0]}`, (t) => {
+      // An end closes the pipe an interrupt would ride on — the card already
+      // takes its Interrupt away. The head button, Escape and the dialog's
+      // Cancel are the dock's three doors to the same verb.
+      const p = openThread(
+        t,
+        threadView({ owned: true, status: 'waiting', pending: [permissionRequest()], ...ending })
+      );
+      const head = p.window.document.getElementById('chat-interrupt') as HTMLElement;
+      assert.equal(head.style.display, 'none', 'head Interrupt');
+      assert.equal(cancel(p), null, 'dialog Cancel');
+      escape(p);
+      assert.equal(
+        p.posted.some((m) => m.type === 'interrupt'),
+        false,
+        'Escape'
+      );
+    });
+  }
 });
 
 /**

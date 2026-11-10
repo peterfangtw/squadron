@@ -21,6 +21,7 @@ import { setOnScreen, visible, watchVisibility } from './visibility';
 import { measureColumns, refuseTheme, renderBoard, settleTheme, tickStamps } from './board';
 import * as bottomHub from './bottom_hub';
 import * as bottomDrawer from './bottom_drawer';
+import * as layers from './layers';
 import { syncMascot } from './mascot';
 import { closeEnded, promoteDraft, select, showDraft } from './dock';
 import { repaintBoard, setDraftRepaint } from './board_repaint';
@@ -31,7 +32,7 @@ import { editing, takeDeleteResult, takeSaveResult } from './editor';
 import { settleSent } from './question';
 import { takeConversations, takeResumeResult, takeResumeStartup } from './resume';
 import { repaintRunPicker, takePorts } from './runpicker';
-import { renderTickets, settleFilter, fenceTicketState } from './tickets';
+import { renderTickets, settleFilter, fenceTicketState, refuseTicketScope } from './tickets';
 import { takeLoginProgress, takeSignOutResult } from './accounts';
 import { forget } from './board_card';
 import { repaintMcpFooter, repaintMcpSheet, takeMcpActionProgress } from './mcp_sheet';
@@ -98,6 +99,12 @@ $('divider').addEventListener('mousedown', (e) => {
 // the floor stands and the board draws as it does on the narrowest real window.
 if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measureColumns).observe(cards);
 
+// ---- layers ----------------------------------------------------------------
+
+// The one stack every open surface joins for Escape and press attribution.
+// Window capture, so it hears a key before every document listener.
+layers.mount();
+
 // ---- menus -----------------------------------------------------------------
 
 // The pill-and-menu control is built in `kit.ts`; the two listeners that let an
@@ -105,8 +112,8 @@ if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measureColumns).ob
 // load-time work, so they are registered here with the rest of it.
 document.addEventListener('keydown', onMenuKey);
 document.addEventListener('mousedown', onMenuBlur);
-// Capture so one Escape belongs to the top surface alone; ask targets keep the
-// ask layer's own handler, while the lightbox stops the listeners under it.
+// Zoom and pan keys; its Escape is a layer's. Capture, so the listeners under
+// the image never hear a key it took.
 document.addEventListener('keydown', onLightboxKey, true);
 
 // ---- input methods ---------------------------------------------------------
@@ -199,6 +206,10 @@ window.addEventListener('message', (e: MessageEvent<PanelMessage>) => {
     if (!msg.landed) refuseTheme(msg.theme);
     return;
   }
+  if (msg.type === 'ticketScopeChoice') {
+    refuseTicketScope(msg);
+    return;
+  }
   if (msg.type === 'warmSettingChoice') {
     settleFigure(msg);
     return;
@@ -234,36 +245,23 @@ window.addEventListener('message', (e: MessageEvent<PanelMessage>) => {
     takeResumeStartup(msg);
     if (msg.state === 'started' && msg.pid !== undefined && msg.startedAt !== undefined)
       promoteDraft(msg.attemptId, msg.pid, msg.startedAt);
-    else if (msg.state === 'stopped')
-      chats.failDraftStart(msg.attemptId, msg.reason ?? 'Session start stopped.');
-    else
-      chats.noteStartup(
-        msg.attemptId,
-        msg.state === 'waiting'
-          ? 'Starting session…'
-          : (msg.reason ?? 'Start outcome unknown. Your message is held.')
-      );
+    else if (msg.state === 'stopped') chats.failDraftStart(msg.attemptId, msg.notice);
+    else chats.noteStartup(msg.attemptId, msg.notice);
     renderActive();
     repaintBoard();
     return;
   }
   if (msg.type === 'openResult') {
-    if (!msg.ok) {
-      if (msg.unsure || !msg.notStarted)
-        chats.noteStartup(
-          msg.draftId,
-          msg.reason ?? 'Start outcome unknown. Your message is held.'
-        );
-      else chats.failDraftStart(msg.draftId, msg.reason ?? 'That session did not start.');
-      // Only while a draft is what the dock is showing. A refusal can land
-      // after the reader went to look at another card, and `renderDraft` with
-      // no draft falls through to the vacant plate — which would replace that
-      // session's whole thread with "No session selected" while its head and
-      // composer stayed. It self-corrects on the next push; a reader watching
-      // it does not know that.
-      renderActive();
-      repaintBoard();
-    }
+    if (msg.outcome === 'stopped') chats.failDraftStart(msg.draftId, msg.notice);
+    else chats.noteStartup(msg.draftId, msg.notice);
+    // Only while a draft is what the dock is showing. A refusal can land
+    // after the reader went to look at another card, and `renderDraft` with
+    // no draft falls through to the vacant plate — which would replace that
+    // session's whole thread with "No session selected" while its head and
+    // composer stayed. It self-corrects on the next push; a reader watching
+    // it does not know that.
+    renderActive();
+    repaintBoard();
     return;
   }
   if (msg.type === 'sound') {

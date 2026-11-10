@@ -271,6 +271,10 @@ export function identity(root = process.cwd(), archive = null) {
 if (mode() === 'resources') state();
 
 export function prune(root) {
+  // The holder's job records are what prove its run over; without them the
+  // gate cannot tell a dead run from a live one, and keeps the slot forever.
+  const holder = checkpoints.read(path.join(checkpoints.gateRoot(), 'holder'));
+  const held = typeof holder?.job?.file === 'string' ? path.dirname(holder.job.file) : undefined;
   checkpoints.pruneRuns(root, (pins) => {
     const folders = fs
       .readdirSync(root, { withFileTypes: true })
@@ -282,7 +286,7 @@ export function prune(root) {
       .sort((a, b) => b.touched - a.touched || b.name.localeCompare(a.name))
       .map(({ name }) => name);
     for (const folder of folders.slice(20)) {
-      if (pins.has(path.join(root, folder))) continue;
+      if (pins.has(path.join(root, folder)) || path.join(root, folder) === held) continue;
       const pid = Number(folder.split('-').at(-1));
       try {
         process.kill(pid, 0);

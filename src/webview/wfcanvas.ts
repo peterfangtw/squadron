@@ -21,6 +21,7 @@
 import { rebuild } from './boxes';
 import { $, el, typingIn } from './dom';
 import { opensMenu } from './kit';
+import * as layers from './layers';
 import { icon } from '../ui/icons';
 import { route } from '../ui/wfroute';
 import type { RouteEdge, RouteRect } from '../ui/wfroute';
@@ -73,14 +74,14 @@ let mounted: { graph: CanvasGraph; root: HTMLElement; handlers: CanvasHandlers }
  * and where on the canvas it was clicked, which is where the trash is drawn.
  */
 let selectedWire: { from: string; to: string; x: number; y: number } | null = null;
+/** On the layer stack while a wire is selected: Escape puts its trash away. */
+let selection: layers.Handle | undefined;
 
 /** Ends the wire drag in flight, whichever way it ends. Null when none is. */
 let endWire: (() => void) | null = null;
 
 /** The step being carried by its grip, and the lane it may be dropped back into. */
 let flight: { id: string; lane: string } | null = null;
-
-let keysBound = false;
 
 /** Bound once, not per mount — a resize moves every rect below a reflow. */
 let resizeBound = false;
@@ -204,6 +205,7 @@ function beginRename(
   input.type = 'text';
   input.value = current;
   button?.replaceWith(input);
+  layers.claim(input);
   input.focus();
   input.select();
   const finish = (commitIt: boolean): void => {
@@ -597,7 +599,11 @@ function wirePort(id: string, handlers: CanvasHandlers): HTMLElement {
       const to = hit?.closest?.('[data-node]')?.getAttribute('data-node');
       if (to && to !== id) handlers.onLink(id, to);
     };
+    // A drag in flight takes Escape before any field does: the port takes no
+    // focus, so the caret stays wherever it was when the drag began. A layer
+    // with no root: it never claims a press.
     const end = (): void => {
+      held.pop();
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', up);
       document.removeEventListener('pointercancel', end);
@@ -606,6 +612,7 @@ function wirePort(id: string, handlers: CanvasHandlers): HTMLElement {
       endWire = null;
     };
     endWire = end;
+    const held = layers.push({ kind: 'wireDrag', close: end, escape: 'consume' });
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
     document.addEventListener('pointercancel', end);
@@ -738,12 +745,12 @@ export function paintWires(root: HTMLElement, graph: CanvasGraph): void {
       ev.stopPropagation();
       // Measured now, not at paint: a scroll since then moved the pipe.
       const at = pipe.getBoundingClientRect();
-      selectedWire = {
+      selectWire({
         from: edge.from,
         to: edge.to,
         x: ev.clientX - at.left,
         y: ev.clientY - at.top
-      };
+      });
       if (mounted) paintWires(mounted.root, mounted.graph);
     });
     svg.append(hit);
@@ -762,7 +769,7 @@ export function paintWires(root: HTMLElement, graph: CanvasGraph): void {
     x.onclick = (ev) => {
       ev.stopPropagation();
       const wire = { from: edge.from, to: edge.to };
-      selectedWire = null;
+      selectWire(null);
       mounted?.handlers.onUnlink(wire.from, wire.to);
     };
     pipe.append(x);
@@ -850,21 +857,25 @@ function clearWireMarks(): void {
   }
 }
 
-function onWireKey(e: KeyboardEvent): void {
-  if (!mounted) return;
-  // A drag in flight takes Escape before any field does: the port takes no
-  // focus, so the caret stays wherever it was when the drag began.
-  if (e.key === 'Escape' && endWire) {
-    e.preventDefault();
-    endWire();
+/** Select a wire, or none, keeping its layer in step. */
+function selectWire(next: typeof selectedWire): void {
+  selectedWire = next;
+  if (!next) {
+    selection?.pop();
+    selection = undefined;
     return;
   }
-  // A field's Escape is the field's, the prompt's editor included.
-  if (typingIn(e.target)) return;
-  if (e.key !== 'Escape' || !selectedWire) return;
-  e.preventDefault();
-  selectedWire = null;
-  paintWires(mounted.root, mounted.graph);
+  selection ??= layers.push({
+    kind: 'wireSelection',
+    close: () => selectWire(null),
+    // A field's Escape is the field's, the prompt's editor included.
+    escape: (e) => {
+      if (typingIn(e.target)) return false;
+      selectWire(null);
+      if (mounted) paintWires(mounted.root, mounted.graph);
+      return true;
+    }
+  });
 }
 
 /**
@@ -883,7 +894,7 @@ export function mountCanvas(graph: CanvasGraph, handlers: CanvasHandlers): void 
   endWire?.();
   if (flight) endDrag();
   // Every mount is a gesture, and the trash stands at a pixel this one moves.
-  selectedWire = null;
+  selectWire(null);
   const fresh = renderCanvas(graph, handlers);
   // Capture, since Done, the chips and Remove stop their click before it
   // bubbles. One function, so a stage `rebuild` keeps already has it.
@@ -902,19 +913,13 @@ export function mountCanvas(graph: CanvasGraph, handlers: CanvasHandlers): void 
       if (mounted) paintWires(mounted.root, mounted.graph);
     });
   }
-  if (!keysBound) {
-    keysBound = true;
-    // The document, not the window: the editor's Back listens there, after
-    // every document owner, and reads a consumed Escape off `defaultPrevented`.
-    document.addEventListener('keydown', onWireKey);
-  }
 }
 
 /** A click anywhere but a wire or its trash puts the trash away. */
 function putTrashAway(e: MouseEvent): void {
   if (!selectedWire || !mounted) return;
   if ((e.target as Element | null)?.closest?.('.wchit, .wirex')) return;
-  selectedWire = null;
+  selectWire(null);
   paintWires(mounted.root, mounted.graph);
 }
 
@@ -949,7 +954,7 @@ export function unmountCanvas(): void {
   const host = $('wfcanvas');
   host.replaceChildren();
   host.hidden = true;
-  selectedWire = null;
+  selectWire(null);
   endWire?.();
   if (flight) endDrag();
   mounted = null;

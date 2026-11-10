@@ -20,6 +20,7 @@ import {
   snapshotUsageFace,
   usageHover
 } from './accounts';
+import type { LaunchTarget } from '../core/model';
 import type { Draft, SendInput } from '../ui/chat_state';
 import { tipRows, type TipRow } from './tip';
 import * as settings from './settings';
@@ -369,6 +370,9 @@ export function addCard(g: GroupView): HTMLElement {
     it.dataset.key = 'half:' + does + ':' + g.cwd;
     it.dataset.cwd = g.cwd;
     it.dataset.tip = title;
+    // The picker returns focus here. A div otherwise cannot take it, and this
+    // is not a tab stop.
+    if (does === 'resume') it.tabIndex = -1;
     return it;
   };
   node.append(
@@ -428,20 +432,20 @@ export function startDraft(draft: Readonly<Draft>, snapshot: SendInput): void {
   const attempt = chats.beginDraftStart(cwd, Date.now());
   if (attempt === undefined) return;
   const placeholder = firstLine(snapshot.delivered);
+  const target = draft.pick === undefined ? undefined : stated(draft.pick);
   vscode.postMessage({
     type: 'open',
     cwd,
-    // The pick, whole. Spread field by field rather than nested, because the
-    // wire is flat and stays flat — the four travel as one value in memory and
-    // are taken apart here and in the request file.
-    ...(draft.pick?.brand === undefined ? {} : { brand: draft.pick.brand }),
-    ...(draft.pick?.model === undefined ? {} : { model: draft.pick.model }),
-    ...(draft.pick?.window === undefined ? {} : { window: draft.pick.window }),
-    ...(draft.pick?.effort === undefined ? {} : { effort: draft.pick.effort }),
+    ...(target === undefined ? {} : { target }),
     ...(placeholder === undefined ? {} : { placeholder }),
     draftId: attempt
   });
   repaintBoard();
+}
+
+/** Absent fields stay off the message. A key whose value is undefined is not a stated pick. */
+function stated(pick: LaunchTarget): LaunchTarget {
+  return Object.fromEntries(Object.entries(pick).filter(([, value]) => value !== undefined));
 }
 
 /** sessionName cleans and cuts host-side, so this only finds the opening line. */

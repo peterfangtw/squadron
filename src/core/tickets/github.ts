@@ -1,16 +1,67 @@
 import * as tickets from '../tickets';
 
 export const SOURCE_ID = 'github';
-export const PRESENTATION: TicketSourcePresentation = {
+// Required for the reason linear.ts gives.
+export const PRESENTATION: Required<TicketSourcePresentation> = {
   label: 'GitHub',
   mark: 'github',
-  connectLabel: 'Connect GitHub Projects',
-  connectHint: 'Connect GitHub Projects to see project issues here.',
   reconfigureLabel: 'Update GitHub Projects credentials',
   disconnectLabel: 'Disconnect GitHub'
 };
-export const REFRESH_MS = 5 * 60_000;
+export const OFFER: TicketSourceOffer = {
+  sourceId: SOURCE_ID,
+  label: 'GitHub Projects',
+  mark: 'github',
+  detail: 'Classic token with read:project'
+};
 export const ENDPOINT = 'https://api.github.com/graphql';
+
+/** The keychain record, stored as JSON. */
+export type GithubRecord = { owner: string; token: string };
+
+/** A GitHub organization or user login, or why the typed value is not one. */
+export function ownerProblem(value: string): string | undefined {
+  return /^[a-z\d](?:[a-z\d-]{0,38})$/i.test(value.trim())
+    ? undefined
+    : 'Enter an organization or user login.';
+}
+
+/** A classic token, or why the typed value is not one. Fine-grained tokens cannot read ProjectV2. */
+export function tokenProblem(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('github_pat_'))
+    return 'Use a personal access token (classic), not a fine-grained token.';
+  return trimmed ? undefined : 'Enter your classic token.';
+}
+
+export const CONNECTOR: tickets.TicketConnector<GithubRecord> = {
+  offer: OFFER,
+  presentation: PRESENTATION,
+  secretKey: 'squadron.github.connection',
+  settingsSection: 'github',
+  endpointSetting: 'github.endpoint',
+  endpoint: (scopes) => tickets.configuredEndpoint(scopes, ENDPOINT),
+  encode: (record) => JSON.stringify({ owner: record.owner, token: record.token }),
+  decode: (raw) => {
+    if (!raw) return undefined;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+    const value = record(parsed);
+    return typeof value.owner === 'string' && typeof value.token === 'string'
+      ? { owner: value.owner, token: value.token }
+      : undefined;
+  },
+  open: (connection, context) => ({
+    sourceId: SOURCE_ID,
+    generation: context.generation,
+    source: new GithubSource(connection.token, connection.owner, context.endpoint),
+    presentation: PRESENTATION
+  })
+};
 const PAGE = 'pageInfo { hasNextPage endCursor }';
 const VALUES = `fieldValues(first: 20) { nodes { ... on ProjectV2ItemFieldSingleSelectValue { optionId field { ... on ProjectV2FieldCommon { id } } } } ${PAGE} }`;
 const PEOPLE = `assignees(first: 20) { nodes { id login } ${PAGE} }`;
@@ -27,7 +78,7 @@ type ProjectIssue = {
 type ProjectSnapshot = { issues: ProjectIssue[]; options: TicketOptions };
 
 export class GithubSource implements tickets.TicketSource {
-  private snapshot: { scopeId: string; at: number; project: ProjectSnapshot } | undefined;
+  private snapshot: { scopeId: string; project: ProjectSnapshot } | undefined;
   private snapshotEpoch = 0;
   private viewerId: string | undefined;
   constructor(
@@ -78,29 +129,16 @@ export class GithubSource implements tickets.TicketSource {
   ): Promise<tickets.TicketRead> {
     signal?.throwIfAborted();
     const cached = this.snapshot;
-    let project =
-      cached?.scopeId === scopeId && Date.now() - cached.at <= REFRESH_MS
-        ? cached.project
-        : undefined;
+    let project = cached?.scopeId === scopeId ? cached.project : undefined;
     if (!project) {
       this.snapshot = undefined;
       const epoch = this.snapshotEpoch;
       project = await this.readProject(scopeId, signal);
       signal?.throwIfAborted();
-      if (epoch === this.snapshotEpoch) this.snapshot = { scopeId, at: Date.now(), project };
+      if (epoch === this.snapshotEpoch) this.snapshot = { scopeId, project };
     }
     const { issues, options } = project;
-    const filter: TicketFilterView = {
-      assignee:
-        ['anyone', 'unassigned', 'me'].includes(requested.assignee) ||
-        options.assignees.some((person) => person.id === requested.assignee)
-          ? requested.assignee
-          : 'anyone',
-      states: requested.states.filter((id) => options.states.some((s) => s.value === id)),
-      priorities: requested.priorities.filter((id) =>
-        options.priorities.some((p) => p.value === id)
-      )
-    };
+    const filter = tickets.normalizeFilter(requested, options);
     const person = filter.assignee === 'me' ? this.viewerId : filter.assignee;
     const rows = issues
       .filter(
@@ -115,16 +153,6 @@ export class GithubSource implements tickets.TicketSource {
     return { tickets: rows, options, filter };
   }
 
-  async list(
-    scopeId: string,
-    filter: TicketFilterView,
-    signal?: AbortSignal
-  ): Promise<tickets.Ticket[]> {
-    return (await this.read(scopeId, filter, signal)).tickets;
-  }
-  async options(scopeId: string, signal?: AbortSignal): Promise<TicketOptions> {
-    return (await this.read(scopeId, tickets.defaultFilter(), signal)).options;
-  }
   async detail(scopeId: string, id: string, signal?: AbortSignal): Promise<TicketDetail> {
     const [data, fields] = await Promise.all([
       this.query(

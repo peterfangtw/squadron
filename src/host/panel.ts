@@ -10,6 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { Confirmations } from '../ui/confirmations';
+import * as ticketDisconnect from '../ui/ticket_disconnect';
 import {
   adapter,
   adapterFor,
@@ -20,6 +21,7 @@ import {
   ownedStamp
 } from '../core/adapter';
 import { BRANDS } from '../core/brands';
+import { startOutcome } from '../core/start_outcome';
 import * as modelListings from '../core/model_listing';
 import { windowTokens } from '../core/catalog';
 import { Session } from '../core/model';
@@ -131,6 +133,7 @@ import * as backlog from '../core/backlog';
 import * as tickets from '../core/tickets';
 import * as linear from '../core/tickets/linear';
 import * as github from '../core/tickets/github';
+import * as connections from '../core/tickets/connections';
 import { webUri } from '../core/web';
 import { accountsNotAdded, allowlistNotSaved, remoteStateView } from '../ui/remote_view';
 import {
@@ -175,32 +178,103 @@ const UNCHANGED_MS = 15_000;
 const POLL_MS = 3000;
 const HIDDEN_POLL_MS = 15_000;
 
-/** SecretStorage key for the Linear personal API token. */
-const LINEAR_KEY = 'squadron.linear.apiKey';
-const GITHUB_KEY = 'squadron.github.connection';
-
 /**
- * Where the tracker's GraphQL lives. Linear's own unless the reader has written
- * `squadron.linear.endpoint` into their *user* settings, and nothing in the
- * product does: the setting is undeclared in `package.json`, so it is not in the
- * Settings UI and no reader will meet it. It exists for `test/smoke`, which
- * points a real host at a canned reply on localhost — the alternative was a real
- * account and a real key inside the suite that gates every deploy.
+ * Where a ticket source's GraphQL lives. Its own unless the reader has written
+ * the entry's endpoint setting into their *user* settings, and nothing in the
+ * product does: the settings are undeclared in `package.json`, so they are not
+ * in the Settings UI and no reader will meet them. They exist for `test/smoke`,
+ * which points a real host at a canned reply on localhost — the alternative was
+ * a real account and a real key inside the suite that gates every deploy.
  *
  * `inspect` rather than `get` so the scope is ours to choose: which value wins,
- * and why a repo's own is not one of them, is `trackerEndpoint` in `core`, where
- * it is a test rather than a claim.
+ * and why a repo's own is not one of them, is the entry's `endpoint` in `core`
+ * (`trackerEndpoint`), where it is a test rather than a claim.
  */
-function linearEndpoint(): string {
-  return linear.trackerEndpoint(
-    vscode.workspace.getConfiguration('squadron').inspect<string>('linear.endpoint')
+function ticketEndpoint(entry: tickets.TicketConnector): string {
+  return entry.endpoint(
+    vscode.workspace.getConfiguration('squadron').inspect<string>(entry.endpointSetting)
   );
 }
-function githubEndpoint(): string {
-  return tickets.configuredEndpoint(
-    vscode.workspace.getConfiguration('squadron').inspect<string>('github.endpoint'),
-    github.ENDPOINT
+
+/**
+ * Each source's connect prompts, host-side because they are `vscode` UI. Each
+ * resolves to the record its entry encoded, or nothing on a cancel or once
+ * `current` says the panel moved on. Kept in the OS keychain — never in
+ * settings, which sync and show in plain text.
+ */
+const CONNECT_PROMPTS = new Map<string, (current: () => boolean) => Promise<string | undefined>>([
+  [linear.SOURCE_ID, promptLinear],
+  [github.SOURCE_ID, promptGithub]
+]);
+
+async function promptLinear(): Promise<string | undefined> {
+  const key = await vscode.window.showInputBox({
+    title: 'Connect Linear',
+    prompt: 'Paste a Linear personal API key. Kept in the OS keychain, not in settings.',
+    placeHolder: 'lin_api_…',
+    password: true,
+    ignoreFocusOut: true
+  });
+  const trimmed = key?.trim();
+  return trimmed ? linear.CONNECTOR.encode({ apiKey: trimmed }) : undefined;
+}
+
+async function promptGithub(current: () => boolean): Promise<string | undefined> {
+  const setup = await vscode.window.showQuickPick(
+    [
+      {
+        label: 'Create a classic token for private repository issues',
+        detail:
+          'Select read:project and the top-level repo scope to read private issues. GitHub bundles write, deployment and invitation access into repo; Squadron only reads projects and issues.',
+        scopes: 'read:project,repo'
+      },
+      {
+        label: 'Create a classic token for public repository issues',
+        detail:
+          'Select only read:project to read projects and public issues. No repo scope is needed; private issues will stay hidden.',
+        scopes: 'read:project'
+      },
+      {
+        label: 'I have a classic token',
+        detail:
+          'Needs read:project; add the top-level repo scope only for private issues. No separate deployment or invitation scopes are needed. Authorize organization SSO if required.',
+        scopes: undefined
+      }
+    ],
+    {
+      title: 'Connect GitHub Projects — token setup',
+      placeHolder:
+        'Use a personal access token (classic). Choose a link to create one, or continue with yours.',
+      ignoreFocusOut: true
+    }
   );
+  if (!setup || !current()) return undefined;
+  if (setup.scopes) {
+    await vscode.env.openExternal(
+      vscode.Uri.parse(
+        'https://github.com/settings/tokens/new?description=Squadron&scopes=' +
+          encodeURIComponent(setup.scopes)
+      )
+    );
+    if (!current()) return undefined;
+  }
+  const owner = await vscode.window.showInputBox({
+    title: 'Connect GitHub Projects',
+    prompt: 'GitHub organization or user login whose projects to list.',
+    ignoreFocusOut: true,
+    validateInput: github.ownerProblem
+  });
+  if (!owner?.trim() || !current()) return undefined;
+  const token = await vscode.window.showInputBox({
+    title: 'Connect GitHub Projects',
+    prompt:
+      'Paste a classic token with read:project; add the top-level repo scope only for private issues. Squadron only reads projects and issues. Kept in the OS keychain.',
+    password: true,
+    ignoreFocusOut: true,
+    validateInput: github.tokenProblem
+  });
+  if (!token?.trim()) return undefined;
+  return github.CONNECTOR.encode({ owner: owner.trim(), token: token.trim() });
 }
 
 /** Workspace-storage key for the ticket filter the reader last picked. */
@@ -451,141 +525,81 @@ export class OverviewPanel {
     void OverviewPanel.current?.refresh();
   }
 
-  /**
-   * Store a Linear key, prompted for and kept in the OS keychain — never in
-   * settings, which sync and show in plain text. An open panel refetches at once.
-   */
-  static async connectLinear(): Promise<void> {
-    const panel = OverviewPanel.current;
-    const epoch = panel?.ticketEpoch;
-    const identity = panel?.tickets.identity();
-    const key = await vscode.window.showInputBox({
-      title: 'Connect Linear',
-      prompt: 'Paste a Linear personal API key. Kept in the OS keychain, not in settings.',
-      placeHolder: 'lin_api_…',
-      password: true,
-      ignoreFocusOut: true
-    });
-    const trimmed = key?.trim();
-    if (!trimmed) {
-      return;
-    }
-    if (
-      OverviewPanel.current !== panel ||
-      (panel && (panel.ticketEpoch !== epoch || (identity && !panel.tickets.accepts(identity))))
-    )
-      return;
-    await OverviewPanel.secrets?.store(LINEAR_KEY, trimmed);
-    OverviewPanel.current?.resetTickets();
-  }
-
-  static async connectTicketSource(provider?: string): Promise<void> {
+  /** One source's connect flow, from a panel row, its key button or the palette. */
+  static async connectTicketSource(provider: string): Promise<void> {
     const panel = OverviewPanel.current;
     const epoch = panel?.ticketEpoch;
     const identity = panel?.tickets.identity();
     const current = (): boolean =>
       OverviewPanel.current === panel &&
       (!panel || (epoch === panel.ticketEpoch && (!identity || panel.tickets.accepts(identity))));
-    if (!provider || provider === 'choose') {
-      const choice = await vscode.window.showQuickPick(
-        [
-          { label: 'Linear', id: linear.SOURCE_ID },
-          { label: 'GitHub Projects', id: github.SOURCE_ID }
-        ],
-        { title: 'Connect a ticket source' }
-      );
-      if (!choice || !current()) return;
-      provider = choice.id;
+    // One flow at a time: a second press before the held row's push lands
+    // would otherwise queue a second prompt behind the first.
+    if (panel?.ticketConnecting) return;
+    const entry = connections.connector(provider);
+    if (!entry) return;
+    // Held on the panel, not the webview: only the host sees the prompt close
+    // on a cancel.
+    const held = provider;
+    if (panel) {
+      panel.ticketConnecting = held;
+      void panel.refresh();
     }
-    if (provider === linear.SOURCE_ID) {
-      if (current()) await OverviewPanel.connectLinear();
+    try {
+      await OverviewPanel.runTicketConnect(entry, current);
+    } finally {
+      if (panel?.ticketConnecting === held) {
+        panel.ticketConnecting = undefined;
+        void panel.refresh();
+      }
+    }
+  }
+
+  private static async runTicketConnect(
+    entry: tickets.TicketConnector,
+    current: () => boolean
+  ): Promise<void> {
+    const prompt = CONNECT_PROMPTS.get(entry.offer.sourceId);
+    if (!prompt || !current()) return;
+    const record = await prompt(current);
+    if (record === undefined || !current()) return;
+    await OverviewPanel.secrets?.store(entry.secretKey, record);
+    OverviewPanel.current?.resetTickets();
+  }
+
+  /**
+   * Deletes a source's credential once the reader confirms. `panel` asks in
+   * that panel's own modal; the palette asks natively, since the panel may be
+   * hidden behind another tab where its modal would go unseen.
+   */
+  static async disconnectTicketSource(provider: string, panel?: OverviewPanel): Promise<void> {
+    const entry = connections.connector(provider);
+    const secrets = OverviewPanel.secrets;
+    if (!entry || !secrets) return;
+    const confirmed = await secrets.get(entry.secretKey);
+    if (confirmed === undefined) return;
+    const view = ticketDisconnect.disconnectConfirmation(entry);
+    if ((await OverviewPanel.confirmChoice(view, panel)) !== ticketDisconnect.DISCONNECT_ACTION) {
       return;
     }
-    if (provider !== github.SOURCE_ID) return;
-    const setup = await vscode.window.showQuickPick(
-      [
-        {
-          label: 'Create a classic token for private repository issues',
-          detail:
-            'Select read:project and the top-level repo scope to read private issues. GitHub bundles write, deployment and invitation access into repo; Squadron only reads projects and issues.',
-          scopes: 'read:project,repo'
-        },
-        {
-          label: 'Create a classic token for public repository issues',
-          detail:
-            'Select only read:project to read projects and public issues. No repo scope is needed; private issues will stay hidden.',
-          scopes: 'read:project'
-        },
-        {
-          label: 'I have a classic token',
-          detail:
-            'Needs read:project; add the top-level repo scope only for private issues. No separate deployment or invitation scopes are needed. Authorize organization SSO if required.',
-          scopes: undefined
-        }
-      ],
-      {
-        title: 'Connect GitHub Projects — token setup',
-        placeHolder:
-          'Use a personal access token (classic). Choose a link to create one, or continue with yours.',
-        ignoreFocusOut: true
-      }
-    );
-    if (!setup || !current()) return;
-    if (setup.scopes) {
-      await vscode.env.openExternal(
-        vscode.Uri.parse(
-          'https://github.com/settings/tokens/new?description=Squadron&scopes=' +
-            encodeURIComponent(setup.scopes)
-        )
-      );
-      if (!current()) return;
-    }
-    const owner = await vscode.window.showInputBox({
-      title: 'Connect GitHub Projects',
-      prompt: 'GitHub organization or user login whose projects to list.',
-      ignoreFocusOut: true,
-      validateInput: (value) =>
-        /^[a-z\d](?:[a-z\d-]{0,38})$/i.test(value.trim())
-          ? undefined
-          : 'Enter an organization or user login.'
-    });
-    if (!owner?.trim() || !current()) return;
-    const token = await vscode.window.showInputBox({
-      title: 'Connect GitHub Projects',
-      prompt:
-        'Paste a classic token with read:project; add the top-level repo scope only for private issues. Squadron only reads projects and issues. Kept in the OS keychain.',
-      password: true,
-      ignoreFocusOut: true,
-      validateInput: (value) =>
-        value.trim().startsWith('github_pat_')
-          ? 'Use a personal access token (classic), not a fine-grained token.'
-          : value.trim()
-            ? undefined
-            : 'Enter your classic token.'
-    });
-    if (!token?.trim() || !current()) return;
-    await OverviewPanel.secrets?.store(
-      GITHUB_KEY,
-      JSON.stringify({ owner: owner.trim(), token: token.trim() })
-    );
-    OverviewPanel.current?.resetTickets();
+    // A reconnect while the dialog was up, here or in another window, is a
+    // credential the reader never agreed to delete.
+    if ((await secrets.get(entry.secretKey)) !== confirmed) return;
+    // The keychain watch resets tickets, this window's included.
+    await secrets.delete(entry.secretKey);
   }
 
-  static async disconnectTicketSource(provider: string): Promise<void> {
-    const key =
-      provider === github.SOURCE_ID
-        ? GITHUB_KEY
-        : provider === linear.SOURCE_ID
-          ? LINEAR_KEY
-          : undefined;
-    if (!key) return;
-    await OverviewPanel.secrets?.delete(key);
-    OverviewPanel.current?.resetTickets();
-  }
-
-  static async disconnectLinear(): Promise<void> {
-    await OverviewPanel.secrets?.delete(LINEAR_KEY);
-    OverviewPanel.current?.resetTickets();
+  private static async confirmChoice(
+    view: ConfirmationView,
+    panel: OverviewPanel | undefined
+  ): Promise<string | undefined> {
+    if (panel) return panel.confirmations.ask(view);
+    const picked = await vscode.window.showWarningMessage(
+      view.title,
+      { modal: true, detail: view.detail },
+      ...view.actions.map((action) => action.label)
+    );
+    return view.actions.find((action) => action.label === picked)?.id;
   }
 
   /** @package host extracts */
@@ -755,29 +769,23 @@ export class OverviewPanel {
         } else if (msg.type === 'open') {
           // Use the message's settled pick. Reading configuration again here would
           // answer a question the draft already settled.
-          const asked = brandForStart(msg.brand);
+          const asked = brandForStart(msg.target?.brand);
           if (!asked.ok) {
             // Not showWarningMessage: a draft says this on its own surface.
             if (msg.draftId !== undefined) {
               this.post({
                 type: 'openResult',
                 draftId: msg.draftId,
-                ok: false,
-                notStarted: true,
-                reason: asked.reason
+                ...startOutcome({ ok: false, outcome: 'stopped', reason: asked.reason })
               });
             }
             return;
           }
-          // Every start belongs to this window.
+          // Every start belongs to this window. `target` passes through: a field
+          // added to LaunchTarget is this message's, not one to copy here.
           void openSession(this, {
             cwd: msg.cwd,
-            target: {
-              ...(asked.brand === undefined ? {} : { brand: asked.brand }),
-              ...(msg.model === undefined ? {} : { model: msg.model }),
-              ...(msg.window === undefined ? {} : { window: msg.window }),
-              ...(msg.effort === undefined ? {} : { effort: msg.effort })
-            },
+            ...(msg.target === undefined ? {} : { target: msg.target }),
             ...(msg.placeholder === undefined ? {} : { placeholder: msg.placeholder }),
             ...(msg.draftId === undefined ? {} : { draftId: msg.draftId })
           });
@@ -792,26 +800,13 @@ export class OverviewPanel {
             ...(msg.query === undefined ? {} : { query: msg.query })
           });
         } else if (msg.type === 'resume') {
-          // **Built, never `msg`.** This used to hand the whole message over,
-          // which worked while the fields it wanted were flat on both. Now that
-          // the pick is one value, passing `msg` would still *compile* — excess
-          // property checks fire on fresh literals only — and every resume
-          // would arrive naming no brand, no model and no effort, silently
-          // starting Claude on the account default. Nothing would catch it:
-          // `host/` has no unit tests, and the picker's own scenario asserts
-          // what the webview posts rather than what this reads.
           void resume(this, {
             requestId: msg.requestId,
             cwd: msg.cwd,
             sessionId: msg.sessionId,
             ...(msg.name === undefined ? {} : { name: msg.name }),
             ...(msg.placeholder === undefined ? {} : { placeholder: msg.placeholder }),
-            target: {
-              ...(msg.brand === undefined ? {} : { brand: msg.brand }),
-              ...(msg.model === undefined ? {} : { model: msg.model }),
-              ...(msg.window === undefined ? {} : { window: msg.window }),
-              ...(msg.effort === undefined ? {} : { effort: msg.effort })
-            }
+            ...(msg.target === undefined ? {} : { target: msg.target })
           });
         } else if (msg.type === 'copyRef') {
           void copyRef(this, msg.pid);
@@ -848,19 +843,11 @@ export class OverviewPanel {
         } else if (msg.type === 'setSound') {
           void this.setSound(msg.level);
         } else if (msg.type === 'connectTicketSource') {
-          if (
-            msg.generation === this.ticketEpoch &&
-            (!this.configuredTickets?.length
-              ? msg.selectionSeq === 0 && msg.scopeId === undefined
-              : this.tickets.accepts(msg))
-          )
-            void OverviewPanel.connectTicketSource(
-              msg.provider ??
-                this.tickets.state(this.configuredTickets).status?.sourceId ??
-                linear.SOURCE_ID
-            );
+          if (this.tickets.accepts(msg)) void OverviewPanel.connectTicketSource(msg.provider);
         } else if (msg.type === 'disconnectTicketSource') {
-          if (this.tickets.accepts(msg)) void OverviewPanel.disconnectTicketSource(msg.provider);
+          if (this.tickets.accepts(msg)) {
+            void OverviewPanel.disconnectTicketSource(msg.provider, this);
+          }
         } else if (msg.type === 'ticketsOpen') {
           // Refresh on opening so the reader need not wait for the poll. Fetching
           // also serves the badge while closed, and the TTL still gates the network.
@@ -874,7 +861,11 @@ export class OverviewPanel {
         } else if (msg.type === 'refreshMcpHealth') {
           void refreshMcpHealthNow(this).then(() => this.refresh());
         } else if (msg.type === 'selectTicketScope') {
-          if (!this.tickets.selectScope(msg.scopeId, msg)) return;
+          if (!this.tickets.selectScope(msg.scopeId, msg)) {
+            const { type: _type, ...token } = msg;
+            this.post({ type: 'ticketScopeChoice', landed: false, ...token });
+            return;
+          }
           void this.refresh('tickets');
         } else if (msg.type === 'setTicketFilter') {
           const saved = this.tickets.setFilter(msg.filter, msg);
@@ -990,8 +981,7 @@ export class OverviewPanel {
       ...(OverviewPanel.secrets
         ? [
             OverviewPanel.secrets.onDidChange((e) => {
-              if (e.key === LINEAR_KEY || e.key === GITHUB_KEY) {
-                this.linearKeyHeld = false;
+              if (connections.CONNECTORS.some((entry) => entry.secretKey === e.key)) {
                 this.resetTickets();
               }
             })
@@ -1014,8 +1004,9 @@ export class OverviewPanel {
         }
         // Filter settings change the query, so its cached list and options no longer apply.
         if (
-          e.affectsConfiguration('squadron.linear') ||
-          e.affectsConfiguration('squadron.github')
+          connections.CONNECTORS.some((entry) =>
+            e.affectsConfiguration(`squadron.${entry.settingsSection}`)
+          )
         ) {
           this.resetTickets();
         }
@@ -1095,10 +1086,9 @@ export class OverviewPanel {
   /** The rate `poll` is currently running at, so `pace` is idempotent — the view
    *  state event fires for focus changes too, not only for visibility. */
   private polling: number | undefined;
-  /** Undefined can mean no key. linearKeyHeld separates that from unread. */
-  private linearKeyCache: string | undefined;
-  private linearKeyHeld = false;
   private ticketEpoch = 0;
+  /** The source whose connect prompt is open; see `connectTicketSource`. */
+  private ticketConnecting: string | undefined;
   /** The `order` of the last held-session reading posted (`publishable`). */
   private publishedRead = 0;
   private ownedKey: string | undefined;
@@ -1702,49 +1692,29 @@ export class OverviewPanel {
     // Models read the starting auth state, so filtering trails changes by one
     // pass. Login refreshes directly through forceAuth.
     this.models = this.gatherModels();
-    const linearKey = await this.linearKey();
-    const githubRaw = this.configuredTickets
-      ? undefined
-      : await OverviewPanel.secrets?.get(GITHUB_KEY);
-    if (ticketEpoch !== this.ticketEpoch) {
-      this.boardRequests.add('ui');
-      return;
-    }
     if (!this.configuredTickets) {
-      const cfg = vscode.workspace.getConfiguration('squadron');
-      this.configuredTickets = [];
-      if (linearKey)
-        this.configuredTickets.push({
-          sourceId: linear.SOURCE_ID,
-          generation: this.ticketEpoch,
-          source: new linear.LinearSource(linearKey, linearEndpoint()),
-          presentation: linear.PRESENTATION,
-          legacyTeamKey: cfg.get<string>('linear.team') || undefined
-        });
-      if (githubRaw) {
-        try {
-          const connection = JSON.parse(githubRaw) as { owner?: unknown; token?: unknown };
-          if (typeof connection.owner === 'string' && typeof connection.token === 'string') {
-            this.configuredTickets.push({
-              sourceId: github.SOURCE_ID,
-              generation: this.ticketEpoch,
-              source: new github.GithubSource(connection.token, connection.owner, githubEndpoint()),
-              presentation: github.PRESENTATION,
-              refreshMs: github.REFRESH_MS
-            });
-          }
-        } catch {
-          /* An unreadable credential record leaves the source disconnected. */
-        }
+      const secrets = await this.ticketSecrets();
+      if (ticketEpoch !== this.ticketEpoch) {
+        this.boardRequests.add('ui');
+        return;
       }
+      const cfg = vscode.workspace.getConfiguration('squadron');
+      this.configuredTickets = connections.CONNECTORS.flatMap((entry, index) => {
+        const opened = connections.openConnection(entry, secrets[index], {
+          endpoint: ticketEndpoint(entry),
+          generation: this.ticketEpoch,
+          setting: (key) => cfg.get<string>(key)
+        });
+        return opened ? [opened] : [];
+      });
     }
-    const ticketState = this.tickets.state(this.configuredTickets);
-    const ticketSource: TicketSourceStatus = ticketState.status ?? {
-      linked: false,
-      sourceId: linear.SOURCE_ID,
+    const ticketState = this.tickets.state({
       generation: this.ticketEpoch,
-      selectionSeq: 0,
-      presentation: linear.PRESENTATION
+      sources: this.configuredTickets ?? []
+    });
+    const ticketSource = ticketState.status && {
+      ...ticketState.status,
+      ...(this.ticketConnecting && { connecting: this.ticketConnecting })
     };
     // Resolve the folder's repo too: a worktree window groups under its repo.
     const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -1966,7 +1936,9 @@ export class OverviewPanel {
   }
 
   /**
-   * The Linear key, read from the OS keychain once rather than on every poll.
+   * Every source's keychain record, read once per `ticketEpoch` rather than on
+   * every poll: `configuredTickets` holds what they opened until `resetTickets`
+   * drops it.
    *
    * It used to be `await secrets.get(...)` inside `refresh()`, which is 33 reads
    * a minute of a keychain for a string that changes when somebody connects or
@@ -1978,20 +1950,17 @@ export class OverviewPanel {
    * meant a key connected in *another* window was picked up here within 3 s, and
    * a plain cache would have quietly ended that. `secrets.onDidChange` is what
    * keeps the other window; this window's own connect goes through
-   * `resetTickets`, which drops the cache before the refresh that follows.
-   *
-   * `undefined` is a real answer — no key stored — so absence cannot mean "not
-   * read yet". `held` is the flag that separates them.
+   * `resetTickets`. A reset landing mid-read reads again, so a record from
+   * before it never opens a source under the new epoch.
    */
-  private async linearKey(): Promise<string | undefined> {
-    if (!this.linearKeyHeld) {
-      const epoch = this.ticketEpoch;
-      const key = await OverviewPanel.secrets?.get(LINEAR_KEY);
-      if (epoch !== this.ticketEpoch) return this.linearKey();
-      this.linearKeyCache = key;
-      this.linearKeyHeld = true;
-    }
-    return this.linearKeyCache;
+  private async ticketSecrets(): Promise<(string | undefined)[]> {
+    const secrets = OverviewPanel.secrets;
+    if (!secrets) return connections.CONNECTORS.map(() => undefined);
+    const epoch = this.ticketEpoch;
+    const records = await Promise.all(
+      connections.CONNECTORS.map((entry) => secrets.get(entry.secretKey))
+    );
+    return epoch === this.ticketEpoch ? records : this.ticketSecrets();
   }
 
   /**
@@ -2014,12 +1983,11 @@ export class OverviewPanel {
   /** Drop everything and start over — the key or the query itself changed. */
   private resetTickets(): void {
     this.ticketEpoch++;
-    // Drop the key cache too. connectLinear stores then calls this in the same
-    // turn; onDidChange is for other windows and is not guaranteed to have
-    // fired before the refresh below reads the key. The smoke host's in-memory
-    // secret store made that visible: the next click still saw unlinked and
-    // opened another input instead of the dock.
-    this.linearKeyHeld = false;
+    // Dropping the sources drops the records they opened from. A connect stores
+    // then calls this in the same turn; onDidChange is for other windows and is
+    // not guaranteed to have fired before the refresh below reads the keychain.
+    // The smoke host's in-memory secret store made that visible: the next click
+    // still saw unlinked and opened another input instead of the dock.
     this.configuredTickets = undefined;
     this.tickets.reset();
     void this.refresh();

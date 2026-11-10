@@ -342,6 +342,32 @@ describe('cross-window requests', () => {
     });
   });
 
+  it('answers a thrown start with an unknown outcome and any other kind with unsure', async () => {
+    for (const [body, doubt] of [
+      [{ kind: 'open', windowId: 'w1', cwd: '/work' }, { outcome: 'unknown' }],
+      [{ kind: 'rename', windowId: 'w1', pid: 7, startedAt: 70, title: 'x' }, { unsure: true }]
+    ] as const) {
+      const file = await post(body);
+      await requests.claimRequests('w1', () => {
+        throw new Error('handler threw');
+      });
+      assert.deepEqual(await requests.awaitReply(file), {
+        ok: false,
+        reason: 'Error: handler threw',
+        ...doubt
+      });
+    }
+  });
+
+  it('keeps a start outcome word and drops one it does not know', () => {
+    const reply = { ok: false, reason: 'Fleet full.' };
+    assert.deepEqual(requestCodec.readReply({ ...reply, outcome: 'stopped' }), {
+      ...reply,
+      outcome: 'stopped'
+    });
+    assert.deepEqual(requestCodec.readReply({ ...reply, outcome: 'maybe' }), reply);
+  });
+
   it('carries validated optional correlation on send, personAnswer and open, and refuses malformed identities', async () => {
     const bodies: RequestBody[] = [
       { kind: 'send', windowId: 'w1', pid: 7, startedAt: 70, text: 'same words' },
@@ -886,6 +912,31 @@ describe('cross-window requests', () => {
       { brand: 'claude', model: 'opus', window: 200_000, effort: 'high' }
     );
     await requests.awaitReply(file);
+  });
+
+  /**
+   * The file stays flat. This is the one read back into a `LaunchTarget`:
+   * a missing field stays off the target, and a field of the wrong type
+   * refuses the whole pick rather than starting without it.
+   */
+  it('reads an open file’s flat pick as one target', () => {
+    assert.deepEqual(
+      requestCodec.launchTargetOf({
+        brand: 'claude',
+        model: 'opus',
+        window: 200_000,
+        effort: 'high'
+      }),
+      { brand: 'claude', model: 'opus', window: 200_000, effort: 'high' }
+    );
+    const missing = requestCodec.launchTargetOf({ brand: 'grok', model: 'grok-4', effort: 'low' });
+    assert.deepEqual(missing, { brand: 'grok', model: 'grok-4', effort: 'low' });
+    assert.equal(missing !== undefined && 'window' in missing, false);
+    assert.equal(
+      requestCodec.launchTargetOf({ brand: 'claude', model: 'opus', window: 'wide' }),
+      undefined
+    );
+    assert.equal(requestCodec.launchTargetOf({ brand: 'gemini', model: 'opus' }), undefined);
   });
 
   /**

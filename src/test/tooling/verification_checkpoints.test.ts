@@ -510,8 +510,56 @@ describe('checkpoint interruption and retention', () => {
         writer.kill('SIGKILL');
       }
       await until(()=>{try{process.kill(owner.pid,0);return false;}catch{return true;}});
-      assert.equal(new store.Candidate(c.dir).busy(),true,'writer death has no confirmed closure');
-      assert.throws(()=>new store.Candidate(c.dir).take(),/running|unknown/);
+      assert.equal(new store.Candidate(c.dir).busy(),false,'every recorded member is gone by identity');
+      new store.Candidate(c.dir).take();
+    `);
+    }
+  );
+  it(
+    'judges a dead job beside the nested job its gate holder names, once each',
+    {
+      skip:
+        testPlatform() === 'win32' &&
+        'win32: an unclosed job stays busy until descendants are witnessed — squadron-private#277'
+    },
+    async () => {
+      await storeProbe(`
+      c.release('passed');
+      const crypto=await import('node:crypto');
+      const identity=async(keep)=>{
+        const child=cp.spawn(process.execPath,['-e','setTimeout(()=>{},15000)'],{stdio:'ignore'});
+        const native=store.processIdentity(child.pid);
+        assert.notEqual(native.source,'unknown');
+        if(keep) return {native,child};
+        const closed=new Promise(resolve=>child.once('close',resolve));child.kill();await closed;
+        return {native};
+      };
+      const gate=process.env.SQUADRON_GATE_DIR;fs.mkdirSync(gate,{recursive:true});
+      const dir=path.join(root,'jobs');fs.mkdirSync(dir);
+      const job=async(name,wrapper)=>{
+        const file=path.join(dir,'job-'+name+'.json');
+        const ref={version:1,gate,token:crypto.randomUUID(),generation:0};
+        store.atomic(file,{...ref,owner:(await identity()).native});
+        store.atomic(file+'.ready.json',{...ref,wrapper});
+        store.atomic(file+'.state.json',{...ref,wrapper,phase:'running',members:[wrapper]});
+        return {file,ref};
+      };
+      const dead=async()=>(await identity()).native;
+      const parent=await job('parent',await dead());
+      const live=await identity(true);
+      try {
+        for(const nestedLives of [false,true]){
+          for(const name of fs.readdirSync(dir).filter(n=>n.startsWith('job-nested')))fs.rmSync(path.join(dir,name));
+          const nested=await job('nested',nestedLives?live.native:await dead());
+          store.atomic(path.join(gate,'holder'),{
+            version:1,...(await dead()),gate,token:crypto.randomUUID(),generation:0,
+            parentJob:{file:parent.file,...parent.ref},job:{file:nested.file,...nested.ref}
+          });
+          const began=Date.now();
+          assert.equal(store.workBusy(undefined,dir),nestedLives,'nested wrapper alive: '+nestedLives);
+          assert.ok(Date.now()-began<10000,'judged without re-entering the folder');
+        }
+      } finally {live.child.kill();}
     `);
     }
   );

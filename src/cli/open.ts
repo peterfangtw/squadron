@@ -18,6 +18,7 @@ import { readPublished } from '../core/published';
 import { ask, askExit } from '../core/coordination/ask';
 import { requestIdOf } from '../core/coordination/requests';
 import type { BrandId } from '../core/model';
+import { outcomeOfReply } from '../core/start_outcome';
 
 /**
  * Which fan-out the new session belongs to, from what this process was given.
@@ -118,9 +119,9 @@ export type OpenSessionResult =
  * sends no `cause`, and neither does a fleet, burst, prompt or cwd refusal.
  */
 export function pickCause(
-  reply: { cause?: string; startupVersion?: 1; notStarted?: true } | undefined
+  reply: (Parameters<typeof outcomeOfReply>[0] & { cause?: string }) | undefined
 ): { cause: 'pick' } | undefined {
-  return reply?.cause === 'pick' && reply.startupVersion === 1 && reply.notStarted === true
+  return reply?.cause === 'pick' && outcomeOfReply(reply) === 'stopped'
     ? { cause: 'pick' }
     : undefined;
 }
@@ -181,8 +182,7 @@ export async function openSession(request: OpenSessionRequest): Promise<OpenSess
   if (!result.ok) {
     if (
       result.kind === 'silent' ||
-      (result.kind === 'refused' &&
-        (result.reply.unsure || result.reply.startupVersion !== 1 || !result.reply.notStarted))
+      (result.kind === 'refused' && outcomeOfReply(result.reply) === 'unknown')
     ) {
       return {
         ok: false,

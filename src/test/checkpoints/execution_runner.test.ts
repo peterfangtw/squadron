@@ -3,7 +3,7 @@ import * as cp from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { before, describe, it } from 'node:test';
-import { tempHome } from '../helpers';
+import { tempHome, withoutForceColor } from '../helpers';
 import { executionRepo } from '../execution_helpers';
 import * as identity from '../../core/identity';
 import * as executables from '../../core/platform/executables';
@@ -80,7 +80,10 @@ describe('bundled execution runner', () => {
     const run = (input: string): Promise<void> =>
       new Promise((resolve, reject) => {
         const child = cp.spawn(process.execPath, [path.resolve('dist/execution.js')], {
-          env: { ...process.env, [identity.EXECUTION_CONTEXT_ENV]: runtime.contextFile! }
+          env: withoutForceColor({
+            ...process.env,
+            [identity.EXECUTION_CONTEXT_ENV]: runtime.contextFile!
+          })
         });
         let stdout = '',
           stderr = '';

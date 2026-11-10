@@ -23,8 +23,12 @@ section('Tickets beside persistent chat, in the real IDE', () => {
     'connects the source and keeps the lane header and identifier hit target usable',
     async () => {
       await panel().locator('#board-tickets').click();
-      await panel().locator('.tkconnect').click();
+      const linearRow = panel().locator('#tk-list .tksrc[data-provider="linear"]');
+      await linearRow.click();
       await ctx.page.locator('.quick-input-widget').waitFor({ state: 'visible', timeout: 30_000 });
+      // The host holds the row while its prompt is open, so a second press opens no second one.
+      await panel().locator('#tk-list .tksrc[data-provider="linear"]:disabled').waitFor();
+      assert.equal(await linearRow.locator('.what').textContent(), 'Waiting for the key…');
       await ctx.page.keyboard.type('lin_api_smoke');
       await ctx.page.keyboard.press('Enter');
       await ctx.page.locator('.quick-input-widget').waitFor({ state: 'hidden', timeout: 30_000 });
@@ -509,7 +513,10 @@ section('Tickets beside persistent chat, in the real IDE', () => {
               content.remove();
               return { left: box.left - frame.left, right: frame.right - box.right };
             });
-          assert.deepEqual(inset, { left: 18, right: 18 }, 'fallback content lost its inset');
+          assert.ok(
+            Math.abs(inset.left - 18) < 0.01 && Math.abs(inset.right - 18) < 0.01,
+            `fallback content lost its inset: ${JSON.stringify(inset)}`
+          );
         }
         await panel()
           .locator('body')

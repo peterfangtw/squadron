@@ -505,11 +505,11 @@ describe('requestIdOf', () => {
 
 describe('pickCause', () => {
   it('keeps a pick and drops a fleet refusal and a reply that names none', () => {
-    assert.deepEqual(pickCause({ cause: 'pick', startupVersion: 1, notStarted: true }), {
+    assert.deepEqual(pickCause({ cause: 'pick', outcome: 'stopped' }), {
       cause: 'pick'
     });
     assert.equal(pickCause({ cause: 'pick' }), undefined);
-    assert.equal(pickCause({ cause: 'startup', startupVersion: 1, notStarted: true }), undefined);
+    assert.equal(pickCause({ cause: 'startup', outcome: 'stopped' }), undefined);
     assert.equal(pickCause({ cause: undefined }), undefined);
     assert.equal(pickCause(undefined), undefined);
   });

@@ -16,6 +16,7 @@ const card = (over: Partial<CardView> = {}): CardView => ({
   status: 'idle',
   reading: { word: 'idle', tally: 'idle' },
   canControl: true,
+  canInterrupt: false,
   startedAt: 0,
   updatedAt: 0,
   cacheTtlMs: 60 * 60_000,

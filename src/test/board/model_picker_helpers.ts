@@ -195,11 +195,13 @@ export const pick = (fly: HTMLElement, name: string, window?: string): HTMLEleme
 export function sent(p: Panel): { brand?: BrandId; model?: string; window?: number } {
   typeIn(p, 'begin');
   enter(p);
-  const open = lastOpen(p);
+  // Effort stays off this comparison. Callers read it from `target`, and a
+  // catalog default would otherwise fail every brand, model and window check.
+  const target = lastOpen(p).target;
   return {
-    ...(open.brand === undefined ? {} : { brand: open.brand }),
-    ...(open.model === undefined ? {} : { model: open.model }),
-    ...(open.window === undefined ? {} : { window: open.window })
+    ...(target?.brand === undefined ? {} : { brand: target.brand }),
+    ...(target?.model === undefined ? {} : { model: target.model }),
+    ...(target?.window === undefined ? {} : { window: target.window })
   };
 }
 

@@ -1,5 +1,6 @@
 import { icon } from '../ui/icons';
 import * as ticketRefs from '../core/ticket_ref';
+import * as ticketToken from '../core/ticket_token';
 import * as clipboard from './mention_clipboard';
 import { iconButton } from './kit';
 import { el } from './dom';
@@ -120,8 +121,7 @@ export function syncTicketDetail(source: TicketSourceStatus | undefined): void {
   if (!current) return;
   if (
     !source?.linked ||
-    source.generation !== current.token.generation ||
-    source.scopeId !== current.token.scopeId ||
+    !ticketToken.sameToken(source.token, current.token) ||
     source.sourceId !== current.sourceId
   )
     closeTicketDetail();
@@ -193,10 +193,6 @@ export function openTicketReference(expansion: string): void {
     (ticket) => ticketRefs.ticketRef(ticket.identifier, ticket.url) === identity
   );
   if (source?.linked && row && source.scopeId === row.scopeId) {
-    openTicketDetail(row, {
-      generation: source.generation,
-      selectionSeq: source.selectionSeq,
-      scopeId: source.scopeId
-    });
+    openTicketDetail(row, source.token);
   } else vscode.postMessage({ type: 'openTicketReference', reference: expansion });
 }

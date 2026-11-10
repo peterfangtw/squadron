@@ -8,6 +8,7 @@ import { warmConfig } from '../core/cache_ttl';
 import { DEFAULT_WARM_POLICY } from '../core/warm_policy';
 import { panelDocument } from '../ui/document';
 import { resolve, type CardFacts } from '../ui/reading';
+import { offersInterrupt } from '../ui/views';
 
 /**
  * DOM test rig: the real panel document — `panelDocument()`'s markup, CSS and
@@ -268,6 +269,7 @@ const SESSION_STARTED_AT = Date.now() - 60_000;
 // own fields, and its reading is resolved off them the way the host resolves
 // it — so a scenario says what a session is, never which word that ranks to.
 // One that passes `reading` states the whole answer, and nothing is resolved.
+// `canInterrupt` is decided the same way off the fixture's facts unless stated.
 export const cardView = (
   over: Partial<CardView> & Partial<Pick<CardFacts, 'unseen' | 'turnOutcome'>> = {}
 ): CardView => {
@@ -292,9 +294,10 @@ export const cardView = (
     ...fields
   };
   const { reading } = card;
-  return reading
+  const read = reading
     ? { ...card, reading }
     : { ...resolve({ ...card, unseen, neverSeen: false, turnOutcome }), ...card };
+  return { ...read, canInterrupt: fields.canInterrupt ?? offersInterrupt(read) };
 };
 
 /** One offered model row as `PanelState.models` carries it: one entry per
@@ -379,7 +382,7 @@ function workflowPhase(
 
 export const threadView = (over: ThreadOver = {}): ThreadView => {
   const { workflow, exchanges = [], ...rest } = over;
-  return {
+  const thread = {
     ...cardView(rest),
     owned: true,
     exchanges,
@@ -389,10 +392,13 @@ export const threadView = (over: ThreadOver = {}): ThreadView => {
     skills: ['dataviz', 'caveman:caveman'],
     canSend: true,
     canAttach: true,
+    canModel: true,
     who: 'claude',
     ...rest,
     ...(workflow ? { workflow: { ...workflow, phase: workflowPhase(workflow) } } : {})
   };
+  // Decided again over the thread's own `owned`, as `toCard` decides it.
+  return { ...thread, canInterrupt: rest.canInterrupt ?? offersInterrupt(thread) };
 };
 
 /** A thread for a session this window cannot write to — another window drives
@@ -400,7 +406,7 @@ export const threadView = (over: ThreadOver = {}): ThreadView => {
  *  `canSend` is false at the source, so a scenario cannot ask for a composer the
  *  host would refuse anyway. */
 export const unreachableThread = (over: Partial<ThreadView> = {}): ThreadView =>
-  threadView({ owned: undefined, canSend: false, canAttach: false, ...over });
+  threadView({ owned: undefined, canSend: false, canAttach: false, canModel: false, ...over });
 
 /** One question of an ask, as it arrives on the session's pipe. */
 export const questionView = (over: Partial<PendingQuestion> = {}): PendingQuestion => ({

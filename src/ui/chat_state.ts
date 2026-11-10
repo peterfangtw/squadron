@@ -465,7 +465,7 @@ export class ChatState {
       starting: false,
       canSend: !mine || mine.canSend,
       canAttach: !mine || mine.canAttach !== false,
-      canModel: !!mine?.owned && mine.canModel !== false,
+      canModel: mine?.canModel === true,
       owned: !!mine?.owned,
       target: held,
       thread: mine,

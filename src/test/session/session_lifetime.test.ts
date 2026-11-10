@@ -103,7 +103,7 @@ describe('native session lifetime', () => {
     const initial = await attempt.run(() =>
       Promise.resolve({ ok: false, reason: 'Opening failed.' })
     );
-    assert.equal(initial.ok === false && initial.unsure, true);
+    assert.equal(initial.ok === false && initial.outcome, 'unknown');
     assert.equal(await lifetime.close(), 'unresolved');
     nativeExit(true);
     // No panel action or explicit reconcile: native exit is the lifecycle event.
@@ -115,8 +115,7 @@ describe('native session lifetime', () => {
     }
     assert.equal(result, 'gone');
     assert.equal(releases, 1);
-    assert.equal(attempt.outcome?.ok === false && attempt.outcome.notStarted, true);
-    assert.equal(attempt.outcome?.ok === false && attempt.outcome.unsure, undefined);
+    assert.equal(attempt.outcome?.ok === false && attempt.outcome.outcome, 'stopped');
   });
 
   it('uses native root exit proof when descendant coverage is incomplete', async (t) => {
@@ -220,10 +219,10 @@ describe('native session lifetime', () => {
     const outcome = await failed;
     assert.equal(closes, 1);
     assert.equal(outcome.ok, false);
-    assert.equal(!outcome.ok && outcome.unsure, true);
+    assert.equal(!outcome.ok && outcome.outcome, 'unknown');
     assert.equal((await scan.scanProcesses(true)).starts.get(root.pid), root.startedAt);
     assert.equal(await first, 'gone');
-    assert.equal(attempt.outcome?.ok === false && attempt.outcome.notStarted, true);
+    assert.equal(attempt.outcome?.ok === false && attempt.outcome.outcome, 'stopped');
     assert.equal(await transport.exited, true);
     const closed = await scan.scanProcesses(true);
     assert.equal(closed.complete, true);

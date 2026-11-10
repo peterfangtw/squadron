@@ -29,6 +29,7 @@ import type { QueuedMessage } from '../live';
 import { isMidTurn, sameSessionStart, type WindowClaim } from '../model';
 import { readRecord } from '../record';
 import { lastAnswer, unanswered } from '../transcript';
+import { outcomeOfReply, type FailedWord } from '../start_outcome';
 
 // Launch/delivery evidence may republish required receipts before answering.
 const EVIDENCE_REPLY_MS = 20_000;
@@ -267,6 +268,11 @@ async function reach(
   return { ok: false, reason: why(result), ...(result.kind === 'silent' ? { unsure: true } : {}) };
 }
 
+/** A refused start reply's word; one that names none is unknown. */
+function failedWord(reply: Reply): FailedWord {
+  return outcomeOfReply(reply) === 'stopped' ? 'stopped' : 'unknown';
+}
+
 async function start(
   port: VerbPort,
   input: Parameters<SessionVerbs['start']>[0]
@@ -282,13 +288,14 @@ async function start(
             origin: 'remote',
             windowId: input.windowId
           });
-    if (!result) return { ok: false, reason: 'Incoming starts are unavailable.', notStarted: true };
+    if (!result)
+      return { ok: false, reason: 'Incoming starts are unavailable.', outcome: 'stopped' };
     const reply: Reply = 'reply' in result ? result.reply : result;
     if (!reply.ok)
       return {
         ok: false,
         reason: reply.reason ?? 'Incoming start outcome unknown.',
-        ...(reply.notStarted ? { notStarted: true } : { unsure: true }),
+        outcome: failedWord(reply),
         ...(reply.selectionInvalid ? { selectionInvalid: true } : {})
       };
     const marker = incoming.readRemoteLaunchEvidence(reply.remoteLaunchEvidence);
@@ -299,7 +306,11 @@ async function start(
       reply.pid !== marker.receiver.pid ||
       reply.startedAt === undefined
     )
-      return { ok: false, reason: 'Incoming start evidence could not be read.', unsure: true };
+      return {
+        ok: false,
+        reason: 'Incoming start evidence could not be read.',
+        outcome: 'unknown'
+      };
     return {
       ok: true,
       pid: reply.pid,
@@ -332,12 +343,7 @@ async function start(
     return {
       ok: false,
       reason: why(result),
-      ...(result.kind === 'silent' || (result.kind === 'refused' && result.reply.unsure === true)
-        ? { unsure: true }
-        : {}),
-      ...(result.kind === 'refused' && result.reply?.notStarted === true
-        ? { notStarted: true }
-        : {}),
+      outcome: result.kind === 'refused' ? failedWord(result.reply) : 'unknown',
       ...(result.kind === 'refused' && result.reply?.selectionInvalid === true
         ? { selectionInvalid: true }
         : {})
@@ -349,7 +355,7 @@ async function start(
     return {
       ok: false,
       reason: 'That window started a session and did not say which.',
-      unsure: true
+      outcome: 'unknown'
     };
   }
   // The serving window's own resolution, so D23 restarts a dead root as the

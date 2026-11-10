@@ -182,7 +182,7 @@ export class IncomingDelivery {
       return {
         ok: false,
         reason: 'Incoming startup evidence is unavailable or already pending.',
-        unsure: true
+        outcome: 'unknown'
       };
     const models = await this.options.verbs.models?.(input.windowId);
     const capability = incoming.readIncomingAccess(models?.incomingAccess);
@@ -191,7 +191,7 @@ export class IncomingDelivery {
       return {
         ok: false,
         reason: 'That window cannot start a session with incoming files.',
-        notStarted: true
+        outcome: 'stopped'
       };
     const target: LaunchTarget =
       input.selection === undefined
@@ -214,13 +214,13 @@ export class IncomingDelivery {
       createdAt: this.options.clock()
     });
     if (!attempt)
-      return { ok: false, reason: 'Incoming launch selection is invalid.', notStarted: true };
+      return { ok: false, reason: 'Incoming launch selection is invalid.', outcome: 'stopped' };
     const committed = await this.options.messages.access.begin(this.expectIncoming(view), attempt);
     if (committed !== 'committed')
-      return { ok: false, reason: 'Incoming launch could not be committed.', unsure: true };
+      return { ok: false, reason: 'Incoming launch could not be committed.', outcome: 'unknown' };
     view = this.options.messages.access.snapshot(record.id, message.correlation);
     if (!view || view.denial || view.access.attempt?.attemptId !== attempt.attemptId)
-      return { ok: false, reason: 'Incoming launch was withdrawn.', notStarted: true };
+      return { ok: false, reason: 'Incoming launch was withdrawn.', outcome: 'stopped' };
     const started = await this.options.verbs.start({
       ...input,
       cwd,
@@ -247,7 +247,7 @@ export class IncomingDelivery {
           launch: started.remoteLaunchEvidence
         });
     }
-    if (!started.ok && started.notStarted) {
+    if (!started.ok && started.outcome === 'stopped') {
       const current = this.options.messages.access.snapshot(record.id, message.correlation);
       if (current) await this.options.messages.access.notStarted(this.expectIncoming(current));
     }

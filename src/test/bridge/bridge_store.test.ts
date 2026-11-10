@@ -397,7 +397,7 @@ describe('the conversation sweep', () => {
         windowId: 'cleanup',
         owned: () => undefined,
         end: () => false,
-        start: () => Promise.resolve({ ok: false, reason: 'unavailable' }),
+        start: () => Promise.resolve({ ok: false, reason: 'unavailable', outcome: 'stopped' }),
         ask: () => Promise.resolve({ ok: false, kind: 'silent', reason: 'unavailable', file: '' }),
         board: () => [],
         claims: () => Promise.resolve([]),
@@ -607,7 +607,7 @@ describe('Bridge incoming admission persistence', () => {
         interrupt: () => Promise.resolve({ ok: true }),
         deny: () => Promise.resolve({ ok: true }),
         end: () => Promise.resolve({ ok: true }),
-        start: () => Promise.resolve({ ok: false, reason: 'not used' }),
+        start: () => Promise.resolve({ ok: false, reason: 'not used', outcome: 'stopped' }),
         lastReply: () => Promise.resolve(undefined)
       }
     });
