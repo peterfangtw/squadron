@@ -2,7 +2,7 @@ import * as assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { AnswerAction, SendAction } from '../../core/coordination/actions';
 import { answerProse, checkVerbAnswer, openQuestion } from '../../core/coordination/answer';
-import { CONTEXT_MAX, SEND_BURST, TARGET_STALE_MS } from '../../core/coordination/guards';
+import { SEND_BURST, TARGET_STALE_MS } from '../../core/coordination/guards';
 import { wrapMessage } from '../../core/coordination/send';
 import type { PendingRequest } from '../../core/live';
 import { ORCHESTRATION_OFF } from '../../core/verbs';
@@ -177,16 +177,15 @@ describe('checkVerbAnswer — what the window decides', () => {
   });
 
   const cold = { pid: 100, updatedAt: NOW - TARGET_STALE_MS - 60_000 };
-  const full = { pid: 100, updatedAt: NOW - 60_000, contextPct: CONTEXT_MAX + 1 };
+  const full = { pid: 100, updatedAt: NOW - 60_000, contextPct: 100 };
 
   it('refuses a cold asker, and --force lifts it', () => {
     assert.match(refused(check({ target: cold })), /idle for 56 minutes/);
     assert.equal(check({ target: cold, force: true }).ok, true);
   });
 
-  it('refuses an asker over the context ceiling, and --force lifts it', () => {
-    assert.match(refused(check({ target: full })), /81% of its context/);
-    assert.equal(check({ target: full, force: true }).ok, true);
+  it('accepts an asker with full context without force', () => {
+    assert.equal(check({ target: full }).ok, true);
   });
 
   it('does not let --force lift the window burst', () => {

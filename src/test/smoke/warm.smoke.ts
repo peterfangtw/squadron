@@ -26,6 +26,7 @@ async function openWarm(): Promise<void> {
       .catch(() => false)
   )
     return;
+  if (!(await button().isVisible())) await boot.panel().locator('#bottomhub-more').click();
   await button().click();
   await sheet().waitFor({ state: 'visible', timeout: 10_000 });
   // hidden clears at the start of the rise. The frame begins one height below
@@ -142,7 +143,6 @@ boot.section('Warm on the bottom drawer, in the real IDE', () => {
   });
 
   boot.step('flips a session warm through the host and back, by pointer', async () => {
-    await button().waitFor({ state: 'visible', timeout: 30_000 });
     await openWarm();
     assertOnScreen(await placed(), 'at full width');
     const row = sheet().locator('.sessions .mrow', { hasText: FIXTURE_NAME });

@@ -28,9 +28,10 @@ records for this window. A second stock host is optional for window isolation.
    send again. It must succeed. Confirm queued messages reach the target in
    order in a merged turn, rather than requiring one turn per message.
 6. Opportunistically send to an idle target past its prompt-cache deadline, and
-   to one with context above 80%, with the burst clear. Each must exit 2 with
-   `Pass --force`, the stale one naming the context a wake would re-send. Each
-   must then be accepted with `--force`.
+   to one with a full context window, with the burst clear. Only the stale
+   target must exit 2 with `Pass --force`, naming the context a wake would
+   re-send, then be accepted with `--force`. The high-context target must be
+   accepted without `--force`; its agent manages compaction.
 7. Verify an unknown pid, a missing caller and a forged attribution wrapper
    still refuse; missing required flags exit 1. Turning orchestrators off must
    still refuse in the host. Restore the switch afterward.

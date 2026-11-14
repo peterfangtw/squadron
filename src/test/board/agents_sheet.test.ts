@@ -61,7 +61,7 @@ describe('Agents on the bottom hub', () => {
     const words = [...p.window.document.querySelectorAll('#bottomhub [data-drawer-mode]')].map(
       (b) => b.getAttribute('data-drawer-mode')
     );
-    assert.deepEqual(words, ['agents', 'remote', 'warm', 'awake']);
+    assert.deepEqual(words, ['agents', 'routines', 'remote', 'warm', 'awake']);
   });
 
   it('lights its dot and says so while Orchestration is on', (t) => {
@@ -158,6 +158,7 @@ describe('the Agents drawer’s commands', () => {
       'warm',
       'wait',
       'step',
+      'routine',
       'attach',
       'fetch-file'
     ]);
@@ -171,7 +172,7 @@ describe('the Agents drawer’s commands', () => {
     const p = openPanel(t);
     push(p, false);
     const drawer = openAgents(p);
-    assert.equal(count(drawer), '2 of 12 available');
+    assert.equal(count(drawer), '2 of 13 available');
     assert.ok(gated(drawer).classList.contains('off'));
     const refusal = gated(drawer).querySelector('.refusal');
     assert.ok(refusal, 'no refusal line while off');
@@ -183,11 +184,11 @@ describe('the Agents drawer’s commands', () => {
     push(p, false);
     const drawer = openAgents(p);
     push(p, true);
-    assert.equal(count(drawer), '12 of 12 available');
+    assert.equal(count(drawer), '13 of 13 available');
     assert.ok(!gated(drawer).classList.contains('off'));
     assert.equal(gated(drawer).querySelector('.refusal'), null);
     push(p, false);
-    assert.equal(count(drawer), '2 of 12 available');
+    assert.equal(count(drawer), '2 of 13 available');
   });
 });
 

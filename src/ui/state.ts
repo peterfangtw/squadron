@@ -63,6 +63,7 @@ export function commitOwnedBoard(
  * a separate `thread` / `threadPatch` message, not part of this snapshot.
  */
 export type StateInputs = {
+  routines?: RoutineScopeView;
   sessions: readonly Session[];
   workspaceFolder: string | undefined;
   /** Canonical managed launch root, independent of IDE workspace identity. */
@@ -291,6 +292,7 @@ export function buildState(inputs: StateInputs): StateMessage {
   const skills = inputs.editorSkills ?? [];
   return {
     type: 'state',
+    routines: inputs.routines,
     groups,
     defaultCwd: inputs.workspaceFolder ?? inputs.scratchRoot,
     defaultSkillsByBrand: inputs.workspaceFolder

@@ -662,6 +662,62 @@ describe('hourly usage freshness', () => {
     assert.equal(await check(), now - signin.RETRY_MS + HOUR);
     assert.equal(asks, 2);
   });
+
+  it('schedules a stale account at the new interval and clamps a far cooldown', async (t) => {
+    const { Reconciler } = await import('../../core/reconcile');
+    const { UsageRefresher } = await import('../../core/usage_refresh');
+    const coordination = await import('../../core/coordination/usage');
+    const now = Date.now();
+    let reads = 0;
+    const reading = (at: number) => ({
+      at,
+      windows: [{ id: 'weekly' as const, short: 'wk', pct: 12, at }]
+    });
+    const runtime = new Reconciler();
+    const refresher = new UsageRefresher(runtime, {
+      brands: () =>
+        Promise.resolve([
+          {
+            brand: 'claude' as const,
+            signedIn: true,
+            source: source(() => {
+              reads += 1;
+              return Promise.resolve({ windows: [{ id: 'weekly', short: 'wk', pct: 40 }] });
+            })
+          }
+        ]),
+      observations: () => Promise.resolve([]),
+      sessions: () => [],
+      now: () => now,
+      log: () => {}
+    });
+    t.after(async () => {
+      await refresher.dispose();
+      runtime.dispose();
+    });
+    const check = (): Promise<number | undefined> =>
+      new Promise((resolve) => {
+        t.mock.method(refresher.registration, 'schedule', resolve);
+        refresher.registration.requestCheck();
+      });
+
+    await store.noteReading('claude', reading(now - 2 * HOUR), { refreshMs: HOUR });
+    await coordination.mutate('claude', undefined, (state) => {
+      state.notBefore = 0;
+    });
+    assert.equal(await check(), now + HOUR, 'a stale stamp or a zero cooldown was scheduled');
+    assert.equal(reads, 1);
+
+    reads = 0;
+    await store.forgetUsageFor('claude');
+    await store.noteReading('claude', reading(now), { refreshMs: HOUR });
+    await coordination.mutate('claude', undefined, (state) => {
+      state.notBefore = now + 5 * HOUR;
+    });
+    assert.equal(await check(), now + HOUR, 'an unclamped cooldown was scheduled');
+    assert.equal(reads, 0);
+  });
+
   it('does not discard another brand usage when one account signs out', async () => {
     let started!: () => void, finish!: () => void;
     const entered = new Promise<void>((resolve) => {

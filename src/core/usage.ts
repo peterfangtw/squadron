@@ -245,7 +245,7 @@ export async function noteReading(
   brand: BrandId,
   reading: RateLimits | undefined,
   opts: { home?: string; refreshMs?: number; from?: string; generation?: string } = {}
-): Promise<void> {
+): Promise<number | undefined> {
   if (
     !reading ||
     (reading.at ?? 0) > Date.now() ||
@@ -255,11 +255,11 @@ export async function noteReading(
   const seen = observed(reading);
   const prior = await hydrate(brand, opts.home);
   if (JSON.stringify(mergeReadings([prior, seen])) === JSON.stringify(prior)) return;
-  await coordination.mutate(brand, opts.home, async (state) => {
-    if (opts.generation !== undefined && opts.generation !== state.generation) return;
+  const committed = await coordination.mutate(brand, opts.home, async (state) => {
+    if (opts.generation !== undefined && opts.generation !== state.generation) return false;
     const before = await hydrate(brand, opts.home);
     const next = mergeReadings([before, seen]);
-    if (!next) return;
+    if (!next) return false;
     noteLoss(brand, opts.from ?? 'store', next, before);
     if (JSON.stringify(next) !== JSON.stringify(before)) {
       if (!(await writeStoredUsage(brand, next, opts.home)))
@@ -274,7 +274,9 @@ export async function noteReading(
     if (at > 0 && at <= Date.now()) {
       state.notBefore = Math.max(state.notBefore, at + (opts.refreshMs ?? USAGE_REFRESH_MS));
     }
+    return true;
   });
+  return committed ? seen.at : undefined;
 }
 
 /** One brand's plan usage as this pass finds it: the port that reads it, and
@@ -318,6 +320,7 @@ export async function noteSessionUsage(
   });
 }
 
+/** The next fallback instant, or nothing when this account is signed out. */
 export async function walkUsage(
   entry: BrandUsage,
   opts: {
@@ -327,7 +330,7 @@ export async function walkUsage(
     signal?: AbortSignal;
     clock?: () => number;
   }
-): Promise<void> {
+): Promise<number | undefined> {
   const { brand, source, signedIn, generation } = entry;
   if (!signedIn) return;
   await coordination.settle(brand, opts.home);
@@ -336,7 +339,11 @@ export async function walkUsage(
   await noteSessionUsage({ brand, source, signedIn, generation: epoch }, opts.sessions, opts.home);
   const raw = await hydrate(brand, opts.home);
   const state = await coordination.readState(brand, opts.home);
-  if (state?.generation !== epoch || opts.signal?.aborted) return;
+  const heldDue = (notBefore: number, checkAfter: number): number =>
+    Math.max(notBefore, checkAfter, (raw?.at ?? 0) + source.everyMs);
+  if (!state || state.generation !== epoch || opts.signal?.aborted) {
+    return heldDue(state?.notBefore ?? 0, state?.attempt?.checkAfter ?? 0);
+  }
   if (Math.max(state.notBefore, state.attempt?.checkAfter ?? 0) > opts.now + source.everyMs) {
     state.notBefore = await coordination.mutate(brand, opts.home, (current) => {
       current.notBefore = Math.min(current.notBefore, opts.now + source.everyMs);
@@ -350,36 +357,39 @@ export async function walkUsage(
       return current.notBefore;
     });
   }
-  const freshUntil = (raw?.at ?? 0) + source.everyMs;
-  if (Math.max(freshUntil, state.notBefore, state.attempt?.checkAfter ?? 0) <= opts.now) {
-    const attempt = await coordination.admit(brand, opts.home, opts.now, source.everyMs, epoch);
-    if (attempt) {
-      try {
-        const read = await source.read(undefined, {
-          signal: opts.signal,
-          starting: () => coordination.starting(brand, opts.home, attempt),
-          remember: (members) => coordination.remember(brand, opts.home, attempt, members)
-        });
-        if (read && !opts.signal?.aborted) {
-          await noteReading(brand, stampWindows(read, read.at ?? opts.clock?.() ?? opts.now), {
-            ...store,
-            generation: attempt.generation,
-            from: 'read'
-          });
-        }
-      } catch {
-        /* Preserve the last reading; the durable attempt bounds the next try. */
-      } finally {
-        await coordination.complete(
-          brand,
-          opts.home,
-          attempt,
-          opts.clock?.() ?? opts.now,
-          source.everyMs
-        );
-      }
-    }
+  const checkAfter = state.attempt?.checkAfter ?? 0;
+  if (Math.max((raw?.at ?? 0) + source.everyMs, state.notBefore, checkAfter) > opts.now) {
+    return heldDue(state.notBefore, checkAfter);
   }
+  const attempt = await coordination.admit(brand, opts.home, opts.now, source.everyMs, epoch);
+  let written: number | undefined;
+  if (attempt) {
+    try {
+      const read = await source.read(undefined, {
+        signal: opts.signal,
+        starting: () => coordination.starting(brand, opts.home, attempt),
+        remember: (members) => coordination.remember(brand, opts.home, attempt, members)
+      });
+      if (read && !opts.signal?.aborted) {
+        await noteReading(brand, stampWindows(read, read.at ?? opts.clock?.() ?? opts.now), {
+          ...store,
+          generation: attempt.generation,
+          from: 'read'
+        });
+      }
+    } catch {
+      /* Preserve the last reading; the durable attempt bounds the next try. */
+    }
+    written = await coordination.complete(
+      brand,
+      opts.home,
+      attempt,
+      opts.clock?.() ?? opts.now,
+      source.everyMs
+    );
+  }
+  // A missed admit or completion belongs to the next pass, not the pre-admit deadline.
+  return written ?? opts.now;
 }
 
 /** The newest observation of a brand's quota this host can see: the stored
@@ -400,7 +410,13 @@ export async function readLive(
   entry: { brand: BrandId; source: UsageSource; generation?: string },
   hint: LiveHint,
   read: LiveRead,
-  opts: { now: number; home?: string; signal?: AbortSignal; clock?: () => number }
+  opts: {
+    now: number;
+    home?: string;
+    signal?: AbortSignal;
+    clock?: () => number;
+    cover?: (observedAt: number | undefined) => LiveHint;
+  }
 ): Promise<number | undefined> {
   const { brand, source } = entry;
   const clock = opts.clock ?? Date.now;
@@ -411,8 +427,18 @@ export async function readLive(
     hint,
     observedAt: () => observedAt(brand, opts.home)
   });
-  if (!('attempt' in admitted)) return admitted.after;
+  if (!('attempt' in admitted)) {
+    if (!opts.cover) return admitted.after;
+    const covered = opts.cover(admitted.observedAt);
+    return liveDue({
+      ...covered,
+      observedAt: admitted.observedAt,
+      activeAfter: admitted.activeAfter
+    });
+  }
+  let stamp = admitted.observedAt;
   let observed = false;
+  let activeAfter: number | undefined;
   try {
     const signal = opts.signal
       ? AbortSignal.any([opts.signal, AbortSignal.timeout(LIVE_TIMEOUT_MS)])
@@ -421,22 +447,27 @@ export async function readLive(
     if (reading && !opts.signal?.aborted) {
       // A figureless answer still carries its rollover; it backs off as a failure.
       const stamped = stampWindows(reading, reading.at ?? clock());
-      await noteReading(brand, stamped, {
+      const committed = await noteReading(brand, stamped, {
         home: opts.home,
         refreshMs: source.everyMs,
         generation: admitted.attempt.generation,
         from: 'live'
       });
       observed = stamped.windows.some((window) => typeof window.pct === 'number');
+      if (observed && committed !== undefined) stamp = committed;
     }
   } finally {
-    await coordination.completeLive(brand, opts.home, admitted.attempt, clock(), observed);
+    activeAfter = await coordination.completeLive(
+      brand,
+      opts.home,
+      admitted.attempt,
+      clock(),
+      observed
+    );
   }
-  return liveDue({
-    ...hint,
-    observedAt: await observedAt(brand, opts.home),
-    activeAfter: (await coordination.readState(brand, opts.home))?.activeAfter
-  });
+  if (activeAfter === undefined) return opts.now;
+  const covered = opts.cover ? opts.cover(stamp) : hint;
+  return liveDue({ ...covered, observedAt: stamp, activeAfter });
 }
 
 /** Another window's file event invalidates memory. The disk reading stands. */

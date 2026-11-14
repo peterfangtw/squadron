@@ -2,7 +2,7 @@ import * as assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { landed, parseArgs, sendPlan, type SendPlan } from '../../cli/send';
 import type { SendAction } from '../../core/coordination/actions';
-import { CONTEXT_MAX, SEND_BURST, TARGET_STALE_MS } from '../../core/coordination/guards';
+import { SEND_BURST, TARGET_STALE_MS } from '../../core/coordination/guards';
 import { Session } from '../../core/model';
 import type { TargetContext } from '../../core/session_target';
 
@@ -170,10 +170,9 @@ describe('sendPlan: the guardrails, from here', () => {
     assert.equal(accepted(plan({ force: '' }, stamped)).target.pid, 100);
   });
 
-  it('refuses a target over the context ceiling, and --force lifts it', () => {
-    const full = target({ contextPct: CONTEXT_MAX + 1 });
-    assert.match(refusal(plan({}, full)).reason, /81% of its context/);
-    assert.equal(accepted(plan({ force: '' }, full)).target.pid, 100);
+  it('accepts a target with full context without force', () => {
+    const full = target({ contextPct: 100 });
+    assert.equal(accepted(plan({}, full)).target.pid, 100);
   });
 
   it('allows repeated handoffs below the burst rate', () => {

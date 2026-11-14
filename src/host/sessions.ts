@@ -1,3 +1,7 @@
+import * as routines from '../core/routines/routines';
+import * as routineStart from '../core/routines/start';
+import * as routineLifetime from '../core/routines/lifetime';
+import type * as routineTypes from '../core/routines/types';
 import * as usageCoordination from '../core/coordination/usage';
 import { CLOSE_ALL_MS, within, type Consumer } from '../core/shutdown';
 import { reserveStartup, type Reservation } from '../core/coordination/startup_records';
@@ -33,7 +37,7 @@ import * as warmChoice from '../core/warm_choice';
 import { DEFAULT_BRAND, mapBrands, sessionBrand } from '../core/brands';
 import * as paths from '../core/paths';
 import { WARM_SETTINGS, WARM_TTL_KEYS, warmPolicy, type WarmPolicy } from '../core/warm_policy';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import * as path from 'node:path';
 import * as checkpoint from '../core/checkpoint';
 import * as execution from '../core/execution';
@@ -54,7 +58,7 @@ import { ReapOwner, SignalEnd, endBySignal } from '../core/control';
 import { writeLineage } from '../core/coordination/lineage';
 import { LiveState, OwnedFacts, shownStatus, toSession, withStated } from '../core/live';
 import { EndingSessions } from '../core/ending';
-import { BrandId, LaunchTarget, Session } from '../core/model';
+import { BrandId, LaunchTarget, Session, type ImageBlock } from '../core/model';
 import { writeStatedName } from '../core/names';
 import { forgetProgress, workflowFirstTurn } from '../core/workflows/progress';
 import {
@@ -585,6 +589,13 @@ export type StartOptions = {
   cwd: string;
   incoming?: { files: RemoteFilesStart; admitted: () => Promise<boolean> };
   prompt?: string;
+  images?: ImageBlock[];
+  routine?: {
+    scope: routineTypes.Scope;
+    runId: string;
+    owner: import('../core/bridge/model').HostIdentity;
+    validateTarget(): void;
+  };
   correlation?: string;
   name?: string;
   /**
@@ -620,19 +631,25 @@ export type StartOptions = {
 export async function startOwned(start: StartOptions): Promise<StartResult> {
   const id =
     start.attemptId ?? start.requestId ?? start.incoming?.files.attempt.attemptId ?? randomUUID();
-  const fingerprint = JSON.stringify([
-    start.cwd,
-    start.target,
-    start.resume,
-    start.prompt,
-    start.placeholder,
-    start.name,
-    start.correlation,
-    start.parentSessionId,
-    start.originSessionId,
-    start.workflow?.id,
-    start.incoming?.files.attempt
-  ]);
+  const fingerprint = createHash('sha256')
+    .update(
+      JSON.stringify([
+        start.cwd,
+        start.target,
+        start.resume,
+        start.prompt,
+        start.placeholder,
+        start.name,
+        start.correlation,
+        start.parentSessionId,
+        start.originSessionId,
+        start.workflow?.id,
+        start.incoming?.files.attempt,
+        start.images,
+        start.routine
+      ])
+    )
+    .digest('hex');
   const prior = starts.get(id);
   if (prior)
     return prior.fingerprint === fingerprint
@@ -933,17 +950,42 @@ async function performStart(start: StartOptions, record: StartRecord): Promise<A
     return '';
   });
   attempt.check();
+  const routine = start.routine;
+  const routineAction = async (action: routines.Action): Promise<void> => {
+    if (!routine) return;
+    const result = await routines.applyRoutineAction(routine.scope, action, Date.now());
+    if (result.kind !== 'ok') throw new Error(result.reason);
+  };
+  if (routine)
+    await routineAction({
+      kind: 'spawning',
+      operationId: randomUUID(),
+      runId: routine.runId,
+      owner: routine.owner
+    });
+  attempt.check();
+  if (routine) routine.validateTarget();
   attempt.stage = 'spawning';
   const transport = childTransport({
     bin: line.bin,
     cwd: start.cwd,
     args: line.args,
     env: { ...line.env, ...capture.env },
-    terminateOnClose: line.terminateOnClose || start.incoming !== undefined,
+    terminateOnClose:
+      line.terminateOnClose || start.incoming !== undefined || routine !== undefined,
     origin,
     windowId: vscode.env.sessionId
   });
+  const durable =
+    routine && transport.pid !== undefined
+      ? routineLifetime.durableOwner(
+          routine.scope,
+          routine.runId,
+          routines.hostMember(routine.owner)
+        )
+      : undefined;
   const lifetime = new SessionLifetime(transport, {
+    durableObservation: durable?.durableObservation,
     remember: async (members) => {
       await record.reservation?.remember(members);
       if (
@@ -954,6 +996,7 @@ async function performStart(start: StartOptions, record: StartRecord): Promise<A
         throw new Error('Stopping conversation ownership could not be saved.');
     },
     gone: async () => {
+      await durable?.gone();
       await record.reservation?.release();
       lifetimes.delete(lifetime);
       const owned = record.entry;
@@ -979,6 +1022,15 @@ async function performStart(start: StartOptions, record: StartRecord): Promise<A
       log(`spawn failed: ${start.cwd} — ${info.stderr ?? 'no reason given'}`)
     );
     transport.close();
+    if (routine)
+      await routineAction({
+        kind: 'recordStopped',
+        operationId: randomUUID(),
+        runId: routine.runId,
+        owner: routine.owner,
+        noChild: true,
+        reason: 'The session could not be started.'
+      });
     return { ok: false, reason: 'The session could not be started.' };
   }
 
@@ -1056,6 +1108,21 @@ async function performStart(start: StartOptions, record: StartRecord): Promise<A
     unpark(entry);
     void stopLifetime(lifetime);
   });
+  if (routine) {
+    await lifetime.capture();
+    attempt.check();
+    const child = lifetime.initialRoot;
+    if (!child)
+      throw new Error('The initial native child identity is unavailable; the task was not sent.');
+    await routineAction({
+      kind: 'recordChild',
+      operationId: randomUUID(),
+      runId: routine.runId,
+      owner: routine.owner,
+      child
+    });
+    attempt.check();
+  }
   if (record.reservation) {
     attempt.stage = 'child identity';
     await record.reservation.bind(pid);
@@ -1322,6 +1389,22 @@ async function performStart(start: StartOptions, record: StartRecord): Promise<A
       remoteLaunchEvidence: proof.snapshot().remoteLaunchEvidence
     };
   }
+  if (routine) {
+    const receiver = entry.incoming?.receiverIdentity;
+    const sessionId = session.state.sessionId;
+    if (!receiver || !sessionId || !(await publish(entry, true)))
+      throw new Error('Routine receiver evidence could not be published.');
+    await routineAction({
+      kind: 'bind',
+      operationId: randomUUID(),
+      runId: routine.runId,
+      owner: routine.owner,
+      receiver,
+      sessionId
+    });
+    if (!session.messages || (start.images?.length && !session.messages.images))
+      throw new Error('This session cannot deliver the saved routine task.');
+  }
   if (start.prompt !== undefined) {
     // A workflow here fires without a gesture, where the panel's own mention
     // waits for Enter (PRD §13 "never auto-send on session create"). That rule
@@ -1347,13 +1430,24 @@ async function performStart(start: StartOptions, record: StartRecord): Promise<A
     // resolve either, and `workflowFirstTurn` sends the workflow unseeded
     // rather than inventing a key — the same refusal `armMention` makes.
     attempt.check();
+    const completion = routine
+      ? routineStart.completionInstruction(routine.runId, paths.toolShell(brand))
+      : '';
     const turn = await workflowFirstTurn(
-      start.prompt,
+      start.prompt + completion,
       start.workflow,
       session.state.sessionId ?? '',
       paths.toolShell(brand),
       attempt.signal
     );
+    attempt.check();
+    if (routine)
+      await routineAction({
+        kind: 'admitPrompt',
+        operationId: randomUUID(),
+        runId: routine.runId,
+        owner: routine.owner
+      });
     attempt.check();
     attempt.admitPrompt();
     record.promptReleased = true;
@@ -1361,12 +1455,19 @@ async function performStart(start: StartOptions, record: StartRecord): Promise<A
       // Around the briefing too: the envelope is anchored at both ends
       // (`unwrapMessage`), so only a whole turn inside it reads as the peer's.
       start.from ? wrapMessage(turn, start.from) : turn,
-      undefined,
+      start.images,
       undefined,
       undefined,
       undefined,
       start.correlation
     );
+    if (routine)
+      await routineAction({
+        kind: 'recordStart',
+        operationId: randomUUID(),
+        runId: routine.runId,
+        owner: routine.owner
+      });
   }
   if (!record.promptReleased) attempt.check();
   entry.ready = true;

@@ -61,7 +61,7 @@ async function flip(want: boolean): Promise<void> {
   await waitSetting('squadron.orchestrators.enabled', want);
   // The pushed flag, not the flip: the count follows the host's answer.
   await sheet()
-    .locator('.bddetail .summary', { hasText: want ? '12 of 12 available' : '2 of 12 available' })
+    .locator('.bddetail .summary', { hasText: want ? '13 of 13 available' : '2 of 13 available' })
     .waitFor({ timeout: 10_000 });
 }
 

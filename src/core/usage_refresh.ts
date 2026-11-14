@@ -1,12 +1,11 @@
 import type { BrandUsage, LiveRead } from './usage';
 import * as usage from './usage';
-import * as coordination from './coordination/usage';
 import type { SessionHandle, UsageSource } from './adapter';
 import { sessionBrand } from './brands';
 import type { BrandId, Session } from './model';
 import type { CheckRegistration, Reconciler } from './reconcile';
 import { RETRY_MS } from './signin';
-import { LIVE_ACTIVE_MS, LIVE_SLACK_MS, liveDue, type LiveHint } from './usage_policy';
+import { LIVE_ACTIVE_MS, LIVE_SLACK_MS, type LiveHint } from './usage_policy';
 
 export type UsageRefreshPorts = {
   brands(): Promise<readonly BrandUsage[]>;
@@ -77,19 +76,13 @@ export class UsageRefresher {
           const after = await usage.readLive(entry, hint, read, {
             now: this.ports.now(),
             signal: this.abort.signal,
-            clock: this.ports.now
+            clock: this.ports.now,
+            cover: (stamp) => {
+              this.hints.covered(entry.brand, stamp);
+              return this.hints.hint(entry.brand);
+            }
           });
           if (after !== undefined) due.push(after);
-          // Covering may move the hint to a newer turn end, whose deadline the
-          // read above could not know.
-          const observedAt = await usage.observedAt(entry.brand);
-          this.hints.covered(entry.brand, observedAt);
-          const next = liveDue({
-            ...this.hints.hint(entry.brand),
-            observedAt,
-            activeAfter: (await coordination.readState(entry.brand))?.activeAfter
-          });
-          if (next !== undefined) due.push(next);
         } catch (error) {
           this.ports.log(
             `usage: ${entry.brand}: ${error instanceof Error ? error.message : String(error)}`
@@ -127,21 +120,13 @@ export class UsageRefresher {
         if (this.abort.signal.aborted) return;
         if (!brand.signedIn) continue;
         try {
-          await usage.walkUsage(brand, {
+          const after = await usage.walkUsage(brand, {
             sessions: this.ports.sessions(),
             now: this.ports.now(),
             signal: this.abort.signal,
             clock: this.ports.now
           });
-          const state = await coordination.readState(brand.brand);
-          const stored = await usage.readStoredUsage(brand.brand);
-          due.push(
-            Math.max(
-              state?.notBefore ?? 0,
-              state?.attempt?.checkAfter ?? 0,
-              (stored?.at ?? 0) + brand.source.everyMs
-            )
-          );
+          if (typeof after === 'number') due.push(after);
         } catch (error) {
           this.ports.log(
             `usage: ${brand.brand}: ${error instanceof Error ? error.message : String(error)}`

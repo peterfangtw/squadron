@@ -35,6 +35,7 @@ export const scenarios: readonly string[] = [
   'thread_table.smoke',
   'session.smoke',
   'composer_editor.smoke',
+  'routines.smoke',
   'session_end.smoke',
   'thread_acquisition.smoke',
   'thread_refresh.smoke',

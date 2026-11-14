@@ -6,11 +6,11 @@ export const css = /* css */ `
      than to each child. One gap, and one rule for the empty child: a child
      paying for the space beneath it pays when it has nothing to say too, which
      is what every :not(:empty) guard here was working around. */
-  #composer { flex: none; display: flex; flex-direction: column; gap: 6px;
+  :is(#composer, .compose-root) { flex: none; display: flex; flex-direction: column; gap: 6px;
               padding: 7px 14px 10px; }
   /* div and not *: an empty textarea has no child nodes either, and #input is
      the one box here that must survive having nothing in it. */
-  #composer > div:empty { display: none; }
+  :is(#composer, .compose-root) > div:empty { display: none; }
   #chat { container: chat / inline-size; }
 
   /* The box itself — the host's own .chat-input-container, on our tokens: the
@@ -776,8 +776,8 @@ export const css = /* css */ `
    * and Attach comes back beside it, so the row can hold two and wraps rather
    * than clipping. The × beside the chip and the confirm it opens are below.
    */
-  #wattach { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  #wattach:empty { display: none; }
+  :is(#wattach, .compose-workflow) { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  :is(#wattach, .compose-workflow):empty { display: none; }
 
   /* button reset: live chip is a real control (drawer toggle) sharing .wflow.
      Family and weight only — the font shorthand also reset the size, and being the
@@ -852,61 +852,61 @@ export const css = /* css */ `
      it: the chip is the button that opens the drawer, and a button nested in a
      button is broken out by the parser. It borrows .drop's box so the two ×s in
      this slot are the same size and the same 24 hit target. */
-  #wattach .wcancel { opacity: .5; }
-  #wattach .wcancel:hover { opacity: 1; color: var(--av-red); }
+  :is(#wattach, .compose-workflow) .wcancel { opacity: .5; }
+  :is(#wattach, .compose-workflow) .wcancel:hover { opacity: 1; color: var(--av-red); }
 
   /* The confirm, standing where the chip was — the bottom drawer's shape, on one row.
      .wask is paint only; the two buttons beside it are what is pressed. */
-  #wattach .wask { display: inline-flex; align-items: center; gap: 5px;
+  :is(#wattach, .compose-workflow) .wask { display: inline-flex; align-items: center; gap: 5px;
                    min-width: 0; max-width: 100%; min-height: 28px;
                    font-size: var(--av-fs-md); color: var(--av-fg); }
   /* --av-warn-border rather than --av-red: it is what the sheet's own delete
      confirm spends, and what makes the two read as one gesture. */
-  #wattach .wask .q { flex: none; font-weight: 600; color: var(--av-warn-border); }
+  :is(#wattach, .compose-workflow) .wask .q { flex: none; font-weight: 600; color: var(--av-warn-border); }
   /* Its own, because .wflow's version is scoped to the chip box this replaces. */
-  #wattach .wask .nm { overflow: hidden; text-overflow: ellipsis;
+  :is(#wattach, .compose-workflow) .wask .nm { overflow: hidden; text-overflow: ellipsis;
                        white-space: nowrap; min-width: 0; max-width: 200px; }
-  #wattach .wask .sname { flex: 0 1 auto; min-width: 0; max-width: 200px;
+  :is(#wattach, .compose-workflow) .wask .sname { flex: 0 1 auto; min-width: 0; max-width: 200px;
                           overflow: hidden; text-overflow: ellipsis;
                           white-space: nowrap; color: var(--av-fg-3);
                           font-size: var(--av-fs-sm); font-weight: 500; }
-  #wattach .wask .sname::before { content: '·'; margin-right: 5px;
+  :is(#wattach, .compose-workflow) .wask .sname::before { content: '·'; margin-right: 5px;
                                   color: var(--av-fg-3); font-weight: 400; }
-  #wattach .wask .sname.working { color: var(--av-fg); }
-  #wattach .wask .sname.done { color: var(--av-green); }
+  :is(#wattach, .compose-workflow) .wask .sname.working { color: var(--av-fg); }
+  :is(#wattach, .compose-workflow) .wask .sname.done { color: var(--av-green); }
   /* Both answers are real buttons, and the destructive one wears the colour. */
-  #wattach .act.fbtn { flex: none; padding: 3px 10px; font-size: var(--av-fs-md); }
-  #wattach .act.fbtn.danger { color: var(--av-warn-border);
+  :is(#wattach, .compose-workflow) .act.fbtn { flex: none; padding: 3px 10px; font-size: var(--av-fs-md); }
+  :is(#wattach, .compose-workflow) .act.fbtn.danger { color: var(--av-warn-border);
                               border-color: var(--av-warn-border); }
 
   /* Trail / lead controls — 24 hit targets (armed peek, Edit, Retry, ×). */
-  #wattach .peek, #wattach .drop, #wattach .wedit, #wattach .wretry {
+  :is(#wattach, .compose-workflow) .peek, :is(#wattach, .compose-workflow) .drop, :is(#wattach, .compose-workflow) .wedit, :is(#wattach, .compose-workflow) .wretry {
     cursor: pointer; opacity: .6; padding: 0; background: none; border: 0;
     color: inherit; font: inherit; border-radius: 4px;
     min-width: 24px; min-height: 24px;
     display: inline-flex; align-items: center; justify-content: center; flex: none;
   }
-  #wattach .wedit { opacity: .55; padding: 0 5px; min-width: 0;
+  :is(#wattach, .compose-workflow) .wedit { opacity: .55; padding: 0 5px; min-width: 0;
                     font-size: var(--av-fs-sm); }
-  #wattach .peek:hover, #wattach .drop:hover, #wattach .wedit:hover,
-  #wattach .wretry:hover {
+  :is(#wattach, .compose-workflow) .peek:hover, :is(#wattach, .compose-workflow) .drop:hover, :is(#wattach, .compose-workflow) .wedit:hover,
+  :is(#wattach, .compose-workflow) .wretry:hover {
     opacity: 1; background: var(--av-hover);
   }
-  #wattach .wedit:hover { color: var(--av-link); }
+  :is(#wattach, .compose-workflow) .wedit:hover { color: var(--av-link); }
   /* Retry / Continue sits between the chip and the ×, and is the offer rather
      than the ending — so it is the one outlined button in the slot, at full
      contrast, where its neighbours are dimmed glyphs. */
-  #wattach .wretry { opacity: 1; padding: 0 9px; min-width: 0;
+  :is(#wattach, .compose-workflow) .wretry { opacity: 1; padding: 0 9px; min-width: 0;
                      font-size: var(--av-fs-sm); font-weight: 600;
                      color: var(--av-fg); border: 1px solid var(--av-border);
                      border-radius: 6px; }
-  #wattach .wretry:hover { color: var(--av-link); border-color: var(--av-link); }
+  :is(#wattach, .compose-workflow) .wretry:hover { color: var(--av-link); border-color: var(--av-link); }
 
-  #wattach .wsteps { flex-basis: 100%; margin: 0; padding: 2px 0 0 22px;
+  :is(#wattach, .compose-workflow) .wsteps { flex-basis: 100%; margin: 0; padding: 2px 0 0 22px;
                      font-size: var(--av-fs-md); color: var(--av-fg-2); }
-  #wattach .wstep { line-height: 1.5; }
+  :is(#wattach, .compose-workflow) .wstep { line-height: 1.5; }
   /* Composer is the panel bottom — menu opens upward (same trap as #bottomhub). */
-  #wattach .fmenu { top: auto; bottom: calc(100% + 6px); }
+  :is(#wattach, .compose-workflow) .fmenu { top: auto; bottom: calc(100% + 6px); }
   /* One line at rest, growing with the text to ten, then scrolling.
      field-sizing sizes the box to its content and the two bounds clamp that,
      so no script measures anything. Ten leaves the thread the larger share
@@ -917,18 +917,18 @@ export const css = /* css */ `
      up to the ceiling and scrolls past it, and the editing root inside takes
      the floor and the padding, so a press anywhere in the box lands in the
      text. */
-  #input { width: 100%; box-sizing: border-box; line-height: 1.4;
+  :is(#input, .compose-editor) { width: 100%; box-sizing: border-box; line-height: 1.4;
            max-height: calc(10lh); overflow-y: auto; cursor: text;
            font-family: inherit; font-size: var(--av-fs-lg);
            background: none; color: var(--av-input-fg); border: 0;
            position: relative; z-index: 1; }
-  #input .ProseMirror { min-height: 1lh; padding: 1px 3px; }
-  #input.empty .ProseMirror pre { background: none; border-color: transparent; padding: 0; }
-  #input .pchip { display: inline-block; box-sizing: border-box; max-width: 100%;
+  :is(#input, .compose-editor) .ProseMirror { min-height: 1lh; padding: 1px 3px; }
+  :is(#input, .compose-editor).empty .ProseMirror pre { background: none; border-color: transparent; padding: 0; }
+  :is(#input, .compose-editor) .pchip { display: inline-block; box-sizing: border-box; max-width: 100%;
                  white-space: normal; overflow-wrap: anywhere; vertical-align: bottom; }
   /* The shell rings instead. Two rings, one inside the other, is the box-in-box
      this change exists to remove. */
-  #input .ProseMirror:focus { outline: none; }
+  :is(#input, .compose-editor) .ProseMirror:focus { outline: none; }
   /* The at-mention menu. Fixed and parked on <body> (see ensureMenu in
      webview/composer.ts), so it is placed in script rather than here — this
      only says what it looks like. No backticks in this file: it is one template
@@ -1001,15 +1001,15 @@ export const css = /* css */ `
                pointer-events: none; font-size: var(--av-fs-md); line-height: 1.4;
                color: var(--av-fg-3);
                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #input.empty ~ .hintghost { display: flex; flex-direction: row; align-items: baseline;
+  :is(#input, .compose-editor).empty ~ .hintghost { display: flex; flex-direction: row; align-items: baseline;
                               justify-content: space-between; gap: 8px; }
   .hintlabel { line-height: calc(1.4 * var(--av-fs-lg)); }
   .hintkeys { display: flex; align-items: center; gap: 4px; }
   /* A composer that cannot send says so in its placeholder, and an instruction
      about Enter under that would describe a key that does nothing. */
-  #input[aria-disabled="true"] ~ .hintghost { opacity: .5; }
-  #input[aria-disabled="true"] ~ .hintghost .hintkeys { display: none; }
-  #input[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+  :is(#input, .compose-editor)[aria-disabled="true"] ~ .hintghost { opacity: .5; }
+  :is(#input, .compose-editor)[aria-disabled="true"] ~ .hintghost .hintkeys { display: none; }
+  :is(#input, .compose-editor)[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
   /* The hint and the button that does what it describes, one row. The hint
      takes the slack so the button stays pinned to the right edge however the
      middle span is rewritten — and it is rewritten on every push. */
@@ -1022,57 +1022,57 @@ export const css = /* css */ `
   /* Centred, not bottom-aligned: the clip, the hint and Send are three
      different heights, and flex-end sat the hint's text on the button's bottom
      edge rather than across its middle. */
-  #hintrow { display: flex; align-items: center; gap: 8px; margin-top: 2px; min-width: 0; }
+  :is(#hintrow, .compose-footer) { display: flex; align-items: center; gap: 8px; margin-top: 2px; min-width: 0; }
   /* The controls hold the left, and the auto margin is the CLUSTER's rather
      than any one control's — the clip carried it until the model pill joined
      the row, at which point Send would have slid in beside the pill whenever a
      session had no model to state. Same invariant, one node up. */
-  #ctools { display: flex; align-items: center; gap: 4px; flex: 1 1 0;
+  :is(#ctools, .compose-tools) { display: flex; align-items: center; gap: 4px; flex: 1 1 0;
             min-width: 0; margin-right: auto; }
-  #ctools .fwrap:has(.model) { flex: 0 1 auto; min-width: 0; max-width: 130px; }
-  #ctools .model { min-width: 0; width: 100%; }
-  #ctools .fwrap:has(.effort), #fattach { flex-shrink: 0; }
+  :is(#ctools, .compose-tools) .fwrap:has(.model) { flex: 0 1 auto; min-width: 0; max-width: 130px; }
+  :is(#ctools, .compose-tools) .model { min-width: 0; width: 100%; }
+  :is(#ctools, .compose-tools) .fwrap:has(.effort), :is(#fattach, .compose-attach) { flex-shrink: 0; }
   /* The clip is a .icon like the dock head's four, and disabled the same way
      #send is: a session that cannot be sent to cannot be handed a path either. */
-  #fattach:disabled { opacity: .25; cursor: not-allowed; background: none;
+  :is(#fattach, .compose-attach):disabled { opacity: .25; cursor: not-allowed; background: none;
                       box-shadow: none; }
   /* The model in force, as mockups/composer-shell.html §3 draws it: the pill
      kit.ts already builds, at this row's scale, and capped so a long name
      ellipsises rather than pushing the hint out. */
-  #composer .fpill { color: var(--av-fg-3); opacity: 1; }
-  #composer .fpill:hover, #composer .fpill:focus-visible,
-  #composer .fpill[aria-expanded='true'] { color: var(--av-fg); }
-  #hintrow .fpill { min-height: 24px; padding: 0 6px 0 8px; gap: 4px;
+  :is(#composer, .compose-root) .fpill { color: var(--av-fg-3); opacity: 1; }
+  :is(#composer, .compose-root) .fpill:hover, :is(#composer, .compose-root) .fpill:focus-visible,
+  :is(#composer, .compose-root) .fpill[aria-expanded='true'] { color: var(--av-fg); }
+  :is(#hintrow, .compose-footer) .fpill { min-height: 24px; padding: 0 6px 0 8px; gap: 4px;
                     border-radius: 6px; max-width: 130px; }
-  #hintrow .fpill .nm { overflow: hidden; text-overflow: ellipsis;
+  :is(#hintrow, .compose-footer) .fpill .nm { overflow: hidden; text-overflow: ellipsis;
                         white-space: nowrap; min-width: 0; }
-  #hintrow .fpill:disabled { cursor: default; opacity: .72; color: var(--av-fg-3); }
+  :is(#hintrow, .compose-footer) .fpill:disabled { cursor: default; opacity: .72; color: var(--av-fg-3); }
   /* Composer is the panel bottom — menu opens upward, same trap as #wattach
      above and #bottomhub over the board. */
-  #hintrow .fmenu { top: auto; bottom: calc(100% + 6px); }
+  :is(#hintrow, .compose-footer) .fmenu { top: auto; bottom: calc(100% + 6px); }
   /* The same filled button .cta and .pallow are, written out for the reason
      they are written out from each other: it is a long way from either, and the
      three are the panel's one "this is the ordinary thing to press". A 28px
      square, the host's send glyph, above the 24px floor SC 2.5.8 puts under
      anything a pointer must hit. */
-  #send { flex: none; white-space: nowrap; margin-left: auto;
+  :is(#send, .compose-send) { flex: none; white-space: nowrap; margin-left: auto;
           font-family: inherit; font-size: var(--av-fs-md); font-weight: 600;
           width: 28px; height: 28px; min-height: 0; padding: 0;
           display: inline-flex; align-items: center; justify-content: center;
           border-radius: 6px; cursor: pointer;
           border: 1px solid var(--av-focus);
           background: var(--av-btn-bg); color: var(--av-btn-fg); }
-  #send:hover:not(:disabled) { filter: brightness(1.12); }
+  :is(#send, .compose-send):hover:not(:disabled) { filter: brightness(1.12); }
   /* The press lands on the button, never on the glyph inside it. */
-  #send > * { pointer-events: none; }
-  #send:disabled { opacity: .4; cursor: not-allowed; filter: none; }
+  :is(#send, .compose-send) > * { pointer-events: none; }
+  :is(#send, .compose-send):disabled { opacity: .4; cursor: not-allowed; filter: none; }
   @container chat (max-width: 359px) {
-    #composer { padding-inline: 10px; }
-    #hintrow { gap: 6px; }
+    :is(#composer, .compose-root) { padding-inline: 10px; }
+    :is(#hintrow, .compose-footer) { gap: 6px; }
   }
   @container chat (max-width: 279px) {
-    #hintrow { flex-wrap: wrap; row-gap: 8px; }
-    #ctools { flex: 1 1 100%; flex-wrap: wrap; }
+    :is(#hintrow, .compose-footer) { flex-wrap: wrap; row-gap: 8px; }
+    :is(#ctools, .compose-tools) { flex: 1 1 100%; flex-wrap: wrap; }
   }
   /* Enter would queue rather than send, which the hint beside it already says.
      Amber is that word's colour everywhere else in the composer — staged, not
@@ -1090,16 +1090,16 @@ export const css = /* css */ `
      a fill mixed from --av-fg and --av-lift, so a card-coloured "no fill" would
      still be a box. The brightness hover above lands on the text and the border, which is what
      a ghost's hover should be. */
-  #send.queues { border-color: var(--av-orange); color: var(--av-orange);
+  :is(#send, .compose-send).queues { border-color: var(--av-orange); color: var(--av-orange);
                  background: transparent; }
 
   /* The permission mode, in the tool row after model and effort. Not a
      control: the transcript stated it. Skipping permissions is the warning,
      in the same colour the card's footer gives the same fact. */
-  #ctools .mode { flex: none; display: inline-flex; align-items: center; gap: 4px;
+  :is(#ctools, .compose-tools) .mode { flex: none; display: inline-flex; align-items: center; gap: 4px;
                   min-height: 24px; padding: 0 6px; border-radius: 6px;
                   font-size: var(--av-fs-md); color: var(--av-fg-3); white-space: nowrap; }
-  #ctools .mode .g { font-size: var(--av-fs-sm); }
-  #ctools .mode.bypass { color: var(--av-orange); }
+  :is(#ctools, .compose-tools) .mode .g { font-size: var(--av-fs-sm); }
+  :is(#ctools, .compose-tools) .mode.bypass { color: var(--av-orange); }
 
 `;

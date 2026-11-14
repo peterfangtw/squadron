@@ -17,6 +17,7 @@ import type { ProcessTable } from '../../core/scan';
 import * as scan from '../../core/scan';
 import * as rig from '../incoming_fetch_helpers';
 import * as owners from './incoming_owner_helpers';
+import * as nativeTools from './native_tool_helpers';
 import {
   liveClaim,
   needsFileSymlinks,
@@ -93,40 +94,16 @@ after(() => {
   }
 });
 
-type ToolResult = { code: number; stdout: string; stderr: string };
-async function tool(
+function tool(
   child: Awaited<ReturnType<typeof owners.child>>,
   shell: string,
   env?: NodeJS.ProcessEnv
-): Promise<ToolResult> {
-  const claimPath = path.join(claimDir, 'destination.json');
-  const claim = await fs.readFile(claimPath, 'utf8').catch((error: NodeJS.ErrnoException) => {
-    if (error.code === 'ENOENT') return undefined;
-    throw error;
+): Promise<nativeTools.ToolResult> {
+  return nativeTools.runNativeTool(child, shell, {
+    resultDir: cwd,
+    claim: path.join(claimDir, 'destination.json'),
+    env
   });
-  if (claim !== undefined) {
-    const current = JSON.parse(claim) as Record<string, unknown>;
-    await fs.writeFile(claimPath, JSON.stringify({ ...current, updatedAt: Date.now() }));
-  }
-  const result = path.join(cwd, `tool-${crypto.randomUUID()}.json`);
-  assert.equal(
-    (
-      await child.route.messages!.send(
-        `squadron-native-tool ${JSON.stringify({ command: shell, result, env })}`
-      )
-    ).ok,
-    true
-  );
-  const deadline = Date.now() + 70_000;
-  while (Date.now() < deadline) {
-    const output = await fs.readFile(result, 'utf8').catch(() => undefined);
-    if (output) {
-      await owners.until(child.handle, (handle) => handle.state.status === 'idle');
-      return JSON.parse(output) as ToolResult;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error('native tool did not finish');
 }
 
 async function make(brand: 'claude' | 'grok' | 'codex') {

@@ -9,6 +9,25 @@ scalability", only when that benefit is supported; omit implementation details.
 Do not add a release note for edits to this guidance.
 -->
 
+## 0.6.28
+
+- Grok correctly shows signed out after logout leaves an empty credential file.
+
+## 0.6.27
+
+- Hub counts use consistent spacing and styling across all controls, including the overflow menu.
+- Routines use consistent text sizes across their list, editor and empty states.
+
+## 0.6.26
+
+- Save repository Routines with daily, weekly or hourly reminders. Run them explicitly in the current window, and mark them complete from the associated session.
+- Sessions above 80% context can receive messages, answers and wait results while agents manage their own compaction.
+- Workflow insertion hints stay visible while dragging.
+
+## 0.6.25
+
+- Maintenance release.
+
 ## 0.6.24
 
 - Fable 5.2 is available in the Claude model picker.

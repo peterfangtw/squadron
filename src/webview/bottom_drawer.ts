@@ -34,6 +34,10 @@ function resting(): bottomDrawerModes.DrawerModeId {
 export function open(id?: bottomDrawerModes.DrawerModeId): void {
   const next = bottomDrawerModes.modeFor(id ?? resting());
   if (!next.available) return;
+  if (raised && mode !== next.id && mode !== undefined) {
+    const previous = bottomDrawerModes.modeFor(mode);
+    if (previous.available) previous.closed?.();
+  }
   setOpen(false);
   raised = true;
   mode = next.id;

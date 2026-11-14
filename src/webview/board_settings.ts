@@ -10,6 +10,48 @@ import type { ComposerContext } from '../ui/chat_state';
 import { closeMenu, drillRow, menuItem, searchBox, switchRow } from './kit';
 import { SEARCH_ABOVE } from './picker';
 import * as warningInk from './warning_ink';
+import type { ChoiceContext } from './compose_input';
+
+export function modelChoices(menu: HTMLElement, context: ChoiceContext): void {
+  if (context.allowDefault)
+    menu.append(
+      menuItem('Use current default', context.target === undefined, 'one', () => {
+        closeMenu();
+        context.onPick(undefined);
+      })
+    );
+  modelItems(
+    menu,
+    context.models,
+    { value: context.target?.model ?? '', window: context.target?.window },
+    (model) => {
+      closeMenu();
+      context.onPick(rowPick(context.models, model, context.efforts));
+    }
+  );
+  if (context.cold) menu.append(el('div', 'mwarn', context.cold));
+}
+
+export function effortChoices(menu: HTMLElement, context: ChoiceContext): void {
+  const model = resolveModel(
+    context.models,
+    undefined,
+    context.target?.model,
+    context.target?.window
+  );
+  for (const effort of model?.efforts ?? [])
+    menu.append(
+      effortPick(
+        effort.value,
+        context.target?.effort === effort.value,
+        () => {
+          closeMenu();
+          context.onPick({ ...context.target, effort: effort.value });
+        },
+        effort.value === model?.defaultEffort
+      )
+    );
+}
 
 /**
  * What an empty model list means, now that nothing asks a CLI.
@@ -597,11 +639,6 @@ export function startingPick(): LaunchTarget | undefined {
   return defaultPick(ui.state.models, ui.state.model, ui.state.contextWindow, ui.state.efforts);
 }
 
-/** One row of the list as a draft holds it, at the effort saved for it. */
-function pickOf(model: ModelView): LaunchTarget {
-  return rowPick(ui.state.models, model, ui.state.efforts);
-}
-
 /**
  * The way to a model the list does not offer: a footer button that becomes a
  * field.
@@ -659,24 +696,6 @@ export function coldTokens(s: CardView): number | undefined {
 export type MenuTarget = ComposerContext;
 
 /**
- * Use the unfiltered draft model list because no launch line exists to make
- * a window unreachable, and drafts may cross brands. modelsForSession narrows
- * running sessions for that launch-line reason. No cold-cache band: a draft
- * has no conversation to re-send and cannot incur that cost.
- */
-function launchMenuBody(m: HTMLElement, ctx: ComposerContext, onPicked: () => void): void {
-  const cwd = ctx.identity.kind === 'draft' ? ctx.identity.cwd : ctx.cwd;
-  if (cwd === undefined) return;
-  const ticked: Ticked = { value: ctx.model ?? '', window: ctx.window };
-  modelItems(m, ctx.models, ticked, (model) => {
-    chats.setDraftPick(cwd, pickOf(model));
-    chats.clearDraftReason(cwd);
-    closeMenu();
-    onPicked();
-  });
-}
-
-/**
  * What the model menu holds, wherever it was opened from: every model the CLI
  * named, ticked at the one in force, and what a switch costs.
  *
@@ -700,78 +719,57 @@ function launchMenuBody(m: HTMLElement, ctx: ComposerContext, onPicked: () => vo
  * to relabel is the lag this whole path exists to remove.
  */
 export function modelMenuBody(m: HTMLElement, target: MenuTarget, onPicked: () => void): void {
-  if (!target.bound) {
-    launchMenuBody(m, target, onPicked);
-    return;
-  }
-  const s = target.thread;
-  if (!s) return;
-  const list = target.models;
-  // A held window is the next message's choice; otherwise this running menu
-  // reads the session, never the gear. No window ticks the model's first row.
-  const running: Ticked = {
-    value: target.model ?? '',
-    window: target.window
-  };
-  // Use the gear's builder with modelsForSession's brand and fixed stamps.
-  // Keep all rows: unreachable windows dim rather than disappear. A gear list
-  // is stamped for no session, so none of its windows is fixed.
-  modelItems(m, list, running, (model) => {
-    const effort = effortFor(list, model.value, model.window, ui.state.efforts[model.value]);
-    chats.chooseTarget(s.pid, {
-      model: model.value,
-      ...(model.window === undefined ? {} : { window: model.window }),
-      ...(effort === undefined ? {} : { effort })
-    });
-    closeMenu();
-    onPicked();
+  const session = target.thread;
+  const cwd = target.cwd;
+  if (!target.bound && cwd === undefined) return;
+  const cold = session ? coldTokens(session) : undefined;
+  modelChoices(m, {
+    models: target.models,
+    target: { ...target.pick, model: target.model, window: target.window, effort: target.effort },
+    efforts: ui.state.efforts,
+    cold:
+      target.bound && session
+        ? cold === undefined
+          ? 'Switching re-sends this conversation cold, at no cache discount, on the next turn.'
+          : `Switching re-sends this conversation cold — about ${ctxLabel(cold)} tokens at no cache discount, on the next turn.`
+        : undefined,
+    onPick: (pick) => {
+      if (!pick) return;
+      if (!target.bound && cwd !== undefined) {
+        chats.setDraftPick(cwd, pick);
+        chats.clearDraftReason(cwd);
+      } else if (session)
+        chats.chooseTarget(session.pid, {
+          model: pick.model,
+          ...(pick.window === undefined ? {} : { window: pick.window }),
+          ...(pick.effort === undefined ? {} : { effort: pick.effort })
+        });
+      onPicked();
+    }
   });
-  // H4(3). The card already colours a cold cache; picking a model must not
-  // look free when it throws the whole prompt cache away. Drawn whether or not
-  // the figure is known — the cost is true either way, and a sentence that
-  // disappears when nothing can count it goes quiet in exactly the case
-  // nobody knows the size of the bill.
-  const cold = coldTokens(s);
-  // A band, not the last row of the list: it is true of every pick above it, so
-  // scrolling it out of sight was the one thing it could not afford to do.
-  m.append(
-    el(
-      'div',
-      'mwarn',
-      cold === undefined
-        ? 'Switching re-sends this conversation cold, at no cache discount, on the next turn.'
-        : `Switching re-sends this conversation cold — about ${ctxLabel(cold)} tokens at no cache discount, on the next turn.`
-    )
-  );
 }
 
-/** The selected model's native effort values. */
 export function effortMenuBody(m: HTMLElement, target: MenuTarget, onPicked: () => void): void {
-  const session = target.thread;
-  const held = target.target;
-  const models = target.models;
-  const model = resolveModel(models, session?.model, target.model, target.window);
-  if (!model?.efforts?.length) return;
-  const current = target.effort;
-  for (const effort of model.efforts) {
-    m.append(
-      effortPick(
-        effort.value,
-        effort.value === current,
-        () => {
-          if (!target.bound && target.identity.kind === 'draft') {
-            chats.setDraftPick(target.identity.cwd, { ...target.pick, effort: effort.value });
-            chats.clearDraftReason(target.identity.cwd);
-          } else if (session) {
-            chats.chooseTarget(session.pid, { ...held, effort: effort.value });
-          }
-          closeMenu();
-          onPicked();
-        },
-        effort.value === model.defaultEffort
-      )
-    );
-  }
+  effortChoices(m, {
+    models: target.models,
+    efforts: ui.state.efforts,
+    target: {
+      ...target.pick,
+      ...target.target,
+      model: target.model,
+      window: target.window,
+      effort: target.effort
+    },
+    onPick: (pick) => {
+      if (!pick) return;
+      if (!target.bound && target.identity.kind === 'draft') {
+        chats.setDraftPick(target.identity.cwd, { ...target.pick, effort: pick.effort });
+        chats.clearDraftReason(target.identity.cwd);
+      } else if (target.thread)
+        chats.chooseTarget(target.thread.pid, { ...target.target, effort: pick.effort });
+      onPicked();
+    }
+  });
 }
 
 /**

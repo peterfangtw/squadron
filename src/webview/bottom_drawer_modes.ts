@@ -1,3 +1,4 @@
+import * as routines from './routines_mode';
 import * as awakeRows from '../ui/awake_rows';
 import * as agentsSheet from './agents_sheet';
 import * as awakeSheet from './awake_sheet';
@@ -73,6 +74,21 @@ const MODES = [
     empty: () => workflows.empty(),
     emptyWord: () => workflows.emptyWord(),
     bar: () => ({ tip: 'All workflows', label: 'All workflows' }),
+    beat: false
+  },
+  {
+    id: 'routines',
+    barClass: 'hpill routines-tab',
+    title: 'Routines',
+    focusWord: '.routines-tab',
+    available: true,
+    columns: true,
+    note: () => 'Reminders for this project. Every run starts with your click.',
+    paint: () => routines.paint(),
+    repaint: (active: boolean) => routines.repaint(active),
+    closed: () => routines.closed(),
+    bar: () => routines.bar(),
+    badge: 'count',
     beat: false
   },
   {

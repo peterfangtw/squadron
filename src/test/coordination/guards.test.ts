@@ -15,10 +15,9 @@ describe('spawn and held report bounds', () => {
 });
 
 describe('send cost guards', () => {
-  it("takes the stale bound from Claude's lifetime and holds the context ceiling at 80%", () => {
+  it("takes the stale bound from Claude's lifetime", () => {
     const claude = DEFAULT_WARM_POLICY.ttlMs.claude;
     assert.equal(guards.TARGET_STALE_MS, claude - guards.staleMargin(claude));
-    assert.equal(guards.CONTEXT_MAX, 80);
   });
 
   it('expires a wait at least a minute before its requester goes stale', () => {

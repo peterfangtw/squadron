@@ -113,6 +113,17 @@ describe('grokAuthStatus', () => {
     assert.deepEqual(await grokAuthStatus(dir), { loggedIn: true });
   });
 
+  it('is signed out after logout clears the credential map', async () => {
+    const dir = path.join(home, 'logout-home');
+    const file = path.join(dir, '.grok', 'auth.json');
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, JSON.stringify({ 'https://auth.x.ai::client': { key: 'x' } }));
+    assert.deepEqual(await grokAuthStatus(dir), { loggedIn: true });
+
+    await fs.writeFile(file, '{}');
+    assert.deepEqual(await grokAuthStatus(dir), { loggedIn: false });
+  });
+
   it('treats malformed JSON as signed in without email', async () => {
     const dir = path.join(home, 'bad-json-home');
     const file = path.join(dir, '.grok', 'auth.json');

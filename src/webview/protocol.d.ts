@@ -1521,6 +1521,7 @@ type ThreadPatchMessage = ThreadPublication & {
 
 type StateMessage = {
   type: 'state';
+  routines?: RoutineScopeView;
   groups: GroupView[];
   /** Effective launch directory: first IDE folder, otherwise the managed scratch root.
    * Independent of session directories and the repo roots used to group cards. */
@@ -2144,6 +2145,7 @@ type ConfirmModalMessage = ConfirmationView & {
 };
 
 type PanelMessage =
+  | RoutineReply
   | TicketDetailMessage
   | ConfirmModalMessage
   | McpActionProgressMessage
@@ -2399,6 +2401,7 @@ interface WorkflowOrderStatement {
 
 /** Webview -> host. */
 type WebviewMessage =
+  | RoutineWebviewMessage
   /**
    * This half has just loaded and has nothing on screen.
    *
@@ -2865,3 +2868,82 @@ type WebviewIcons = {
 
 /** Injected by `panel.ts` in a script ahead of this one. */
 declare const ICONS: WebviewIcons;
+
+type RoutineScopeToken = { repoKey: string; launchCwd: string };
+type RoutineRowView = {
+  id: string;
+  definitionRevision: number;
+  name: string;
+  enabled: boolean;
+  schedule: import('../core/routines/types').Schedule;
+  status:
+    | 'Upcoming'
+    | 'Due'
+    | 'Running'
+    | 'Awaiting completion'
+    | 'Completed'
+    | 'Needs attention'
+    | 'Skipped'
+    | 'Paused'
+    | 'Starting'
+    | 'In another window'
+    | 'Unresolved';
+  occurrenceKey: string;
+  nextDueAt?: number;
+  due: boolean;
+  runId?: string;
+  sessionAction?: 'openLocal' | 'switchWindow' | 'unavailable';
+  location?: string;
+  windowLabel?: string;
+  reason?: string;
+  lastRun?: { at: number; done: boolean; note?: string };
+};
+type RoutineScopeView =
+  | { kind: 'loading' }
+  | { kind: 'unavailable'; reason: string }
+  | {
+      kind: 'ready';
+      scope: RoutineScopeToken;
+      repoRoot: string;
+      label: string;
+      revision: number;
+      rows: RoutineRowView[];
+    };
+type RoutineRequestBase = { operationId: string; scope: RoutineScopeToken };
+type RoutineWebviewMessage = RoutineRequestBase &
+  (
+    | { type: 'openRoutine'; id: string }
+    | {
+        type: 'saveRoutine';
+        id?: string;
+        expectedDefinitionRevision: number | null;
+        draft: import('../core/routines/types').Draft;
+      }
+    | { type: 'duplicateRoutine' | 'deleteRoutine'; id: string; expectedDefinitionRevision: number }
+    | {
+        type: 'setRoutineEnabled';
+        id: string;
+        expectedDefinitionRevision: number;
+        enabled: boolean;
+      }
+    | { type: 'skipRoutine'; id: string; expectedDefinitionRevision: number; occurrenceKey: string }
+    | {
+        type: 'runRoutine';
+        id: string;
+        expectedDefinitionRevision: number;
+        occurrenceKey: string;
+        runId: string;
+      }
+    | { type: 'openRoutineSession' | 'recheckRoutine'; id: string; runId: string }
+  );
+type RoutineReply = ({ type: 'routineLoaded' } | { type: 'routineActionResult' }) & {
+  operationId: string;
+  action: RoutineWebviewMessage['type'];
+  result: {
+    kind: 'ok' | 'conflict' | 'notFound' | 'unavailable' | 'invalid' | 'busy' | 'refused' | 'io';
+    reason?: string;
+    id?: string;
+    definitionRevision?: number;
+    draft?: import('../core/routines/types').Draft;
+  };
+};

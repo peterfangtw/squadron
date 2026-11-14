@@ -74,9 +74,9 @@ export const css = /* css */ `
     #board.drawer-open #bottomhub { transition: opacity 140ms ease, visibility 140ms; }
   }
 
-  /* What the bar carries: one word per board-wide surface. Workflows opens
-     the sheet and Warm opens that sheet's other mode. The count is the one
-     figure here; tabular numerals keep a changing digit from sliding the
+  /* One word per board-wide surface. Numeric hints share Warm's presentation
+     across modules, including words moved into the overflow menu.
+     Tabular numerals keep a changing digit from sliding the
      word beside it. */
   #bottomhub .wmore, #bottomhub .hpill { flex: none; min-height: 24px; display: inline-flex;
                    align-items: center; justify-content: center; padding: 0 10px;
@@ -109,7 +109,7 @@ export const css = /* css */ `
   #bottomhub .bottomhub-overflow > button:not([aria-disabled="true"]):hover {
     filter: brightness(1.12); }
 
-  #bottomhub .warm-tab { gap: 5px; }
+  #bottomhub .hpill:has(> .num) { gap: 5px; }
   #bottomhub .hpill[aria-expanded="true"] {
     background: var(--av-list-hover); border-color: var(--av-menu-border); }
   /* Remote's dot: the card's own status hues (css/board.ts), so every preset
@@ -138,7 +138,7 @@ export const css = /* css */ `
     @keyframes rdpulse { 50% { opacity: .35; } }
   }
   body.warm-paused #bottomhub .remote-tab .dot.pending { animation-play-state: paused; }
-  #bottomhub .warm-tab .num { font-size: var(--av-fs-sm); color: var(--av-fg-2);
+  #bottomhub .hpill > .num { font-size: var(--av-fs-sm); color: var(--av-fg-2);
                            font-variant-numeric: tabular-nums; min-width: 10px; }
   .pill-stack { position: absolute; bottom: calc(100% + 8px);
                 display: flex; flex-direction: column; align-items: flex-start;

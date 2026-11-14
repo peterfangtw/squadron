@@ -1,6 +1,7 @@
 import * as control from './control';
 import * as platform from './platform';
 import * as scan from './scan';
+import * as processes from './platform/processes';
 import type { SessionTransport } from './session';
 
 /** Root and known members only; process snapshots do not establish containment. */
@@ -8,12 +9,30 @@ import type { SessionTransport } from './session';
 export type CleanupResult = 'gone' | 'unresolved' | 'failed';
 export const CLEANUP_WAIT_MS = 5_000;
 const STDIN_GRACE_MS = 5_000;
-const CLI_REAP_GRACE_MS = 8_000;
+export const CLI_REAP_GRACE_MS = 8_000;
 
 /** All a lifetime reads of its child: the native pid, its native exit, and its owner's own ask to end. */
 export type NativeChild = Pick<SessionTransport, 'pid' | 'exited' | 'close'>;
 
+export type DurableObservation = {
+  begin(): Promise<number>;
+  commit(
+    generation: number,
+    members: readonly control.TreeMember[],
+    table: scan.ProcessTable,
+    coverage: 'observed' | 'limited',
+    root?: control.TreeMember & { startSource: processes.StartSource }
+  ): Promise<void>;
+  /**
+   * The root exited with no native identity ever established and nothing else
+   * retained: no later observation can learn a member. Records why, without
+   * claiming cleanup; ownership stays unresolved.
+   */
+  unprovable?(): Promise<void>;
+};
+
 type LifetimeOwner = {
+  durableObservation?: DurableObservation;
   remember?(members: readonly control.TreeMember[]): Promise<void>;
   gone?(): Promise<void>;
   observed?(result: CleanupResult): void;
@@ -21,6 +40,8 @@ type LifetimeOwner = {
 
 /** Owns the native child before an adapter can fail, and after opening settles. */
 export class SessionLifetime {
+  private observationQueue: Promise<unknown> = Promise.resolve();
+  private rootIdentity?: control.TreeMember & { startSource: processes.StartSource };
   private readonly captured: Promise<scan.ProcessTable>;
   private readonly cleanup = new Set<() => void>();
   private stopping?: Promise<CleanupResult>;
@@ -34,6 +55,9 @@ export class SessionLifetime {
   private retry?: NodeJS.Timeout;
   private retryDelay = 1_000;
   private released = false;
+  private initialSettled = false;
+  /** Durable ownership that no observation can ever resolve, recorded once. */
+  private unprovableRecorded = false;
   private resolveTermination!: () => void;
   readonly terminated: Promise<void> = new Promise((resolve) => {
     this.resolveTermination = resolve;
@@ -43,16 +67,13 @@ export class SessionLifetime {
     private readonly transport: NativeChild,
     private readonly owner: LifetimeOwner = {}
   ) {
-    this.captured = scan.scanProcesses(true).then(async (table) => {
-      const pid = transport.pid;
-      const startedAt = pid === undefined ? undefined : table.starts.get(pid);
-      if (pid !== undefined && startedAt !== undefined && !this.nativeRootExited)
-        this.members.set(pid, control.snapshotMember(pid, table));
-      await this.remember(table);
-      return table;
-    });
+    this.captured = this.readTable(true);
     // A failed durable observation stays owned; close/reconcile retries the write.
-    void this.captured.catch(() => undefined);
+    void this.captured
+      .catch(() => undefined)
+      .then(() => {
+        this.initialSettled = true;
+      });
     void transport.exited?.then((native) => {
       if (!native) return;
       this.nativeRootExited = true;
@@ -74,13 +95,10 @@ export class SessionLifetime {
     if (this.stopping) return this.stopping;
     this.closed = true;
     this.stopping = this.observe(async () => {
-      const closing = await scan.scanProcesses(true);
+      if (this.owner.durableObservation) await this.captured.catch(() => undefined);
+      const closing = await this.readTable();
       await this.captured.catch(() => undefined);
-      try {
-        await this.remember(closing);
-      } finally {
-        this.closePipes();
-      }
+      this.closePipes();
       return this.reap(closing);
     });
     return this.stopping;
@@ -126,13 +144,12 @@ export class SessionLifetime {
 
   reconcile(): Promise<CleanupResult> {
     if (this.reconciling) return this.reconciling;
+    if (this.unprovableRecorded) return Promise.resolve('unresolved');
     clearTimeout(this.retry);
     this.retry = undefined;
     const previous = this.close();
     const next = previous.then((result) =>
-      result === 'gone'
-        ? result
-        : this.observe(async () => this.reap(await scan.scanProcesses(true)))
+      result === 'gone' ? result : this.observe(async () => this.reap(await this.readTable()))
     );
     this.stopping = next;
     this.reconciling = next.finally(() => {
@@ -145,7 +162,14 @@ export class SessionLifetime {
     let result: CleanupResult = 'unresolved';
     try {
       result = await work();
-      if (result === 'gone' && !this.released) {
+      if (this.unprovable()) {
+        // Native exit is not durable absence: no identity was ever retained.
+        result = 'unresolved';
+        if (!this.unprovableRecorded) {
+          await this.owner.durableObservation?.unprovable?.();
+          this.unprovableRecorded = true;
+        }
+      } else if (result === 'gone' && !this.released) {
         await this.owner.gone?.();
         this.released = true;
         this.resolveTermination();
@@ -158,7 +182,7 @@ export class SessionLifetime {
     if (result === 'gone') {
       clearTimeout(this.retry);
       this.retry = undefined;
-    } else if (!this.retry) {
+    } else if (!this.retry && !this.unprovableRecorded) {
       this.retry = setTimeout(() => {
         this.retry = undefined;
         void this.reconcile();
@@ -176,7 +200,11 @@ export class SessionLifetime {
     const startedAt = table.starts.get(pid);
     // A later PID occupant cannot establish an identity missed at spawn.
     const root = this.members.get(pid);
-    if (startedAt !== undefined && root?.startedAt === startedAt) {
+    if (
+      startedAt !== undefined &&
+      root?.startedAt === startedAt &&
+      (!this.owner.durableObservation || table.complete)
+    ) {
       for (const member of control.snapshotTree(pid, table)) this.members.set(member.pid, member);
       this.members.set(pid, control.snapshotMember(pid, table));
     } else this.coverageLimited = true;
@@ -202,31 +230,60 @@ export class SessionLifetime {
     }
   }
 
-  /**
-   * The retained members deepest first by their current ancestry, the root
-   * last. Depth counts the chain of retained, still-exact parents in this
-   * table, so a member whose parent is gone or a stranger (reparented) ranks
-   * with the shallowest, still before the root. Ties keep the order retained.
-   */
-  private ordered(table: scan.ProcessTable): control.TreeMember[] {
-    const pid = this.transport.pid;
-    const depth = (member: control.TreeMember): number => {
-      if (member.pid === pid) return -1;
-      let found = 0;
-      const seen = new Set([member.pid]);
-      for (let parent = table.parents.get(member.pid); parent !== undefined && !seen.has(parent);) {
-        const known = this.members.get(parent);
-        if (!known || table.starts.get(parent) !== known.startedAt) break;
-        seen.add(parent);
-        found++;
-        parent = table.parents.get(parent);
+  /** Only the initial capture can establish root provenance. */
+  get initialRoot(): (control.TreeMember & { startSource: processes.StartSource }) | undefined {
+    return this.rootIdentity;
+  }
+
+  private readTable(initial = false): Promise<scan.ProcessTable> {
+    const read = async (): Promise<scan.ProcessTable> => {
+      const durable = this.owner.durableObservation;
+      const generation = durable ? await durable.begin() : undefined;
+      const table = await scan.scanProcesses(true);
+      const pid = this.transport.pid;
+      if (initial && pid !== undefined && !this.nativeRootExited && table.starts.has(pid)) {
+        const root = control.snapshotMember(pid, table);
+        if (table.complete && processes.isStartSource(table.startSource))
+          this.rootIdentity = { ...root, startSource: table.startSource };
+        if (!durable || this.rootIdentity) this.members.set(pid, root);
       }
-      return found;
+      // A changed native clock cannot supply absence or new ownership evidence.
+      if (durable && this.rootIdentity && table.startSource !== this.rootIdentity.startSource)
+        table.complete = false;
+      await this.remember(table);
+      if (durable && generation !== undefined)
+        await durable.commit(
+          generation,
+          this.knownMembers,
+          table,
+          this.descendantCoverage,
+          this.rootIdentity
+        );
+      return table;
     };
-    return this.knownMembers
-      .map((member, at) => ({ member, at, depth: depth(member) }))
-      .sort((a, b) => b.depth - a.depth || a.at - b.at)
-      .map(({ member }) => member);
+    if (!this.owner.durableObservation) return read();
+    const next = this.observationQueue.then(read);
+    this.observationQueue = next.catch(() => undefined);
+    return next;
+  }
+
+  /**
+   * Durable ownership with no root identity after the initial capture settled,
+   * no retained member and a native root exit. `remember` only adds members
+   * through the exact root or beneath retained ones, so retrying learns nothing.
+   */
+  private unprovable(): boolean {
+    return (
+      this.owner.durableObservation !== undefined &&
+      this.initialSettled &&
+      this.nativeRootExited &&
+      this.rootIdentity === undefined &&
+      this.members.size === 0
+    );
+  }
+
+  private ordered(table: scan.ProcessTable): control.TreeMember[] {
+    return control.orderLifetimeMembers(this.transport.pid, this.knownMembers, table);
   }
 
   private async reap(closing: scan.ProcessTable): Promise<CleanupResult> {
@@ -234,7 +291,6 @@ export class SessionLifetime {
     if (pid === undefined) return 'gone';
     // Keep the native observation even if the first persistence attempt failed.
     await this.captured.catch(() => undefined);
-    await this.remember(closing);
     if (this.provedGone(closing)) return 'gone';
     const startedAt = this.members.get(pid)?.startedAt;
     if (startedAt === undefined) {
@@ -244,15 +300,13 @@ export class SessionLifetime {
     if (!closing.complete) return 'unresolved';
     if (this.absent(closing)) return 'gone';
     await this.stdinGrace();
-    const fresh = await scan.scanProcesses(true);
+    const fresh = await this.readTable();
     if (!fresh.complete) return 'unresolved';
-    await this.remember(fresh);
     if (this.absent(fresh)) return 'gone';
-    platform.processes.signal(this.ordered(fresh), 'stop', fresh);
+    this.signal(this.ordered(fresh), 'stop', fresh);
     await this.pause(control.REAP_GRACE_MS);
-    const stubborn = await scan.scanProcesses(true);
+    const stubborn = await this.readTable();
     if (!stubborn.complete) return 'unresolved';
-    await this.remember(stubborn);
     let root = stubborn;
     if (stubborn.starts.get(pid) === startedAt) {
       platform.processes.signal(
@@ -261,18 +315,16 @@ export class SessionLifetime {
         stubborn
       );
       await this.pause(CLI_REAP_GRACE_MS - control.REAP_GRACE_MS);
-      root = await scan.scanProcesses(true);
+      root = await this.readTable();
       if (!root.complete) return 'unresolved';
-      await this.remember(root);
     }
     const members = this.ordered(root);
-    const outcomes = platform.processes.signal(members, 'kill', root);
+    const outcomes = this.signal(members, 'kill', root);
     await this.pause(100);
-    const final = await scan.scanProcesses(true);
+    const final = await this.readTable();
     if (!final.complete) return 'unresolved';
     // The confirmation read is an observation too: what it shows below a
     // retained member is ours before absence is judged.
-    await this.remember(final);
     if (this.absent(final)) return 'gone';
     const refused = members.some(
       (member, at) =>
@@ -280,6 +332,21 @@ export class SessionLifetime {
         (outcomes[at] === 'refused' || typeof outcomes[at] === 'object')
     );
     return refused ? 'failed' : 'unresolved';
+  }
+
+  private signal(
+    members: readonly control.TreeMember[],
+    intent: 'stop' | 'kill',
+    table: scan.ProcessTable
+  ): ReturnType<typeof platform.processes.signal> {
+    return members.flatMap((member) =>
+      platform.processes.signal(
+        [member],
+        intent,
+        table,
+        member.pid === this.transport.pid ? { alone: true } : undefined
+      )
+    );
   }
 
   private provedGone(table: scan.ProcessTable): boolean {

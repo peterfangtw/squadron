@@ -3,8 +3,8 @@
  * device-code login child.
  *
  * Status is the file, not a spawn. Observed 2026-08-16 (CLI 1.0.4): missing
- * or empty `~/.grok/auth.json` is signed out; a non-empty file is what
- * `authenticate` `cached_token` reads. Email is nested under
+ * or empty `~/.grok/auth.json` is signed out; an empty credential map is also
+ * signed out (1.0.77, 2026-11-14). Email is nested under
  * `https://auth.x.ai::<client-id>`, never top-level. Never log the file.
  *
  * Login is `grok login --device-auth`. Piped, it prints a URL and a
@@ -530,6 +530,9 @@ export async function grokAuthStatus(home?: string): Promise<GrokAuthStatus> {
       raw = JSON.parse(await fs.readFile(file, 'utf8'));
     } catch {
       return { loggedIn: true };
+    }
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length === 0) {
+      return { loggedIn: false };
     }
     const email = emailIn(raw);
     return email ? { loggedIn: true, email } : { loggedIn: true };

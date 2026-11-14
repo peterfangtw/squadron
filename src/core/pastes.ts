@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { PASTES_DIR } from './paths';
 import { DAY_MS, pruneOlderThan } from './prune';
+import * as imagePolicy from './image_policy';
 
 /**
  * An image pasted into the composer, on its way to a session.
@@ -24,12 +25,7 @@ import { DAY_MS, pruneOlderThan } from './prune';
  * read, with a warning we would never see, so an unsupported type must be
  * refused before it is written rather than renamed and hoped over.
  */
-const EXTENSIONS = new Map([
-  ['image/png', 'png'],
-  ['image/jpeg', 'jpg'],
-  ['image/gif', 'gif'],
-  ['image/webp', 'webp']
-]);
+const EXTENSIONS = new Map<string, string>(imagePolicy.FORMATS);
 
 export function extForMedia(mediaType: string): string | undefined {
   return EXTENSIONS.get(mediaType.toLowerCase());

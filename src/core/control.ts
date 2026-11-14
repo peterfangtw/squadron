@@ -141,6 +141,32 @@ function armReap(members: readonly TreeMember[], owner: ReapOwner, processes: Pr
 /** One process a session started, as much of it as outlives the session. */
 export type TreeMember = Member;
 
+/** Retained exact ancestry orders descendants first, with the root always last. */
+export function orderLifetimeMembers(
+  root: number | undefined,
+  members: readonly TreeMember[],
+  table: ProcessTable
+): TreeMember[] {
+  const retained = new Map(members.map((member) => [member.pid, member]));
+  const depth = (member: TreeMember): number => {
+    if (member.pid === root) return -1;
+    let found = 0;
+    const seen = new Set([member.pid]);
+    for (let parent = table.parents.get(member.pid); parent !== undefined && !seen.has(parent);) {
+      const known = retained.get(parent);
+      if (!known || table.starts.get(parent) !== known.startedAt) break;
+      seen.add(parent);
+      found++;
+      parent = table.parents.get(parent);
+    }
+    return found;
+  };
+  return members
+    .map((member, at) => ({ member, at, depth: depth(member) }))
+    .sort((a, b) => b.depth - a.depth || a.at - b.at)
+    .map(({ member }) => member);
+}
+
 /**
  * What `pid` has running below it, taken **while it is still alive**.
  *

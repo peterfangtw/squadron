@@ -1,3 +1,4 @@
+import { FLAGS as ROUTINE_FLAGS } from '../../cli/routine';
 import * as platform from '../../core/platform';
 import * as win32 from '../../core/platform/files/win32';
 import * as assert from 'node:assert/strict';
@@ -462,7 +463,8 @@ describe('the shipped skill documents every flag', () => {
     ['warm', WARM_FLAGS],
     ['spawn', SPAWN_FLAGS],
     ['end', END_FLAGS],
-    ['step', STEP_FLAGS]
+    ['step', STEP_FLAGS],
+    ['routine', ROUTINE_FLAGS]
   ] as const;
 
   /**

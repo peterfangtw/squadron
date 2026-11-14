@@ -18,7 +18,6 @@ import {
   type SendCheck
 } from '../../core/coordination/send';
 import {
-  CONTEXT_MAX,
   MAX_TEXT,
   SEND_BURST,
   SEND_BURST_MS,
@@ -48,9 +47,9 @@ const target = (over: Partial<Recipient> = {}): Recipient => ({
   ...over
 });
 
-/** One target per cost guard, each refused without `--force`. */
+/** A target past its cache-age limit. */
 const cold = target({ updatedAt: NOW - TARGET_STALE_MS - 60_000 });
-const full = target({ contextPct: CONTEXT_MAX + 1 });
+const full = target({ contextPct: 100 });
 
 /** Everything the caller is not testing, held at a value that passes. */
 function ask(over: Partial<SendCheck> = {}) {
@@ -136,11 +135,10 @@ describe('checkVerbSend — what the window decides', () => {
 
   // The window's own check is the one that counts, so a shim reading a stale
   // record cannot carry a cold wake past it — and `force` has to reach it.
-  it('refuses a cold or full target, and takes either on force', () => {
+  it('refuses a cold target until forced and accepts full context without force', () => {
     assert.match(why(ask({ target: cold })), /idle for 56 minutes.*--force/);
-    assert.match(why(ask({ target: full })), /81% of its context.*--force/);
+    assert.equal(ask({ target: full }).ok, true);
     assert.equal(ask({ target: cold, force: true }).ok, true);
-    assert.equal(ask({ target: full, force: true }).ok, true);
   });
 
   it('passes the guardrails through, reason and all', () => {
@@ -544,9 +542,10 @@ describe('checkSend — the cost guards', () => {
   });
 
   describe('a target with no room left', () => {
-    it('refuses past the ceiling and takes one exactly at it', () => {
-      assert.match(why(ask({ target: full })), /ceiling is 80%/);
-      assert.deepEqual(ask({ target: target({ contextPct: CONTEXT_MAX }) }), { ok: true });
+    it('accepts high context without force, including a full or overfull window', () => {
+      for (const contextPct of [80, 81, 100, 120]) {
+        assert.deepEqual(ask({ target: target({ contextPct }) }), { ok: true });
+      }
     });
 
     // Absent is common, and reading it as full would refuse most first sends.
@@ -556,9 +555,8 @@ describe('checkSend — the cost guards', () => {
   });
 
   describe('--force', () => {
-    it('lifts the stale guard and the context guard', () => {
+    it('lifts the stale guard', () => {
       assert.deepEqual(ask({ target: cold, force: true }), { ok: true });
-      assert.deepEqual(ask({ target: full, force: true }), { ok: true });
     });
 
     it('does not lift the window burst', () => {
@@ -596,8 +594,8 @@ describe('checkResolution — whether a wait may wake its requester', () => {
     assert.match(why(resolve({ target: cold })), /idle for 56 minutes/);
   });
 
-  it('refuses a requester over the context ceiling', () => {
-    assert.match(why(resolve({ target: full })), /81% of its context/);
+  it('wakes a requester with a full context window without force', () => {
+    assert.deepEqual(resolve({ target: full }), { ok: true });
   });
 
   it('refuses a requester this window no longer drives', () => {

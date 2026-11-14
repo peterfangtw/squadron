@@ -165,6 +165,8 @@ boot.section('the mascot, in the real IDE', () => {
   });
 
   boot.step("lands on the sheet's top edge, and follows it when it changes height", async () => {
+    if (!(await boot.panel().locator('#bottomhub .warm-tab').isVisible()))
+      await boot.panel().locator('#bottomhub-more').click();
     await boot.panel().locator('#bottomhub .warm-tab').click();
     await boot.panel().locator('#bottomdrawer').waitFor({ state: 'visible', timeout: 10_000 });
     onEdge('sheet', await seat('sheet', 'stand', '#bottomdrawer'));
@@ -215,6 +217,8 @@ boot.section('the mascot, in the real IDE', () => {
             tab.click();
           });
         onEdge('Tickets home after interrupted flight', await seat('bar', 'stand', '#bottomhub'));
+        if (!(await boot.panel().locator('#bottomhub .warm-tab').isVisible()))
+          await boot.panel().locator('#bottomhub-more').click();
         await boot.panel().locator('#bottomhub .warm-tab').click();
         onEdge('Tickets drawer', await seat('sheet', 'stand', '#bottomdrawer'));
         await boot.panel().locator('#bottomdrawer-close').click();

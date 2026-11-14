@@ -989,6 +989,26 @@ section('the panel arriving, in the real IDE', () => {
       await ctx.page.mouse.move(target.x + target.width / 2, target.y + target.height * 0.75, {
         steps: 4
       });
+      const visible = await panel()
+        .locator('.wsins.on')
+        .evaluate((line) => {
+          const ghost = document.querySelector<HTMLElement>('.wsrow.flying');
+          if (!ghost) return false;
+          const marker = line as HTMLElement;
+          const box = marker.getBoundingClientRect();
+          // Hit testing normally skips both pointer-transparent overlays.
+          marker.style.pointerEvents = 'auto';
+          ghost.style.pointerEvents = 'auto';
+          try {
+            return (
+              document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === line
+            );
+          } finally {
+            marker.style.removeProperty('pointer-events');
+            ghost.style.removeProperty('pointer-events');
+          }
+        });
+      assert.ok(visible, 'the insertion line paints above the carried row and New workflow');
       await ctx.page.mouse.up();
     };
 

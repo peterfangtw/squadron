@@ -99,6 +99,7 @@ export function openPanel(t: TestContext, saved?: PanelState): Panel {
         }
       };
       (window as unknown as { acquireVsCodeApi: () => WebviewApi }).acquireVsCodeApi = () => api;
+      window.structuredClone = structuredClone;
       // jsdom has no layout, so it ships no `scrollIntoView` at all — not a
       // no-op, an absent property. Every keyboard-walked list in here keeps its
       // row in view with one, and unstubbed the call throws mid-paint and takes

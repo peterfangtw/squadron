@@ -10,7 +10,7 @@ type Guide = {
 };
 
 const CALLER = '--caller-session-id <sessionId>  Default: the caller ID from the CLI environment.';
-const FORCE = '--force  Lift stale-cache and context guards only. Ask the user before using it.';
+const FORCE = '--force  Lift the stale-cache guard only. Ask the user before using it.';
 /** Every write verb, by its installed name. */
 const WRITE_VERBS = VERBS.filter((v) => v.write)
   .map((v) => `squadron-${v.name}`)
@@ -23,20 +23,46 @@ const SEND_RULES = [
   GATED,
   'An idle target starts a turn. A busy target holds a plain message until its turn ends.',
   'The cache guard reserves 1/12 of the cache lifetime. Without lifetime evidence, the idle bound is 55 minutes.',
-  'Context above 80% is refused. Missing context evidence does not mean empty context.',
+  'Context size does not restrict delivery; each agent manages its own compaction.',
   'The receiving window permits 10 sends, answers and wait deliveries per rolling minute. Force cannot lift this limit.',
   'Background sessions cannot receive messages.'
 ];
 const SEND_RECOVERY = [
   'For exit 4, inspect the printed request ID under ~/.squadron/actions/ before retrying.',
   'Acceptance does not prove consumption. Read the target transcript to check delivery and interrupt results.',
-  'For a stale or full target, report its cost and message purpose to the user before requesting force.'
+  'For a stale target, report its cost and message purpose to the user before requesting force.'
 ];
 const WINDOW = 'No live IDE window with Squadron.';
 const FAILURE =
   'Submission, reply-format or machine failure. Read stderr before deciding whether to retry.';
 
 const GUIDES = {
+  routine: {
+    purpose: 'Mark the current session’s associated routine run completed.',
+    options: [
+      'done  Complete the associated run.',
+      '--run-id <uuid>  Required run ID from the first prompt.',
+      '--note <text>  Optional note, at most 200 characters.'
+    ],
+    result: 'Completes the run once. Repeating done from the same receiver is safe.',
+    rules: [
+      GATED,
+      'Only the associated session may report done, after judging the task complete.',
+      'Idle, normal turn completion and workflow completion never complete a routine.',
+      'There is no peer target, caller override or force flag.'
+    ],
+    recovery: [
+      'After a write failure, retry the same run ID.',
+      'If Orchestration is off, enable it before retrying done.'
+    ],
+    exits: {
+      0: 'Completed or already completed.',
+      2: offToo('Missing run, foreign receiver or invalid phase.'),
+      3: WINDOW,
+      4: 'Receiver proof timed out; no mutation occurred.',
+      5: 'Routine state is unreadable or could not be committed.'
+    }
+  },
   list: {
     purpose: 'List sessions across this machine, including sessions in other IDE windows.',
     options: ['--mine  Include only descendants of the caller.', CALLER],

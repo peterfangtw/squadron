@@ -15,7 +15,6 @@ import type { Authored } from '../transcript';
 import { ORCHESTRATION_OFF } from '../verbs';
 import type { CountedAction } from './actions';
 import {
-  CONTEXT_MAX,
   MAX_TEXT,
   SEND_BURST,
   SEND_BURST_MS,
@@ -67,7 +66,7 @@ export type SendCheck = {
   text: string;
   now: number;
   actions: readonly CountedAction[];
-  /** Lifts the stale and context guards, and nothing else (`guards.ts`). */
+  /** Lifts the stale-cache guard, and nothing else (`guards.ts`). */
   force?: boolean;
 };
 
@@ -459,7 +458,7 @@ export function staleAt(target: Recipient): { at: number; stamped: boolean } {
   return { at: target.updatedAt + bound, stamped: false };
 }
 
-/** The stale or context refusal, or nothing when waking the target is cheap. */
+/** The stale-cache refusal, or nothing when waking the target is cheap. */
 function costRefusal(target: Recipient, now: number): string | undefined {
   const stale = staleAt(target);
   const idle = now - target.updatedAt;
@@ -471,12 +470,6 @@ function costRefusal(target: Recipient, now: number): string | undefined {
         : `has been idle for ${Math.round(idle / 60_000)} minutes`) +
       `, and ${describeContext(target)}. Waking it may re-send that context at full price. ` +
       'Pass --force to send anyway.'
-    );
-  }
-  if (target.contextPct !== undefined && target.contextPct > CONTEXT_MAX) {
-    return (
-      `Session ${target.pid} is at ${target.contextPct}% of its context; the ceiling ` +
-      `is ${CONTEXT_MAX}%. Pass --force to send anyway.`
     );
   }
   return undefined;

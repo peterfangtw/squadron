@@ -102,7 +102,7 @@ Every verb uses this table. A verb's own section lists only where it differs.
 Operating rules:
 
 - `--force` (send, answer): ask the user first. Say which session, how stale
-  or how full it is, and what the message is for.
+  it is, and what the message is for.
 - "Session verbs are off. Turn on Orchestration in Agents on the hub." (exit
   2) means Orchestration (`squadron.orchestrators.enabled`) is off. Every verb
   that acts gets it: send, answer, spawn, end, rename, warm, wait, step,
@@ -239,7 +239,8 @@ and `--off` set the switch, never toggle it, and `list` does not show it.
 ## send
 
 A message to any session on the board, marked as from you. An idle target
-wakes on it; a busy one holds it until its turn ends.
+wakes on it; a busy one holds it until its turn ends. Context size never
+refuses delivery; agents manage their own compaction.
 
 ```sh
 ~/.squadron/bin/squadron-send --pid <n> --text <message> [--interrupt] [--force] [--caller-session-id <sessionId>]
@@ -248,7 +249,7 @@ wakes on it; a busy one holds it until its turn ends.
 - `--interrupt`: ends the target's turn in flight and delivers now. Nothing
   confirms the cut landed; a failed cut leaves the message held, and
   `(held, N)` on stdout is not proof either way. Read the target's transcript.
-- `--force`: lifts the stale and context guards only.
+- `--force`: lifts the stale-cache guard only.
 - `--text`: nonblank, at most 16,000 characters. Attribution and maintenance
   wrappers are written by Squadron; send only the message itself.
 - If the target has a wait open over you, a plain send is held until that
@@ -261,7 +262,6 @@ Refusals:
   its cache lifetime), or past the equivalent idle bound. With no lifetime
   evidence the idle fallback is 55 minutes. Read the refusal's context cost.
   `--force` lifts it.
-- Target context over 80%. `--force` lifts it.
 - Burst: 10 per rolling minute per receiving window, shared by every sender,
   answer and wait. Nothing lifts it.
 - Background session: nothing can send to it.
@@ -471,3 +471,19 @@ already here.
 Exits: 3 = no live IDE window, for every subcommand. 5 = the record or a wait
 could not be read or written. A `next` that opens lanes can exit 4: the lane stays
 recorded, so do not open it another way.
+
+
+## routine
+
+A routine’s first prompt names its exact run and completion command:
+
+```sh
+~/.squadron/bin/squadron-routine done --run-id <uuid> [--note <text>]
+```
+
+Call it only after judging the requested task finished. Idle, a successful turn
+and workflow completion do not mark the routine done. Only the associated
+session receiver can complete it; there is no peer target or force flag. Notes
+are at most 200 characters. Repeating done for the same run is safe. Like step,
+this command requires Orchestration on and a live owning window; if off, enable
+it and retry the same command. Never report done merely to release a run.

@@ -85,6 +85,7 @@ const CLI_NAMES = [
   'squadron-answer',
   'squadron-wait',
   'squadron-step',
+  'squadron-routine',
   'squadron-attach',
   'squadron-fetch-file',
   'execution',

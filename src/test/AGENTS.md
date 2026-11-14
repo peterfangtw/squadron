@@ -479,6 +479,9 @@ smoke/
   diff.smoke.ts      a pill's counts: the hue they resolve to, and the tab they
                      open — against HEAD, re-read, and with the file gone
   session.smoke.ts   one owned session's whole life, in sequence
+  routines.smoke.ts  two independent native inputs, save/enable without spawn,
+                     IDE reload/deadline reminders, due-pill geometry, fresh-session admission and a real installed
+                     done command from the associated CLI's native tool child
   composer_editor.smoke.ts the composer's native editing, its own child
   session_end.smoke.ts End, exit, pipe-error and family sections, each
                      its own session
@@ -1082,3 +1085,16 @@ it and the `VSCODE_*` block; on the same flags as before, the workbench is up in
 ~2.5s. Anything else here that spawns the IDE needs the same scrub.
 
 `playwright-core` is also what the ad-hoc Chromium rigs in the motion tasks use.
+
+## Repository routines
+
+`routines/routine_schedule.test.ts` owns occurrence identity, coalescing, first
+interval credit and isolated-process DST cases. `routine_store.test.ts` owns
+real-file mutation/admission races, worktree/alias identity, stale saves, native
+writer tenure, explicit completion and image integrity. `routine_mode.test.ts`
+drives shared input isolation, save acknowledgments/failures and delayed files
+through the real document. Native observations stay in session_lifetime.test.ts.
+routine_start.test.ts owns real-store admission and native handoff policy, plus
+request scope validation and completion instructions. routine_cli.test.ts owns
+the installed done command with real native caller ancestry and exit outcomes.
+The stock-host routines scenario covers real pipe/receiver/CLI handoff and layout.

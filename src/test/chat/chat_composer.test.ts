@@ -964,7 +964,9 @@ describe('the composer input area', () => {
   });
 
   it('caps the box at ten lines, rows the empty hint, and does not stretch Send', () => {
-    const sheet = panelStylesheet().replace(/\/\*[\s\S]*?\*\//g, '');
+    const sheet = panelStylesheet()
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/:is\((#[\w-]+), \.[\w-]+\)/g, '$1');
     const input = sheet.match(/#input \{([^}]*)\}/)?.[1] ?? '';
     assert.match(input, /max-height:\s*calc\(10lh\)/);
     const root = sheet.match(/#input \.ProseMirror \{([^}]*)\}/)?.[1] ?? '';

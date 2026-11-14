@@ -14,6 +14,88 @@ import * as darwin from '../../core/platform/processes/darwin';
 import type * as processes from '../../core/platform/processes';
 
 describe('native session lifetime', () => {
+  it('allows native terminateOnClose after a failed durable begin without table signaling or release', async (t) => {
+    const transport = childTransport({
+      bin: executables.named(process.execPath),
+      cwd: process.cwd(),
+      args: ['-e', 'process.stdin.resume();console.log("{}");'],
+      terminateOnClose: true
+    });
+    t.after(async () => {
+      transport.close();
+      await transport.exited;
+    });
+    await new Promise<void>((resolve) => transport.onLine(() => resolve()));
+    let signals = 0;
+    let releases = 0;
+    t.mock.method(platform.processes, 'signal', () => {
+      signals++;
+      return [];
+    });
+    const lifetime = new SessionLifetime(transport, {
+      durableObservation: {
+        begin: () => Promise.reject(new Error('durable write refused')),
+        commit: () => Promise.resolve()
+      },
+      gone: () => {
+        releases++;
+        return Promise.resolve();
+      }
+    });
+    await assert.rejects(lifetime.capture(), /durable write refused/);
+    assert.equal(await lifetime.shutdown(), 'unresolved');
+    assert.equal(await transport.exited, true);
+    assert.equal(signals, 0);
+    assert.equal(releases, 0);
+  });
+
+  it('records unprovable durable ownership once, never releases it and stops retrying', async (t) => {
+    // The root exited before any table showed it: nothing was ever retained, so
+    // no later observation can learn a member, and native exit proves nothing durable.
+    const empty: scan.ProcessTable = {
+      complete: true,
+      startSource: 'ps-lstart-v1',
+      claude: new Map(),
+      codex: new Map(),
+      grok: new Map(),
+      parents: new Map(),
+      starts: new Map(),
+      groups: new Map(),
+      shellParents: new Set()
+    };
+    t.mock.method(scan, 'scanProcesses', () => Promise.resolve(empty));
+    let begins = 0;
+    let releases = 0;
+    let unprovable = 0;
+    // Not a literal: `unprovable` is an optional hook of the durable contract.
+    const durable = {
+      begin: () => Promise.resolve(++begins),
+      commit: () => Promise.resolve(),
+      unprovable: () => {
+        unprovable++;
+        return Promise.resolve();
+      }
+    };
+    const lifetime = new SessionLifetime(
+      { pid: 4242, exited: Promise.resolve(true), close() {} },
+      {
+        durableObservation: durable,
+        gone: () => {
+          releases++;
+          return Promise.resolve();
+        }
+      }
+    );
+    await lifetime.capture();
+    assert.equal(await lifetime.close(), 'unresolved');
+    const observed = begins;
+    assert.equal(await lifetime.reconcile(), 'unresolved');
+    assert.equal(begins, observed, 'a futile reconcile must not observe again');
+    assert.equal(releases, 0);
+    assert.equal(unprovable, 1);
+    assert.equal(lifetime.initialRoot, undefined);
+  });
+
   it('closes pipes synchronously on shutdown before a pending scan returns', async (t) => {
     let observed!: (table: scan.ProcessTable) => void;
     const pending = new Promise<scan.ProcessTable>((resolve) => {
@@ -669,6 +751,77 @@ describe('native session lifetime, on the Windows ending', () => {
     });
     return { exited, exit };
   };
+
+  it('serializes durable capture and close through the first committed observation', async (t) => {
+    let firstCommit!: () => void;
+    const held = new Promise<void>((resolve) => {
+      firstCommit = resolve;
+    });
+    const events: string[] = [];
+    let generation = 0;
+    let reads = 0;
+    t.mock.method(scan, 'scanProcesses', () =>
+      Promise.resolve(windowsTable(++reads === 1 ? [ROOT] : []))
+    );
+    const lifetime = new SessionLifetime(
+      { pid: ROOT.pid, close() {} },
+      {
+        durableObservation: {
+          begin: () => {
+            events.push(`begin:${++generation}`);
+            return Promise.resolve(generation);
+          },
+          commit: async (generation) => {
+            events.push(`commit:${generation}`);
+            if (generation === 1) await held;
+          }
+        }
+      }
+    );
+    const closed = lifetime.close();
+    await settle();
+    assert.deepEqual(events, ['begin:1', 'commit:1']);
+    firstCommit();
+    assert.equal(await closed, 'gone');
+    assert.deepEqual(events, ['begin:1', 'commit:1', 'begin:2', 'commit:2']);
+    assert.equal(lifetime.initialRoot?.startSource, 'win32-filetime-ms-v1');
+  });
+
+  it('never establishes a missing initial root from a later occupant of its PID', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let reads = 0;
+    let signals = 0;
+    const commits: boolean[] = [];
+    t.mock.method(scan, 'scanProcesses', () =>
+      Promise.resolve(
+        ++reads === 1
+          ? windowsTable([], false)
+          : windowsTable([{ ...ROOT, startedAt: ROOT.startedAt + 10 }])
+      )
+    );
+    t.mock.method(platform.processes, 'signal', () => {
+      signals++;
+      return [];
+    });
+    const lifetime = new SessionLifetime(
+      { pid: ROOT.pid, close() {} },
+      {
+        durableObservation: {
+          begin: () => Promise.resolve(1),
+          commit: (_generation, _members, table) => {
+            commits.push(table.complete === true);
+            return Promise.resolve();
+          }
+        }
+      }
+    );
+    await lifetime.capture();
+    assert.equal(await lifetime.close(), 'unresolved');
+    assert.equal(lifetime.initialRoot, undefined);
+    assert.deepEqual(lifetime.knownMembers, []);
+    assert.deepEqual(commits, [false, true]);
+    assert.equal(signals, 0);
+  });
 
   it('reports refused native shutdown on every attempt, retaining its graces and ownership', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });

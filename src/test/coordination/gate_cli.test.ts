@@ -28,6 +28,7 @@ const FLAGS: Record<string, string[]> = {
   warm: ['--pid', '1'],
   wait: ['--pids', '1'],
   step: ['next'],
+  routine: ['done', '--run-id', '11111111-1111-4111-8111-111111111111'],
   attach: ['--file-path', 'note.txt'],
   'fetch-file': ['--conversation-id', 'c1', '--message-id', 'm1', '--file-id', 'f1'],
   list: [],
@@ -59,6 +60,7 @@ const PAST_GATE: Record<string, { refused: string } | { posts: string }> = {
     refused:
       'squadron-step: this command could not tell which session is calling it; pass --caller-session-id <sessionId>'
   },
+  routine: { refused: 'squadron-routine: cannot prove the nearest owned CLI ancestor' },
   attach: {
     refused:
       'squadron-attach: cannot tell which session is asking; nothing in this environment names one'
@@ -94,7 +96,7 @@ async function home(orchestration: boolean | 'none'): Promise<string> {
   return at;
 }
 
-const WRITTEN = ['requests', 'waits', 'runs'];
+const WRITTEN = ['requests', 'waits', 'runs', 'routines', 'routine-runs'];
 
 async function written(at: string): Promise<string[]> {
   const found: string[] = [];

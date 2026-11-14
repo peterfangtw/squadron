@@ -1,3 +1,5 @@
+import * as routines from './routines';
+import * as routineActions from '../ui/routine_actions';
 import * as ticketRefs from '../core/ticket_ref';
 import * as markdown from './markdown';
 import * as conversations from '../core/conversations';
@@ -762,6 +764,8 @@ export class OverviewPanel {
           void openWritten(msg.path, msg.line, msg.column);
         } else if (msg.type === 'openDiff') {
           void openDiff(msg.path, msg.base);
+        } else if (routineActions.isAction(msg)) {
+          void routines.act(this, msg);
         } else if (msg.type === 'pickFiles') {
           void pickFiles(this, msg.cwd, msg.operationId);
         } else if (msg.type === 'startup') {
@@ -1795,6 +1799,7 @@ export class OverviewPanel {
     const message = buildState({
       sessions,
       workspaceFolder: folder,
+      routines: await routines.snapshot(claims),
       scratchRoot,
       folderRoots,
       arrangements,

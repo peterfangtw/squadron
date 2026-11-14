@@ -4,10 +4,11 @@
  * and a send captures the document.
  */
 
+import * as composeInput from './compose_input';
 import { $, ctxLabel, el, imeKey, typingIn } from './dom';
 import { chats, input, panelDrives, ui, vscode } from './state';
 import { canSubmit, eligibleCompose, type ComposeState, type SendInput } from '../ui/chat_state';
-import { capture, blank, sameDoc, showComposeHint, type ComposeDoc } from '../ui/compose_doc';
+import { blank, sameDoc, showComposeHint, type ComposeDoc } from '../ui/compose_doc';
 import { CACHE_NOTE, cacheGone, modelMenuBody } from './board';
 import { effortMenuBody } from './board_settings';
 import { findCard } from './board_card';
@@ -17,39 +18,47 @@ import { dropdownTrigger, heldOpen, opensMenu, paintIfChanged } from './kit';
 import { editing, openCreate, openEdit } from './editor';
 import { isOpen, render, toggleDrawer } from './workflow_overview_drawer';
 import { picker } from './picker';
-import { attachMentions, type Mention } from './mentions';
-import { createProse, deliveryOf } from './prose';
-import { attachFormatbar } from './formatbar';
 import { resolveModel } from '../core/model_names';
 import { isMidTurn, sameSessionStart } from '../core/model';
 import { icon } from '../ui/icons';
 
-/**
- * What the CLI attaches, copied from `pastes.ts` because this bundle cannot
- * import it. The CLI checks the file extension, then silently drops a type it
- * cannot decode, so the panel refuses any other type here.
- */
-const PASTEABLE = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-
-/** A limit on the trip to the host. The CLI downscales to its own budget. */
-const MAX_PASTE_BYTES = 10 * 1024 * 1024;
-
-/**
- * One editor for the life of the panel. A new owner installs new state
- * (`setBox`) and keeps the node, so a repaint never loses focus or an IME
- * composition.
- */
-const prose = createProse(input, {
-  mode: 'rich',
-  label: 'Message',
-  onChange: () => syncComposer(),
-  onKey: (e) => boxKeys(e),
-  sessionName: (pid) => findCard(pid)?.card.name
+const nativeInput = composeInput.mount({
+  input,
+  formatbar: $('formatbar'),
+  owner: boxKey,
+  current: () => shownKey === boxKey(),
+  imageReceiver: () => (chats.context(ui.state)?.bound ? 'This session takes' : 'Sessions take'),
+  value: () => chats.compose() ?? {},
+  changed: () => syncComposer(),
+  onKey: (event) => boxKeys(event),
+  sessionName: (pid) => findCard(pid)?.card.name,
+  locked: () => !hasBox() || boxLocked(),
+  canAttach: () => chats.context(ui.state)?.canAttach !== false,
+  opened: () => vscode.postMessage({ type: 'refreshSkills' }),
+  sources: () => {
+    const context = chats.context(ui.state);
+    if (!context) return {};
+    const active = chats.active();
+    const self = active?.kind === 'session' ? active.pid : undefined;
+    return {
+      // Mentions use the board's full list, not a running session's narrowed list.
+      models: ui.state.models,
+      tickets: ui.state.tickets,
+      skills: context.skills ?? [],
+      sessions: ui.state.groups
+        .flatMap((group) => group.sessions)
+        .filter((card) => card.pid !== self)
+    };
+  },
+  attach: (image) => {
+    const owner = chats.active();
+    return owner ? chats.attach(owner, { kind: 'image', image }) : undefined;
+  },
+  error: (reason) => {
+    $('blocked').textContent = reason;
+  }
 });
-
-// Attached after the editor it drives, then told its formats by it.
-const formatbar = attachFormatbar($('formatbar'), prose);
-prose.update({ onFormat: (formats) => formatbar.paint(formats) });
+const prose = nativeInput.editor;
 
 const EMPTY_DOC: ComposeDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
 
@@ -108,38 +117,6 @@ const ownerKey = (owner: ReturnType<typeof chats.active>): string =>
  * the active owner is another one, so no Undo reaches across two boxes.
  */
 let shownKey = '-';
-
-/**
- * A pick in the composer's box: the chip, set apart by a space, as one Undo
- * step. `mentions.ts` has already cut the run and placed the caret.
- */
-function writeMention(mention: Mention): string {
-  if (!hasBox()) return '';
-  prose.insertChip(mention.kind, mention.expansion);
-  return `${mention.expansion} `;
-}
-
-// The affordance's own test: no list, no trigger. The host sends none for a
-// background session, so there is no second rule here.
-attachMentions(prose.selection, {
-  opened: () => vscode.postMessage({ type: 'refreshSkills' }),
-  skillsChanged: (skills) => prose.update({ skills }),
-  sources: () => {
-    const context = chats.context(ui.state);
-    if (!context) return {};
-    const active = chats.active();
-    const self = active?.kind === 'session' ? active.pid : undefined;
-    return {
-      // The board's list, not the session's: the peer a model mention asks
-      // for may run another brand, and `context.models` is one brand's.
-      models: ui.state.models,
-      tickets: ui.state.tickets,
-      skills: context.skills ?? [],
-      sessions: ui.state.groups.flatMap((g) => g.sessions).filter((card) => card.pid !== self)
-    };
-  },
-  write: writeMention
-});
 
 /**
  * The editor's document into the active owner's record, and the send button
@@ -247,6 +224,9 @@ $('fattach').onclick = () => {
   if (!owner || cwd === undefined || boxLocked()) return;
   const pick = chats.beginFilePick(owner);
   if (!pick) return;
+  composeInput.registerFilePick(pick.operationId, ownerKey(owner), (paths) =>
+    takePickedFiles({ type: 'pickedFiles', operationId: pick.operationId, paths })
+  );
   vscode.postMessage({ type: 'pickFiles', cwd, operationId: pick.operationId });
 };
 
@@ -860,68 +840,6 @@ function liveChip(
 }
 
 /**
- * A clipboard image becomes a chip, its bytes pooled under the chip's id. The
- * bytes ride the pipe as their own blocks. The chip is only the reference.
- *
- * Capture phase on the host: ProseMirror skips a paste whose default is
- * already prevented. A paste with no image is the editor's.
- */
-input.addEventListener(
-  'paste',
-  (e: ClipboardEvent) => {
-    // Through the context, as `renderSend` reads it. A draft has no thread, and
-    // opening one clears `selected` before the `select pid: 0` refresh clears
-    // `thread`. A gate on the thread would drop a paste into a draft opened from
-    // a remote card or from a brand that takes no images.
-    const ctx = chats.context(ui.state);
-    if (ctx && !ctx.canAttach) return;
-    if (!hasBox() || boxLocked()) return;
-    const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
-    if (!files.length) return;
-    e.preventDefault();
-    const was = boxKey();
-    for (const file of files) void attach(was, file);
-  },
-  true
-);
-
-async function attach(box: string, file: File): Promise<void> {
-  if (!PASTEABLE.includes(file.type)) {
-    // Refused in the line that already explains why a send did not go.
-    $('blocked').textContent =
-      (chats.context(ui.state)?.bound ? 'This session takes' : 'Sessions take') +
-      ` PNG, JPEG, GIF and WebP images — not ${file.type}.`;
-    return;
-  }
-  if (file.size > MAX_PASTE_BYTES) {
-    $('blocked').textContent =
-      `That image is ${Math.round(file.size / 1e6)}MB; the limit here is 10MB.`;
-    return;
-  }
-  // `FileReader` rather than `arrayBuffer()` plus `btoa`: it hands back the
-  // data URL already encoded, and it is what the jsdom the scenarios run under
-  // implements.
-  const dataUrl = await new Promise<string | undefined>((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : undefined);
-    reader.onerror = () => resolve(undefined);
-    reader.readAsDataURL(file);
-  });
-  // Only into the box still open. The decode is async, and another box must not
-  // get an image nobody pasted into it.
-  const owner = chats.active();
-  if (!owner || boxKey() !== box || shownKey !== box) return;
-  if (!dataUrl) {
-    $('blocked').textContent = 'That image could not be read.';
-    return;
-  }
-  const image = { name: file.name || 'pasted image', mediaType: file.type, dataUrl };
-  const id = chats.attach(owner, { kind: 'image', image });
-  // Numbered by the editor in the same dispatch (`prose.ts`, `numbering`).
-  prose.insertChip('image', '[Image #1]', id);
-}
-
-/**
  * The composer's keys, ahead of the editor's keymap (`ProseOptions.onKey`).
  * Enter sends. Shift+Enter is the editor's Enter: a line break, a list item, a
  * code newline. Deciding here stops the editor from running Enter and then
@@ -977,8 +895,7 @@ function captureMessage(compose: ComposeState, liveRun: boolean): SendInput | nu
   const workflowId = liveRun ? undefined : compose.workflowId;
   const doc = liveDoc();
   if (!eligibleCompose({ ...compose, doc, workflowId }, liveRun)) return null;
-  const { wire, images, attachments } = capture(doc, compose.pool ?? {});
-  const delivered = deliveryOf(wire).trimEnd();
+  const { images, attachments, delivered } = nativeInput.snapshot();
   if (!delivered.trim() && !images.length && workflowId === undefined) return null;
   return {
     delivered,

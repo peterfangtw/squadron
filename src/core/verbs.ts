@@ -40,6 +40,11 @@ export const VERBS = [
   },
   { name: 'wait', write: true, what: 'Be told once when named sessions are done.' },
   { name: 'step', write: true, what: 'Follow a workflow one step at a time.' },
+  {
+    name: 'routine',
+    write: true,
+    what: 'Mark its associated routine run done after finishing the task.'
+  },
   { name: 'attach', write: true, what: 'Post a file into its Remote conversation.' },
   { name: 'fetch-file', write: true, what: 'Download a file a Remote message carried.' }
 ] as const satisfies readonly Verb[];

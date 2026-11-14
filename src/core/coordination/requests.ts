@@ -296,8 +296,8 @@ type RequestFields =
       fromPid?: number;
       interrupt?: boolean;
       // Travels, because the window runs `checkSend` too: a `--force` the shim
-      // acted on and did not pass would be refused there. It lifts the stale
-      // and context guards only.
+      // acted on and did not pass would be refused there. It lifts only the
+      // stale-cache guard.
       force?: boolean;
     }
   // Answer a session's open question, from another session: the window checks

@@ -46,7 +46,7 @@ export type UsageState = {
 };
 let identity: Promise<claims.Identity> | undefined;
 const reaps = new control.Reaps();
-const completed = new Map<string, () => Promise<void>>();
+const completed = new Map<string, () => Promise<unknown>>();
 
 /**
  * This process's identity, from the first complete table on a recognized
@@ -213,42 +213,61 @@ async function releaseDead(state: UsageState, now: number): Promise<boolean> {
  * The whole deadline is recomputed under the claim. `observedAt` reads the
  * store's newest observation and runs inside it, because coordination does
  * not import the store and a value read before the claim could be stale.
- * `after` absent means nothing is due until something changes.
+ * `after` absent means nothing is due until something changes. The returned
+ * `observedAt` and `activeAfter` are the ones read under the claim.
  */
 export async function admitLive(
   brand: BrandId,
   home: string | undefined,
   now: number,
   opts: { generation: string; hint: LiveHint; observedAt(): Promise<number | undefined> }
-): Promise<{ attempt: Attempt } | { after?: number }> {
+): Promise<
+  | { attempt: Attempt; observedAt: number | undefined }
+  | { after?: number; observedAt: number | undefined; activeAfter: number | undefined }
+> {
   const me = await owner();
-  return mutate(brand, home, async (state): Promise<{ attempt: Attempt } | { after?: number }> => {
-    if (state.generation !== opts.generation) return {};
-    if ((state.activeAfter ?? 0) > now + LIVE_FAILURE_MS) state.activeAfter = now + LIVE_FAILURE_MS;
-    if (state.attempt) return { after: now + LIVE_ACTIVE_MS };
-    if (state.live) {
-      await releaseDead(state, now);
-      return { after: now + LIVE_ACTIVE_MS };
+  return mutate(
+    brand,
+    home,
+    async (
+      state
+    ): Promise<
+      | { attempt: Attempt; observedAt: number | undefined }
+      | { after?: number; observedAt: number | undefined; activeAfter: number | undefined }
+    > => {
+      const seen = await opts.observedAt();
+      const waiting = (after?: number) =>
+        after === undefined
+          ? { observedAt: seen, activeAfter: state.activeAfter }
+          : { after, observedAt: seen, activeAfter: state.activeAfter };
+      if (state.generation !== opts.generation) return waiting();
+      if ((state.activeAfter ?? 0) > now + LIVE_FAILURE_MS)
+        state.activeAfter = now + LIVE_FAILURE_MS;
+      if (state.attempt) return waiting(now + LIVE_ACTIVE_MS);
+      if (state.live) {
+        await releaseDead(state, now);
+        return waiting(now + LIVE_ACTIVE_MS);
+      }
+      const due = liveDue({
+        ...opts.hint,
+        observedAt: seen,
+        activeAfter: state.activeAfter
+      });
+      if (due === undefined || due > now) return waiting(due);
+      const attempt: Attempt = { id: randomUUID(), owner: me, generation: state.generation };
+      state.live = attempt;
+      state.activeAfter = now + LIVE_ACTIVE_MS;
+      return { attempt, observedAt: seen };
     }
-    const due = liveDue({
-      ...opts.hint,
-      observedAt: await opts.observedAt(),
-      activeAfter: state.activeAfter
-    });
-    if (due === undefined) return {};
-    if (due > now) return { after: due };
-    const attempt: Attempt = { id: randomUUID(), owner: me, generation: state.generation };
-    state.live = attempt;
-    state.activeAfter = now + LIVE_ACTIVE_MS;
-    return { attempt };
-  });
+  );
 }
 
 /**
  * Release a live attempt. Fenced by account generation: a read that outlived
  * its account backs off nothing for the next one. A release that cannot be
  * written is kept and retried by `settle`, as `complete` is, or its own live
- * host would hold the slot until it exits.
+ * host would hold the slot until it exits. Returns the `activeAfter` it wrote,
+ * or `undefined` when the attempt did not apply.
  */
 export async function completeLive(
   brand: BrandId,
@@ -256,22 +275,24 @@ export async function completeLive(
   attempt: Attempt,
   now: number,
   observed: boolean
-): Promise<void> {
+): Promise<number | undefined> {
   const key = `${paths.usageStateFile(brand, home)}#live`;
-  const save = async (): Promise<void> => {
-    await mutate(brand, home, (state) => {
+  const save = async (): Promise<number | undefined> => {
+    const written = await mutate(brand, home, (state): number | undefined => {
       if (state.live?.id !== attempt.id) return;
       delete state.live;
-      if (state.generation === attempt.generation)
-        state.activeAfter = Math.max(
-          state.activeAfter ?? 0,
-          now + (observed ? LIVE_ACTIVE_MS : LIVE_FAILURE_MS)
-        );
+      if (state.generation !== attempt.generation) return;
+      state.activeAfter = Math.max(
+        state.activeAfter ?? 0,
+        now + (observed ? LIVE_ACTIVE_MS : LIVE_FAILURE_MS)
+      );
+      return state.activeAfter;
     });
     completed.delete(key);
+    return written;
   };
   completed.set(key, save);
-  await save();
+  return save();
 }
 
 export async function remember(
@@ -303,23 +324,26 @@ export async function settle(brand: BrandId, home?: string): Promise<void> {
   await completed.get(`${file}#live`)?.();
 }
 
+/** The `notBefore` it wrote, or `undefined` when the attempt or generation did not match. */
 export async function complete(
   brand: BrandId,
   home: string | undefined,
   attempt: Attempt,
   now: number,
   interval: number
-): Promise<void> {
+): Promise<number | undefined> {
   const file = paths.usageStateFile(brand, home);
-  const save = async (): Promise<void> => {
-    await mutate(brand, home, (state) => {
+  const save = async (): Promise<number | undefined> => {
+    const written = await mutate(brand, home, (state): number | undefined => {
       if (state.attempt?.id !== attempt.id) return;
       delete state.attempt;
-      if (state.generation === attempt.generation)
-        state.notBefore = Math.max(state.notBefore, now + interval);
+      if (state.generation !== attempt.generation) return;
+      state.notBefore = Math.max(state.notBefore, now + interval);
+      return state.notBefore;
     });
     completed.delete(file);
+    return written;
   };
   completed.set(file, save);
-  await save();
+  return save();
 }

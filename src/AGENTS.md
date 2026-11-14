@@ -112,6 +112,9 @@ src/
                  owned session has said anything is read from its thread in
                  memory, after recovery; a background one is read from the
                  files
+    routines.ts       repository scope, manual routine launches and local receiver actions;
+                      one Reconciler registration for due deadlines and orphan recovery,
+                      independent of panel lifetime. No launch follows a deadline
     session_io.ts     send, queue, interrupt, model, rename, thread, images
     session_open.ts   new/resume, copy ref, reveal; pending UI resumes share
                       startup across panel reopenings, with a reply per attempt.
@@ -430,7 +433,7 @@ src/
                    are what the guards count. Two directories on purpose, one
                    seven-day sweep
       guards.ts    every cap that decides whether an agent may act on a session:
-                   the send cost guards (stale target, context ceiling), the
+                   the send cost guard (stale target), the
                    window burst `--force` never lifts, and the spawn burst and
                    fleet
       spawn.ts     what a spawn decides before the child exists: the prompt's
@@ -1034,7 +1037,8 @@ src/
                  hourly fallback; independent of the panel
     usage_policy.ts  the 60-minute fallback and the live bounds (one read per
                  brand per 60 s machine-wide, 2 s settle, 5 min failure
-                 backoff), and `liveDue`, the deadline both sides recompute
+                 backoff), and `liveDue`. Admission computes it under the
+                 claim; the read returns the deadline the refresher schedules
     claude/usage_reader.ts  get_usage on a control-only temporary child;
                  decoding remains in the leaf claude/usage.ts
     signin.ts    whether each CLI is signed in: the answer stored under
@@ -1056,12 +1060,17 @@ src/
                  from `tickets.ts` because both adapters import that file. The
                  host keeps the prompts, the keychain and the watches, and loops
                  over this: one keychain read per source per ticket epoch
-    tickets/github.ts GitHub ProjectV2 GraphQL reads, exact single-select field
-                 resolution, nested pagination and issue-backed item identities;
-                 its connector (JSON keychain record) and the owner and
-                 classic-token validators its connect prompts use
-    tickets/linear.ts Linear GraphQL transport, native field translation,
-                 team/member/state pagination and provider presentation metadata;
+    tickets/github.ts GitHub ProjectV2 queries and issue classification: exact
+                 single-select field resolution and issue-backed item identities.
+                 Transport is `tickets/graphql.ts`. Its connector (JSON keychain
+                 record) and the owner and classic-token validators its connect
+                 prompts use
+    tickets/graphql.ts one POST and one cursor walk (`graphqlRequest`,
+                 `walkConnection`, `walkSignal`) for every ticket source. A public
+                 entry has 30 s, and each request has 15 s. The walker names no
+                 source: a bad page or cursor calls that adapter's `fail`
+    tickets/linear.ts Linear queries, native field translation and provider
+                 presentation metadata. Transport is `tickets/graphql.ts`.
                  `read` memoises a team's options until `invalidate`, and a filter
                  with anything to prune waits for them before the issues request;
                  its connector (the bare key as record), whose `open` fills
@@ -1108,6 +1117,15 @@ src/
                    every draft edit as steps in, steps or a refusal out.
                    Import-free but `graph.ts`, so the webview bundles it
       workflow_order.ts  the reader's ordering
+    image_policy.ts import-free accepted image formats and byte limit for native
+                 composer input, pasted files and routine blobs
+    compose_images.ts native composer image data to runtime image blocks, shared by
+                 ordinary sends and the first routine prompt
+    routines/    local definitions, occurrence identity, serialized repository mutations,
+                 run snapshots and explicit completion. store.ts owns validated state,
+                 image blobs and locators; schedule.ts uses native local calendar/UTC
+                 intervals; lifetime.ts fences durable observations and orphan cleanup.
+                 start.ts owns validation/reservation/native-handoff policy and completion text
     checklist.ts the step list a session keeps for itself, dated against the
                  last prompt so a finished one stops speaking for work the
                  session has moved past
@@ -1273,6 +1291,8 @@ src/
                  under Remote, never another's — no `--pid`. Checks the
                  identity, the holder and the file here, then posts to the
                  holder, whose answer counts. Gated like every write verb
+    routine.ts   squadron-routine done: exact live owned receiver proof, then the
+                 repository mutation; the unchanged write gate precedes state reads
     self.ts      exact incoming caller: one fresh complete native process scan,
                  bounded nearest-ancestor walk over owned publications and CLI
                  process barriers, then incomingEvidenceV1 receiver challenge.
@@ -1310,6 +1330,10 @@ src/
                  compose data, thread, pending operations and reading state;
                  the only owner of active chat identity, selection request nonces,
                  ordered thread acceptance and session binding through startup
+    compose_input_markup.ts native input shell shared by chat and routine authoring,
+                 with per-mount IDs and shared CSS classes
+    routine_actions.ts routine wire classification, scope validation and domain mutation mapping
+    routine_view.ts repository definitions and attempts into routine rows; no image bytes
     compose_doc.ts a compose box's document as plain data — the editor's
                  snapshot, typed here so `ui/` never imports TipTap — and the
                  pure reads over it: emptiness, equality, the block append
@@ -1471,6 +1495,14 @@ src/
                  stepper, picks, the CTA — and where a permission dialog is drawn
     permission.ts  one such dialog for a tool call: what it wants, and allow /
                  always-allow / deny. Nothing here stages
+    compose_input.ts instance-scoped rich input shared by chat and routine authoring:
+                 native Prose/formatting/mentions, capture, image paste, correlated
+                 file replies and model/effort controls. No ChatIdentity ownership
+    routine_editor.ts routine buffers, revisioned/coalesced saves, conflict recovery
+                 and single-use Run intents settled from replies/state, independent
+                 of the mounted editor; delayed replies stay with their routine
+    routines_mode.ts repository routine list/editor in the bottom drawer; Enter
+                 edits text, Run is explicit, due pills use the shared pill stack
     composer.ts  the message box: attachments, their chips, the workflow
                  mentioned on the next send, and the send itself
     formatbar.ts the shared formatting toolbar: controls over one

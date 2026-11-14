@@ -2,7 +2,7 @@
   "name": "squadron",
   "displayName": "Squadron",
   "description": "Run Claude Code, Codex and Grok in the same UI on your editor, and let them work with each other autonomously.",
-  "version": "0.6.24",
+  "version": "0.6.28",
   "squadronBuild": "posix-staging",
   "publisher": "peterfangtw",
   "license": "MIT",
@@ -171,7 +171,7 @@
           "type": "boolean",
           "default": false,
           "scope": "application",
-          "markdownDescription": "Orchestration, in Agents on the bottom hub. Let sessions act on each other: every `squadron-*` verb that writes (send, answer, spawn, end, rename, warm, wait, step, attach, fetch-file) refuses while this is off; `squadron-list` and `squadron-models` still work. Machine-wide rather than per-workspace, so a checked-in `.vscode/settings.json` cannot turn it on. Note this is an opt-in, not a boundary: anything able to write to `~/.squadron/requests/` can already message a session. Turning this on also installs the `squadron` CLI skill and the `squadron-workflow-builder` authoring skill, including its references, under `skills/` in each installed CLI's own directory — `~/.claude`, `~/.codex`, `~/.grok` — so a session of any brand knows the verbs exist; a file already there that this extension did not write is never overwritten, and turning the setting back off leaves the file in place."
+          "markdownDescription": "Orchestration, in Agents on the bottom hub. Let sessions act on each other: every `squadron-*` verb that writes (send, answer, spawn, end, rename, warm, wait, step, routine, attach, fetch-file) refuses while this is off; `squadron-list` and `squadron-models` still work. Machine-wide rather than per-workspace, so a checked-in `.vscode/settings.json` cannot turn it on. Note this is an opt-in, not a boundary: anything able to write to `~/.squadron/requests/` can already message a session. Turning this on also installs the `squadron` CLI skill and the `squadron-workflow-builder` authoring skill, including its references, under `skills/` in each installed CLI's own directory — `~/.claude`, `~/.codex`, `~/.grok` — so a session of any brand knows the verbs exist; a file already there that this extension did not write is never overwritten, and turning the setting back off leaves the file in place."
         },
         "squadron.skipPermissions.enabled": {
           "type": "boolean",

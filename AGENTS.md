@@ -49,7 +49,7 @@ Full map, including the two files whose name differs from their surface's:
   the third by mechanism and fills off the state message instead — every server
   the board's repos configure, in a **section** per repo.
 - **Bottom drawer** — the bottom drawer, which a hub word raises. Every
-  workflow on the machine; Warm, Remote, Agents and Keep-awake are modes of
+  workflow on the machine; Routines, Warm, Remote, Agents and Keep-awake are modes of
   the same frame. Not a sheet: no host push fills it.
 - **Section** — one repo's block on the MCP sheet: a head that stays legible
   shut (name, state dot, count) over the rows it holds, this window's repo open
@@ -61,7 +61,8 @@ Full map, including the two files whose name differs from their surface's:
   worktree. Behind the `squadron.devServers.enabled` experiment, off by default;
   what the switch does and does not stop: `runs.ts` in `src/AGENTS.md`.
 - **Bottom hub** — capsule over the board's bottom edge: one word per
-  board-wide surface — Workflows (opens the bottom drawer), Warm (opens
+  board-wide surface — Workflows (opens the bottom drawer), Routines (its
+  repository reminders and saved tasks), Warm (opens
   that sheet's Warm mode), Remote (its Remote mode; a dot for the link's
   state), Agents (its Agents mode: the agent switches and every `squadron-*`
   verb; a dot for Orchestration), Keep-awake (its Keep-awake mode; a dot for
@@ -90,7 +91,7 @@ Workflow execution names both an agent role and the code that resolves waits.
   the **anchor** in code. Its `squadron-step next` opens the workflow's other
   lanes when their prerequisites permit it.
 - **Reconciler** — `src/core/reconcile.ts`. Shared scheduler for background
-  checks, run after changes settle or at a deadline. Eight tenants: the wait
+  checks, run after changes settle or at a deadline. Nine tenants: repository routine reminders/recovery, the wait
   resolver, keep-awake, the cache warmer, Remote's pass, Remote's retries,
   and the three usage passes (observations, live reads, the hourly fallback).
 - **Wait resolver** — `src/host/waits.ts`. Checks a registered wait's sessions

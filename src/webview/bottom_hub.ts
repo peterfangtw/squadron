@@ -8,6 +8,7 @@ import { blocked } from './board_card';
 import { reveal } from './board_actions';
 import * as pillStack from './pill_stack';
 import * as warningInk from './warning_ink';
+import * as routines from './routines_mode';
 
 export function render(): void {
   const board = document.getElementById('board');
@@ -69,6 +70,7 @@ export function syncBarWords(): void {
   if (bar && board) {
     overflow.sync(bar, board);
     if (syncWaiting(bar, board)) overflow.sync(bar, board);
+    if (syncRoutines(bar, board)) overflow.sync(bar, board);
   }
 }
 
@@ -120,6 +122,55 @@ type WaitingStack = {
   signature: string;
 };
 let waitingStack: WaitingStack | undefined;
+let routineStack: WaitingStack | undefined;
+
+function syncRoutines(bar: HTMLElement, board: HTMLElement): boolean {
+  const trigger = bar.querySelector<HTMLElement>('.routines-tab');
+  if (!trigger) return false;
+  if (!routineStack || routineStack.trigger !== trigger || !bar.contains(routineStack.stack)) {
+    routineStack?.controls.dispose();
+    routineStack?.stack.remove();
+    const stack = el('div', 'pill-stack waiting-pills');
+    stack.id = 'bottomhub-routines';
+    stack.hidden = true;
+    stack.inert = true;
+    stack.setAttribute('role', 'group');
+    stack.setAttribute('aria-label', 'Routines due');
+    bar.append(stack);
+    trigger.setAttribute('aria-controls', 'bottomdrawer bottomhub-routines');
+    const controls = pillStack.create(trigger, stack, board, false);
+    stack.addEventListener('click', (event) => {
+      const chip =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>('[data-routine]')
+          : null;
+      if (chip?.dataset.routine) routines.runSaved(chip.dataset.routine);
+    });
+    routineStack = { trigger, stack, controls, signature: '' };
+  }
+  const rows = routines.scope()?.rows.filter((row) => row.due) ?? [];
+  const signature = JSON.stringify(
+    rows.map((row) => [row.id, row.name, row.definitionRevision, row.occurrenceKey, row.status])
+  );
+  const changed = signature !== routineStack.signature;
+  if (changed) {
+    morph(
+      routineStack.stack,
+      rows.map((row) => {
+        const label = `${row.status === 'Needs attention' ? 'Retry' : 'Run'} · ${row.name}`;
+        const chip = el('button', 'hpill waiting-session', label);
+        chip.dataset.key = row.id;
+        chip.dataset.routine = row.id;
+        chip.setAttribute('aria-label', label);
+        return chip;
+      })
+    );
+    routineStack.signature = signature;
+  }
+  attribute(trigger, 'aria-keyshortcuts', rows.length ? 'ArrowUp' : undefined);
+  routineStack.controls.refresh();
+  return changed;
+}
 
 function syncWaiting(bar: HTMLElement, board: HTMLElement): boolean {
   const trigger = bar.querySelector<HTMLElement>('.agents-tab');

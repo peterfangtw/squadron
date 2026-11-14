@@ -8,13 +8,12 @@ import { DEFAULT_WARM_POLICY } from '../warm_policy';
 
 /**
  * Two kinds of send bound, and they are not interchangeable. **Cost** is the
- * stale and context guards: a wake past the target's cache deadline re-sends
- * its whole context, and a turn over `CONTEXT_MAX` compacts instead of
- * answering. Somebody else pays that, so `--force` — the sender saying it knows
- * — lifts these two and nothing else. **Bursts** are the counter, in messages
- * rather than tokens: `SEND_BURST` ends a runaway exchange whatever it costs,
+ * stale-cache guard: a wake past the target's cache deadline re-sends
+ * its whole context. Somebody else pays that, so `--force` — the sender saying
+ * it knows — lifts this guard and nothing else. **Bursts** are the counter,
+ * in messages rather than tokens: `SEND_BURST` ends a runaway exchange whatever it costs,
  * and nothing lifts it. Changing the counter is no reason to touch the cost
- * guards.
+ * guard.
  *
  * Constants, not settings: the shim checks too, and a plain node process
  * cannot read the host's configuration, so a raised setting would be refused
@@ -34,13 +33,6 @@ export const TARGET_STALE_MS = staleBound(DEFAULT_WARM_POLICY.ttlMs.claude);
 export function staleBound(ttlMs: number): number {
   return ttlMs - staleMargin(ttlMs);
 }
-
-/**
- * The share of a target's context past which a message is refused. Above this a
- * turn is likely to compact rather than to answer, and the compaction is paid
- * for by the message that arrived.
- */
-export const CONTEXT_MAX = 80;
 
 /**
  * A wait expires a minute inside the stale bound: its resolution is a send that

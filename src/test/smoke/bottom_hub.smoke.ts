@@ -88,7 +88,7 @@ boot.section('responsive bottom hub, in the real IDE', () => {
       await more.waitFor({ state: 'hidden' });
       assert.equal(
         await boot.panel().locator('#bottomhub .bottomhub-row > button:not([hidden])').count(),
-        5
+        6
       );
     } finally {
       await board.evaluate((node) => {

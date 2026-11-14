@@ -79,7 +79,8 @@ describe('live admission', () => {
       hint: { since: now - 1_000, busy: false },
       observedAt: () => Promise.resolve(now - 10_000)
     });
-    assert.deepEqual(answer, { after: now - 10_000 + policy.LIVE_ACTIVE_MS });
+    if ('attempt' in answer) assert.fail('a fresh observation admitted a read');
+    assert.equal(answer.after, now - 10_000 + policy.LIVE_ACTIVE_MS);
   });
 
   it('reads the stored observation inside the claim', async () => {
@@ -205,7 +206,8 @@ describe('live admission', () => {
       generation,
       ...ended(now)
     });
-    assert.deepEqual(answer, { after: now + policy.LIVE_FAILURE_MS });
+    if ('attempt' in answer) assert.fail('a future backoff admitted a read');
+    assert.equal(answer.after, now + policy.LIVE_FAILURE_MS);
   });
 
   it('reads a record written before live reads existed', async () => {

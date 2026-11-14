@@ -1,3 +1,4 @@
+import * as routines from './routines';
 import { accountUsage } from './usage';
 import type { UsageRefresher } from '../core/usage_refresh';
 import * as os from 'os';
@@ -271,6 +272,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // registration's refill deadline and by any owned session changing state.
   // It does nothing while there is neither coffee nor activity.
   const reconciliation = new reconcile.Reconciler(log);
+  context.subscriptions.push(routines.activate(reconciliation, () => OverviewPanel.refreshOpen()));
   const keeper = new KeepAwake(reconciliation, () => remote?.holds() === true, log);
   // Keep the existing startup request for behavior parity. Activation starts
   // with an empty owned registry and reload closes its old pipes; useful checks

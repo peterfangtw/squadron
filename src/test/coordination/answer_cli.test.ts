@@ -7,7 +7,7 @@ import { describe, it } from 'node:test';
 import { answerPlan, parseArgs, type AnswerPlan } from '../../cli/answer';
 import { unwrapMessage } from '../../core/coordination/send';
 import type { CountedAction } from '../../core/coordination/actions';
-import { CONTEXT_MAX, SEND_BURST, TARGET_STALE_MS } from '../../core/coordination/guards';
+import { SEND_BURST, TARGET_STALE_MS } from '../../core/coordination/guards';
 import type { PendingRequest } from '../../core/live';
 import { Session } from '../../core/model';
 import type { PublishedLive } from '../../core/published';
@@ -185,10 +185,9 @@ describe('answerPlan', () => {
     assert.equal(plan({ force: '' }, stamped).ok, true);
   });
 
-  it('refuses an asker over the context ceiling, and --force lifts it', () => {
-    const full = board({ contextPct: CONTEXT_MAX + 1 });
-    assert.match(refusal(plan({}, full)).reason, /81% of its context/);
-    assert.equal(plan({ force: '' }, full).ok, true);
+  it('accepts an asker with full context without force', () => {
+    const full = board({ contextPct: 100 });
+    assert.equal(plan({}, full).ok, true);
   });
 
   it('shares send’s window burst, and --force does not lift it', () => {

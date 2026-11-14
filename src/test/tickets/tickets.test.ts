@@ -1,15 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import {
-  issueFilter,
-  LinearSource,
-  LINEAR_ENDPOINT,
-  priorityName,
-  toOptions,
-  toTickets,
-  trackerEndpoint,
-  urgency
-} from '../../core/tickets/linear';
+import { TicketSourceError } from '../../core/tickets';
+import { LinearSource, LINEAR_ENDPOINT, trackerEndpoint } from '../../core/tickets/linear';
 
 /**
  * A Linear `issues` response, shaped exactly as the live API returned it during
@@ -42,203 +34,6 @@ const response = {
     ]
   }
 };
-
-describe('priorityName', () => {
-  it('maps the tracker scale, and falls back to None', () => {
-    assert.equal(priorityName(0), 'None');
-    assert.equal(priorityName(1), 'Urgent');
-    assert.equal(priorityName(2), 'High');
-    assert.equal(priorityName(3), 'Medium');
-    assert.equal(priorityName(4), 'Low');
-    assert.equal(priorityName(9), 'None');
-  });
-});
-
-describe('toTickets', () => {
-  it('maps a live-shaped response into tickets', () => {
-    const tickets = toTickets(response, 'team-a');
-    assert.equal(tickets.length, 2);
-
-    const [a, b] = tickets;
-    assert.equal(a?.identifier, 'ENG-101');
-    assert.equal(a?.priority.label, 'High');
-    assert.equal(a?.state.value, 'state-ready');
-    assert.equal(a?.state.label, 'Ready to Ship');
-    assert.equal(a?.branchName, 'sam/eng-101-fe-saved-addresses');
-    assert.equal(a?.assignee, 'Sam');
-
-    // A null branch/assignee collapses to undefined, not the string "null".
-    assert.equal(b?.branchName, undefined);
-    assert.equal(b?.assignee, undefined);
-    assert.equal(b?.priority.label, 'None');
-  });
-
-  it('skips a node missing an identifier or title, keeps the rest', () => {
-    const dirty = {
-      issues: {
-        nodes: [
-          { id: 'x', title: 'no identifier', url: 'u', state: {} },
-          { id: 'y', identifier: 'ENG-9', url: 'u', state: {} }, // no title
-          {
-            id: 'z',
-            identifier: 'ENG-10',
-            title: 'good',
-            url: 'https://l/ENG-10',
-            priority: 1,
-            state: { id: 'state-todo', name: 'To Do', type: 'unstarted' }
-          }
-        ]
-      }
-    };
-    const tickets = toTickets(dirty, 'team-a');
-    assert.equal(tickets.length, 1);
-    assert.equal(tickets[0]?.identifier, 'ENG-10');
-  });
-
-  it('is empty for a shape it does not recognise', () => {
-    assert.deepEqual(toTickets(undefined, 'team-a'), []);
-    assert.deepEqual(toTickets({}, 'team-a'), []);
-    assert.deepEqual(toTickets({ issues: {} }, 'team-a'), []);
-  });
-});
-
-describe('issueFilter', () => {
-  it('always scopes by native team ID and uses native state/person IDs and numeric priorities', () => {
-    assert.deepEqual(
-      issueFilter(
-        { assignee: 'user-9', states: ['state-ready'], priorities: ['0', '2'] },
-        'team-a'
-      ),
-      {
-        team: { id: { eq: 'team-a' } },
-        state: { id: { in: ['state-ready'] } },
-        assignee: { id: { eq: 'user-9' } },
-        priority: { in: [0, 2] }
-      }
-    );
-    assert.deepEqual(issueFilter({ assignee: 'anyone', states: [], priorities: [] }, 'team-a'), {
-      team: { id: { eq: 'team-a' } }
-    });
-    assert.deepEqual(issueFilter({ assignee: 'me', states: [], priorities: [] }, 'team-a'), {
-      team: { id: { eq: 'team-a' } },
-      assignee: { isMe: { eq: true } }
-    });
-    assert.throws(() => issueFilter({ assignee: 'anyone', states: [], priorities: [] }, ''));
-    assert.throws(() =>
-      issueFilter({ assignee: 'anyone', states: [], priorities: ['urgent'] }, 'team-a')
-    );
-  });
-});
-
-describe('urgency', () => {
-  it('sinks No priority below every named one', () => {
-    assert.deepEqual(
-      [0, 1, 2, 3, 4].sort((a, b) => urgency(a) - urgency(b)),
-      [1, 2, 3, 4, 0]
-    );
-  });
-
-  it('leaves the named ones in their own order', () => {
-    assert.deepEqual([1, 2, 3, 4].map(urgency), [1, 2, 3, 4]);
-  });
-});
-
-describe('toOptions', () => {
-  const response = {
-    users: {
-      nodes: [
-        { id: 'u_2', displayName: 'sam', name: 'Sam' },
-        { id: 'u_1', displayName: 'alex', name: 'alex@example.com' }
-      ]
-    },
-    workflowStates: {
-      nodes: [
-        { id: 'ready', name: 'Ready to Ship', type: 'started', position: 3 },
-        { id: 'todo', name: 'To Do', type: 'unstarted', position: 1 },
-        { id: 'backlog', name: 'Backlog', type: 'backlog', position: 0 },
-        { id: 'todo', name: 'To Do', type: 'unstarted', position: 999 }, // dupe across a team
-        { id: 'progress', name: 'In Progress', type: 'started', position: 2 }
-      ]
-    },
-    // Linear hands the scale back in value order, "No priority" first, and
-    // labels it itself — the vocabulary this code refuses to keep a table of.
-    issuePriorityValues: [
-      { priority: 0, label: 'No priority' },
-      { priority: 1, label: 'Urgent' },
-      { priority: 2, label: 'High' },
-      { priority: 3, label: 'Medium' },
-      { priority: 4, label: 'Low' }
-    ]
-  };
-
-  it('takes the priority labels from the tracker, ordered by urgency', () => {
-    const { priorities } = toOptions(response, 'team-a');
-    assert.deepEqual(
-      priorities.map((p) => p.label),
-      ['Urgent', 'High', 'Medium', 'Low', 'No priority'],
-      'value order would lead with No priority, which is the least urgent'
-    );
-    assert.deepEqual(
-      priorities.map((p) => p.value),
-      ['1', '2', '3', '4', '0']
-    );
-  });
-
-  it('skips a priority it cannot read rather than inventing a label', () => {
-    const { priorities } = toOptions(
-      {
-        ...response,
-        issuePriorityValues: [{ priority: 1, label: 'Urgent' }, { priority: 2 }, { label: 'Low' }]
-      },
-      'team-a'
-    );
-    assert.deepEqual(priorities, [{ value: '1', label: 'Urgent', order: 1, tone: 'urgent' }]);
-  });
-
-  it('offers Anyone and Unassigned then real users sorted by label without synthetic Me', () => {
-    const { assignees } = toOptions(response, 'team-a');
-    assert.deepEqual(
-      assignees.map((a) => a.id),
-      ['anyone', 'unassigned', 'u_1', 'u_2']
-    );
-    assert.equal(assignees[2]?.label, 'alex');
-  });
-
-  it('identifies the viewer without adding a person outside the selected team', () => {
-    for (const viewer of [undefined, null, {}, { id: 1 }, { id: '' }]) {
-      assert.equal(toOptions({ ...response, viewer }, 'team-a').viewerId, undefined);
-    }
-    const included = toOptions({ ...response, viewer: { id: 'u_2', name: 'Sam' } }, 'team-a');
-    assert.equal(included.viewerId, 'u_2');
-    assert.equal(included.assignees.filter((a) => a.id === 'u_2').length, 1);
-    const outside = toOptions(
-      { ...response, viewer: { id: 'u_3', displayName: 'Robin' } },
-      'team-a'
-    );
-    assert.equal(outside.viewerId, 'u_3');
-    assert.ok(!outside.assignees.some((a) => a.id === 'u_3'));
-  });
-
-  it('dedupes states by native ID and orders them by workflow type', () => {
-    const { states } = toOptions(response, 'team-a');
-    assert.deepEqual(
-      states.map((s) => s.label),
-      ['Backlog', 'To Do', 'In Progress', 'Ready to Ship']
-    );
-  });
-
-  it('is safe for a shape it does not recognise', () => {
-    assert.deepEqual(toOptions(undefined, 'team-a'), {
-      scopeId: 'team-a',
-      assignees: [
-        { id: 'anyone', label: 'Anyone' },
-        { id: 'unassigned', label: 'Unassigned' }
-      ],
-      states: [],
-      priorities: []
-    });
-  });
-});
 
 describe('trackerEndpoint', () => {
   const evil = 'https://tracker.example.test/graphql';
@@ -320,11 +115,7 @@ describe('scoped Linear transport', () => {
               : { issues: page(response.issues.nodes) };
       return Promise.resolve(new Response(JSON.stringify({ data })));
     });
-    const source = new LinearSource(
-      'token',
-      'https://tracker.example.test/graphql',
-      'connection-one'
-    );
+    const source = new LinearSource('token', 'https://tracker.example.test/graphql');
     assert.deepEqual(
       (await source.discoverScopes()).map((scope) => scope.id),
       ['team-a', 'team-b']
@@ -340,7 +131,7 @@ describe('scoped Linear transport', () => {
       ['anyone', 'unassigned', 'u1', 'u2']
     );
     const rows = await source.issues('team-a', { ...ALL, states: ['s1'] });
-    assert.equal(rows[0]?.key, '["connection-one","iss_1"]');
+    assert.equal(rows[0]?.key, '["linear","iss_1"]');
     assert.equal(rows[0]?.state.value, 'state-ready');
     assert.equal(rows[0]?.scopeId, 'team-a');
     assert.ok(
@@ -357,6 +148,15 @@ describe('scoped Linear transport', () => {
     const calls: Record<string, unknown>[] = [];
     const first = response.issues.nodes[0]!;
     const last = response.issues.nodes[1]!;
+    const outOfRange = { ...first, id: 'iss_9', identifier: 'ENG-109', priority: 9 };
+    const noPriority = { ...last, id: 'iss_null', identifier: 'ENG-100', priority: null };
+    const noState = {
+      id: 'iss_state',
+      identifier: 'ENG-110',
+      title: 'no state',
+      priority: 3,
+      url: 'https://linear.app/acme/issue/ENG-110'
+    };
     t.mock.method(globalThis, 'fetch', (_url: unknown, init?: RequestInit) => {
       const body = JSON.parse(init?.body as string) as {
         query: string;
@@ -365,7 +165,9 @@ describe('scoped Linear transport', () => {
       assert.match(body.query, /includeArchived: false/);
       calls.push(body.variables);
       const issues =
-        body.variables.after === undefined ? page([first], 'next') : page([first, last]);
+        body.variables.after === undefined
+          ? page([first], 'next')
+          : page([first, last, outOfRange, noPriority, noState]);
       return Promise.resolve(new Response(JSON.stringify({ data: { issues } })));
     });
     const rows = await new LinearSource('token').issues('team-a', {
@@ -373,10 +175,27 @@ describe('scoped Linear transport', () => {
       states: ['state-ready'],
       priorities: ['2']
     });
-    assert.deepEqual(
-      rows.map((row) => row.identifier),
-      ['ENG-101', 'ENG-102']
-    );
+    const [a, b, clamped, blank, stateless] = rows;
+    assert.equal(a?.identifier, 'ENG-101');
+    assert.equal(a?.priority?.label, 'High');
+    assert.equal(a?.state.value, 'state-ready');
+    assert.equal(a?.state.label, 'Ready to Ship');
+    assert.equal(a?.branchName, 'sam/eng-101-fe-saved-addresses');
+    assert.equal(a?.assignee, 'Sam');
+    assert.equal(b?.identifier, 'ENG-102');
+    assert.equal(b?.priority?.label, 'None');
+    assert.equal(b?.state.value, 'state-todo');
+    assert.equal(b?.state.label, 'To Do');
+    assert.equal(b?.branchName, undefined);
+    assert.equal(b?.assignee, undefined);
+    assert.equal(clamped?.identifier, 'ENG-109');
+    assert.equal(clamped?.priority?.label, 'None');
+    assert.equal(blank?.identifier, 'ENG-100');
+    assert.equal(blank?.priority?.label, 'None');
+    assert.equal(stateless?.identifier, 'ENG-110');
+    assert.equal(stateless?.priority?.label, 'Medium');
+    assert.equal(stateless?.state.value, '');
+    assert.equal(stateless?.state.label, '');
     assert.deepEqual(
       calls.map((call) => call.after),
       [undefined, 'next']
@@ -512,6 +331,127 @@ describe('scoped Linear transport', () => {
     await assert.rejects(new LinearSource('token').options('team-a'), /incomplete/i);
     await assert.rejects(new LinearSource('token').issues('team-a', ALL), /incomplete/i);
   });
+  it('rejects a node missing an identifier instead of returning the other tickets', async (t) => {
+    t.mock.method(globalThis, 'fetch', () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              issues: page([
+                response.issues.nodes[0],
+                { id: 'x', title: 'no identifier', url: 'https://linear.app/acme/issue/x' }
+              ])
+            }
+          })
+        )
+      )
+    );
+    await assert.rejects(new LinearSource('token').issues('team-a', ALL), (error) => {
+      assert.ok(error instanceof TicketSourceError);
+      assert.equal(error.kind, 'service');
+      assert.equal(error.message, 'Linear returned an incomplete response.');
+      return true;
+    });
+  });
+  it('rejects an empty scope or a non-numeric priority before fetch', async (t) => {
+    let calls = 0;
+    t.mock.method(globalThis, 'fetch', () => {
+      calls += 1;
+      return Promise.resolve(new Response('{}'));
+    });
+    const source = new LinearSource('token');
+    for (const read of [
+      () => source.issues('', ALL),
+      () => source.issues('team-a', { ...ALL, priorities: ['urgent'] })
+    ]) {
+      await assert.rejects(read(), (error) => {
+        assert.ok(error instanceof Error);
+        assert.equal(error instanceof TicketSourceError, false);
+        assert.equal(error.message, 'Invalid Linear ticket filter');
+        return true;
+      });
+    }
+    assert.equal(calls, 0);
+  });
+  it('posts me and unassigned as assignee filters', async (t) => {
+    const filters: unknown[] = [];
+    t.mock.method(globalThis, 'fetch', (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as { variables: { filter: unknown } };
+      filters.push(body.variables.filter);
+      return Promise.resolve(new Response(JSON.stringify({ data: { issues: page([]) } })));
+    });
+    const source = new LinearSource('token');
+    await source.issues('team-a', { ...ALL, assignee: 'me' });
+    await source.issues('team-a', { ...ALL, assignee: 'unassigned' });
+    await source.issues('team-a', ALL);
+    assert.deepEqual(filters, [
+      { assignee: { isMe: { eq: true } }, team: { id: { eq: 'team-a' } } },
+      { assignee: { null: true }, team: { id: { eq: 'team-a' } } },
+      { team: { id: { eq: 'team-a' } } }
+    ]);
+  });
+  it('omits a priority it cannot label and keeps the rest of the menu', async (t) => {
+    t.mock.method(globalThis, 'fetch', (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as { query: string };
+      const data = body.query.includes('TicketMembers')
+        ? {
+            team: {
+              members: page([
+                { id: 'u_2', name: 'sam' },
+                { id: 'u_1', displayName: 'alex' }
+              ])
+            }
+          }
+        : body.query.includes('TicketStates')
+          ? {
+              team: {
+                states: page([
+                  { id: 'ready', name: 'Ready to Ship', type: 'started', position: 3 },
+                  { id: 'todo', name: 'To Do', type: 'unstarted', position: 1 },
+                  { id: 'backlog', name: 'Backlog', type: 'backlog', position: 0 },
+                  { id: 'todo', name: 'To Do', type: 'unstarted', position: 999 },
+                  { id: 'progress', name: 'In Progress', type: 'started', position: 2 }
+                ])
+              }
+            }
+          : {
+              viewer: { id: 'u_3', displayName: 'Robin' },
+              issuePriorityValues: [
+                { priority: 0, label: 'No priority' },
+                { priority: 1, label: 'Urgent' },
+                { priority: 2, label: 'High' },
+                { priority: 3, label: 'Medium' },
+                { priority: 4, label: 'Low' },
+                { priority: 2 },
+                { label: 'Later' }
+              ]
+            };
+      return Promise.resolve(new Response(JSON.stringify({ data })));
+    });
+    const options = await new LinearSource('token').options('team-a');
+    assert.deepEqual(
+      options.priorities.map((priority) => priority.label),
+      ['Urgent', 'High', 'Medium', 'Low', 'No priority']
+    );
+    assert.deepEqual(
+      options.states.map((state) => state.label),
+      ['Backlog', 'To Do', 'In Progress', 'Ready to Ship']
+    );
+    assert.deepEqual(
+      options.assignees.map((person) => ({ id: person.id, label: person.label })),
+      [
+        { id: 'anyone', label: 'Anyone' },
+        { id: 'unassigned', label: 'Unassigned' },
+        { id: 'u_1', label: 'alex' },
+        { id: 'u_2', label: 'sam' }
+      ]
+    );
+    assert.equal(options.viewerId, 'u_3');
+    assert.equal(
+      options.assignees.some((person) => person.id === 'u_3'),
+      false
+    );
+  });
 });
 
 describe('individual Linear details', () => {
@@ -552,11 +492,6 @@ describe('individual Linear details', () => {
       returned = invalid;
       await assert.rejects(source.detail('team-a', 'issue-a'), /incomplete/);
     }
-    assert.deepEqual(issueFilter({ ...ALL, assignee: 'unassigned' }, 'team-a'), {
-      team: { id: { eq: 'team-a' } },
-      assignee: { null: true }
-    });
-    assert.deepEqual(issueFilter(ALL, 'team-a'), { team: { id: { eq: 'team-a' } } });
   });
 });
 
@@ -566,7 +501,9 @@ describe('Linear reads and their options memo', () => {
     const calls = { options: 0, issues: [] as unknown[] };
     const held: (() => void)[] = [];
     let hold = false;
+    let fetches = 0;
     t.mock.method(globalThis, 'fetch', async (_url: unknown, init?: RequestInit) => {
+      fetches++;
       const body = JSON.parse(init?.body as string) as {
         query: string;
         variables: Record<string, unknown>;
@@ -588,6 +525,7 @@ describe('Linear reads and their options memo', () => {
     return {
       calls,
       held,
+      fetches: () => fetches,
       hold: (on: boolean) => {
         hold = on;
       }
@@ -643,5 +581,21 @@ describe('Linear reads and their options memo', () => {
     assert.deepEqual(calls.issues, [
       { team: { id: { eq: 'team-a' } }, state: { id: { in: ['s1'] } }, priority: { in: [1] } }
     ]);
+  });
+
+  it('arms one walk budget for a read of options and issues', async (t) => {
+    const timeouts: number[] = [];
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    t.mock.method(AbortSignal, 'timeout', (ms: number) => {
+      timeouts.push(ms);
+      return timeout.call(AbortSignal, ms);
+    });
+    const { calls, fetches } = tracker(t);
+    const read = await new LinearSource('token').read('team-a', ALL);
+    assert.ok(read.tickets.length > 0);
+    assert.equal(calls.options, 1);
+    assert.equal(calls.issues.length, 1);
+    assert.equal(timeouts.filter((ms) => ms === 30_000).length, 1);
+    assert.equal(timeouts.filter((ms) => ms === 15_000).length, fetches());
   });
 });

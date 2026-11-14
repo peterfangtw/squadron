@@ -36,6 +36,7 @@ it('paginates project data, preserves item identity and multiple people, and nor
     field('priority', 'Priority', [{ id: 'native', name: 'Custom rank' }])
   ];
   const calls: string[] = [];
+  const continued: { query: string; after: unknown }[] = [];
   t.mock.method(globalThis, 'fetch', (_url: unknown, init: RequestInit) => {
     assert.equal(typeof init.body, 'string');
     const { query, variables: v } = JSON.parse(init.body as string) as {
@@ -43,6 +44,8 @@ it('paginates project data, preserves item identity and multiple people, and nor
       variables: Record<string, string>;
     };
     calls.push(query);
+    if (query.includes('GithubValues') || query.includes('GithubAssignees'))
+      continued.push({ query, after: v.after });
     let data: unknown;
     if (query.includes('GithubOwner'))
       data = { repositoryOwner: { __typename: 'Organization', id: 'owner' }, viewer: { id: 'b' } };
@@ -95,6 +98,11 @@ it('paginates project data, preserves item identity and multiple people, and nor
     result.options.assignees.filter((p) => !['anyone', 'unassigned'].includes(p.id)).length,
     2
   );
+  const named = (part: string) => continued.filter((row) => row.query.includes(part));
+  assert.equal(named('GithubValues').length, 1);
+  assert.equal(named('GithubValues')[0]?.after, 'values2');
+  assert.equal(named('GithubAssignees').length, 1);
+  assert.equal(named('GithubAssignees')[0]?.after, 'people2');
   assert.equal(calls.filter((q) => q.includes('GithubFields')).length, 2);
   assert.equal(calls.filter((q) => q.includes('GithubItems')).length, 2);
   const detail = await source.detail('p', 'item');
@@ -111,6 +119,45 @@ it('paginates project data, preserves item identity and multiple people, and nor
   assert.equal(missing.tickets[0]?.state.label, 'No status');
   assert.deepEqual(missing.filter, { assignee: 'b', states: [], priorities: [] });
   assert.match(missing.options.unavailable?.states ?? '', /Status/);
+  assert.equal(named('GithubValues').length, 3);
+  assert.equal(named('GithubAssignees').length, 3);
+  assert.ok(named('GithubValues').every((row) => row.after === 'values2'));
+  assert.ok(named('GithubAssignees').every((row) => row.after === 'people2'));
+});
+
+it('arms one walk budget for a project read', async (t) => {
+  const timeouts: number[] = [];
+  const timeout = AbortSignal.timeout.bind(AbortSignal);
+  t.mock.method(AbortSignal, 'timeout', (ms: number) => {
+    timeouts.push(ms);
+    return timeout.call(AbortSignal, ms);
+  });
+  let fetches = 0;
+  t.mock.method(globalThis, 'fetch', (_url: unknown, init: RequestInit) => {
+    fetches++;
+    assert.equal(typeof init.body, 'string');
+    const query = JSON.parse(init.body as string).query as string;
+    const data = query.includes('GithubFields')
+      ? { node: { fields: page([]) } }
+      : query.includes('GithubItems')
+        ? {
+            node: {
+              items: page([
+                { ...item, fieldValues: page([]), content: { ...issue, assignees: page([]) } }
+              ])
+            }
+          }
+        : { viewer: { id: 'viewer' } };
+    return Promise.resolve(new Response(JSON.stringify({ data })));
+  });
+  const read = await new github.GithubSource('secret', 'acme').read('p', {
+    assignee: 'anyone',
+    states: [],
+    priorities: []
+  });
+  assert.equal(read.tickets.length, 1);
+  assert.equal(timeouts.filter((ms) => ms === 30_000).length, 1);
+  assert.equal(timeouts.filter((ms) => ms === 15_000).length, fetches);
 });
 
 it('rejects ambiguous or wrong-type fields without aliases or issue-state inference', async (t) => {

@@ -447,7 +447,7 @@ function pick(box: MentionTarget, line: mentionText.Row): void {
  * precedence, outside press) is wired here or by the target, not handed back,
  * because a missing one is a bug and a caller handed `sync` would wire most.
  */
-export function attachMentions(box: MentionTarget, attachment: Attachment): void {
+export function attachMentions(box: MentionTarget, attachment: Attachment): () => void {
   attachments.set(box.node, { target: box, attachment });
   // The layer stack hears Escape before this box's own precedence below, so
   // an open menu or a dismissable run claims it there: one Escape shuts the
@@ -457,10 +457,12 @@ export function attachMentions(box: MentionTarget, attachment: Attachment): void
     (e) => e.target === box.node && takesEscape(box, e) && plain(e) && !imeKey(e)
   );
   box.node.dataset.mentions = '';
-  box.node.addEventListener('blur', () => {
+  const blur = (): void => {
     if (run?.box === box || owner === box) closeMentionMenu();
-  });
-  box.node.addEventListener('focus', () => sync(box));
+  };
+  const focus = (): void => sync(box);
+  box.node.addEventListener('blur', blur);
+  box.node.addEventListener('focus', focus);
   box.onChange((change) => {
     // Typing on a dismissed run reopens it.
     if (change === 'edit') dismissed = null;
@@ -470,6 +472,16 @@ export function attachMentions(box: MentionTarget, attachment: Attachment): void
     // reader's own letters adrift.
     sync(box);
   });
+  return () => {
+    attachments.delete(box.node);
+    delete box.node.dataset.mentions;
+    box.node.removeEventListener('blur', blur);
+    box.node.removeEventListener('focus', focus);
+    layers.claim(box.node, () => false);
+    if (run?.box === box || owner === box) closeMentionMenu();
+    if (dismissed?.box === box) dismissed = null;
+    if (pending?.box === box) pending = null;
+  };
 }
 
 /**

@@ -98,7 +98,7 @@ export const css = /* css */ `
   .wsrow.flying { position: fixed; z-index: 22; pointer-events: none;
                   background: var(--av-menu-bg); border-color: var(--av-focus);
                   box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
-  .wsins { position: absolute; left: 10px; right: 10px; height: 2px; border-radius: 2px;
+  .wsins { position: absolute; z-index: 23; left: 10px; right: 10px; height: 2px; border-radius: 2px;
            background: var(--av-focus); opacity: 0; pointer-events: none; }
   .wsins.on { opacity: 1; }
   /* A flight outlives the pointer leaving the row it started on, so the cursor

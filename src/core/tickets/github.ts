@@ -1,4 +1,5 @@
 import * as tickets from '../tickets';
+import * as graphql from './graphql';
 
 export const SOURCE_ID = 'github';
 // Required for the reason linear.ts gives.
@@ -88,11 +89,12 @@ export class GithubSource implements tickets.TicketSource {
   ) {}
 
   async discoverScopes(signal?: AbortSignal): Promise<TicketScope[]> {
+    const walk = graphql.walkSignal(signal);
     const data = record(
-      await this.query(
+      await this.request(
         `query GithubOwner($owner: String!) { repositoryOwner(login: $owner) { id __typename } viewer { id } }`,
         { owner: this.owner },
-        signal
+        walk
       )
     );
     const owner = record(data.repositoryOwner);
@@ -102,11 +104,11 @@ export class GithubSource implements tickets.TicketSource {
     )
       throw incomplete();
     this.viewerId = text(record(data.viewer).id);
-    const nodes = await this.pages(
+    const nodes = await this.walk(
       `query GithubProjects($id: ID!, $after: String) { node(id: $id) { ... on ProjectV2Owner { projectsV2(first: 100, after: $after) { nodes { id title number } ${PAGE} } } } }`,
       { id: owner.id },
       (d) => record(d.node).projectsV2,
-      signal
+      walk
     );
     return nodes
       .filter((n) => n !== null)
@@ -128,12 +130,13 @@ export class GithubSource implements tickets.TicketSource {
     signal?: AbortSignal
   ): Promise<tickets.TicketRead> {
     signal?.throwIfAborted();
+    const walk = graphql.walkSignal(signal);
     const cached = this.snapshot;
     let project = cached?.scopeId === scopeId ? cached.project : undefined;
     if (!project) {
       this.snapshot = undefined;
       const epoch = this.snapshotEpoch;
-      project = await this.readProject(scopeId, signal);
+      project = await this.readProject(scopeId, walk);
       signal?.throwIfAborted();
       if (epoch === this.snapshotEpoch) this.snapshot = { scopeId, project };
     }
@@ -154,13 +157,14 @@ export class GithubSource implements tickets.TicketSource {
   }
 
   async detail(scopeId: string, id: string, signal?: AbortSignal): Promise<TicketDetail> {
+    const walk = graphql.walkSignal(signal);
     const [data, fields] = await Promise.all([
-      this.query(
+      this.request(
         `query GithubDetail($id: ID!) { node(id: $id) { ... on ProjectV2Item { ${ITEM} content { ... on Issue { body } } } } }`,
         { id },
-        signal
+        walk
       ),
-      this.fields(scopeId, signal)
+      this.fields(scopeId, walk)
     ]);
     if (record(data.node).id !== id) throw unavailable();
     if (typeof record(record(data.node).content).body !== 'string') throw unavailable();
@@ -169,7 +173,7 @@ export class GithubSource implements tickets.TicketSource {
       scopeId,
       resolveField(fields, 'status'),
       resolveField(fields, 'priority'),
-      signal
+      walk
     );
     if (!issue) throw unavailable();
     return {
@@ -185,10 +189,10 @@ export class GithubSource implements tickets.TicketSource {
     this.snapshotEpoch++;
   }
 
-  private async readProject(scopeId: string, signal?: AbortSignal): Promise<ProjectSnapshot> {
+  private async readProject(scopeId: string, signal: AbortSignal): Promise<ProjectSnapshot> {
     const [fields, items] = await Promise.all([
       this.fields(scopeId, signal),
-      this.pages(
+      this.walk(
         `query GithubItems($id: ID!, $after: String) { node(id: $id) { ... on ProjectV2 { items(first: 20, after: $after) { nodes { ${ITEM} } ${PAGE} } } } }`,
         { id: scopeId },
         (d) => record(d.node).items,
@@ -196,7 +200,7 @@ export class GithubSource implements tickets.TicketSource {
       )
     ]);
     if (!this.viewerId) {
-      const viewer = await this.query('query GithubViewer { viewer { id } }', {}, signal);
+      const viewer = await this.request('query GithubViewer { viewer { id } }', {}, signal);
       this.viewerId = text(record(viewer.viewer).id);
     }
     const status = resolveField(fields, 'status');
@@ -238,8 +242,8 @@ export class GithubSource implements tickets.TicketSource {
     return { issues, options };
   }
 
-  private fields(scopeId: string, signal?: AbortSignal): Promise<unknown[]> {
-    return this.pages(
+  private fields(scopeId: string, signal: AbortSignal): Promise<unknown[]> {
+    return this.walk(
       `query GithubFields($id: ID!, $after: String) { node(id: $id) { ... on ProjectV2 { fields(first: 100, after: $after) { nodes { __typename ... on ProjectV2FieldCommon { id name } ... on ProjectV2SingleSelectField { options { id name } } } ${PAGE} } } } }`,
       { id: scopeId },
       (d) => record(d.node).fields,
@@ -251,7 +255,7 @@ export class GithubSource implements tickets.TicketSource {
     scopeId: string,
     status: Field | undefined,
     priority: Field | undefined,
-    signal?: AbortSignal
+    signal: AbortSignal
   ): Promise<ProjectIssue | undefined> {
     if (raw === null) return undefined;
     const item = record(raw);
@@ -274,14 +278,14 @@ export class GithubSource implements tickets.TicketSource {
       typeof record(content.repository).nameWithOwner !== 'string'
     )
       throw incomplete();
-    const values = await this.pages(
+    const values = await this.walk(
       `query GithubValues($id: ID!, $after: String) { node(id: $id) { ... on ProjectV2Item { fieldValues(first: 100, after: $after) { nodes { ... on ProjectV2ItemFieldSingleSelectValue { optionId field { ... on ProjectV2FieldCommon { id } } } } ${PAGE} } } } }`,
       { id: item.id },
       (d) => record(d.node).fieldValues,
       signal,
       item.fieldValues
     );
-    const assignees = await this.pages(
+    const assignees = await this.walk(
       `query GithubAssignees($id: ID!, $after: String) { node(id: $id) { ... on Issue { assignees(first: 100, after: $after) { nodes { id login } ${PAGE} } } } }`,
       { id: content.id },
       (d) => record(d.node).assignees,
@@ -315,66 +319,39 @@ export class GithubSource implements tickets.TicketSource {
       }
     };
   }
-  private async pages(
+  private walk(
     query: string,
     variables: RecordValue,
     connection: (data: RecordValue) => unknown,
-    signal?: AbortSignal,
+    signal: AbortSignal,
     initial?: unknown
   ): Promise<unknown[]> {
-    const nodes: unknown[] = [];
-    const cursors = new Set<string>();
-    let after: string | undefined;
-    for (let page = 0; page < 1000; page++) {
-      signal?.throwIfAborted();
-      const value = record(
-        page === 0 && initial !== undefined
-          ? initial
-          : connection(await this.query(query, { ...variables, after }, signal))
-      );
-      const info = record(value.pageInfo);
-      if (!Array.isArray(value.nodes) || typeof info.hasNextPage !== 'boolean') throw incomplete();
-      nodes.push(...(value.nodes as unknown[]));
-      if (!info.hasNextPage) return nodes;
-      if (typeof info.endCursor !== 'string' || !info.endCursor || cursors.has(info.endCursor))
-        throw incomplete();
-      after = info.endCursor;
-      cursors.add(after);
-    }
-    throw incomplete();
+    return graphql.walkConnection(
+      signal,
+      async (after) => connection(await this.request(query, { ...variables, after }, signal)),
+      incomplete,
+      initial
+    );
   }
-  private async query(
+
+  private request(
     query: string,
     variables: RecordValue,
-    signal?: AbortSignal
+    signal: AbortSignal
   ): Promise<RecordValue> {
-    const response = await fetch(this.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
-      body: JSON.stringify({ query, variables }),
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
-        : AbortSignal.timeout(15_000)
-    });
-    const json = record(await response.json().catch(() => undefined));
-    const errors = Array.isArray(json.errors)
-      ? json.errors.map(record).filter((error) => !inaccessibleContent(error, json.data))
-      : [];
-    if (!response.ok || errors.length) {
-      const message =
-        errors
-          .map((e) => e.message)
-          .filter((m): m is string => typeof m === 'string' && !!m.trim())
-          .join('; ') ||
-        text(json.message) ||
-        `GitHub responded ${response.status} ${response.statusText}`;
-      throw new tickets.TicketSourceError(
-        response.status === 401 ? 'credentials' : 'service',
-        message
-      );
-    }
-    if (!json.data || typeof json.data !== 'object') throw incomplete();
-    return record(json.data);
+    return graphql
+      .graphqlRequest({
+        endpoint: this.endpoint,
+        authorization: `Bearer ${this.token}`,
+        query,
+        variables,
+        signal,
+        credentials: (status) => status === 401,
+        filterError: inaccessibleContent,
+        fallback: (status, statusText) => `GitHub responded ${status} ${statusText}`,
+        fail: incomplete
+      })
+      .then(record);
   }
 }
 function resolveField(fields: unknown[], name: string): Field | undefined {

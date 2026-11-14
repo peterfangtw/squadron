@@ -218,7 +218,7 @@ async function wake(message: Wake, port: AdmissionPort): Promise<WakeOutcome> {
 
 /**
  * A resolution obeys the send guards with no carve-out and no `force`: the
- * stale and context guards on the requester, and the window's burst shared
+ * stale-cache guard on the requester, and the window's burst shared
  * with verb sends. Every refusal before the send is structural or a guard,
  * and is marked on the wait; only a send that fails is retried.
  */

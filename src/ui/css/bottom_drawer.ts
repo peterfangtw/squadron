@@ -386,4 +386,45 @@ export const css = /* css */ `
     #bottomdrawer.warm .ttl-field .minutes { grid-column: 1; grid-row: auto; margin-top: 3px; }
   }
 
+
+  #bottomdrawer.routines { --bd-list: min(240px, 38%); --bd-detail: minmax(0, 1fr);
+    font-size: var(--av-fs-md); }
+  #bottomdrawer.routines .bdlist { overflow-y: auto; }
+  #bottomdrawer.routines :is(.bdlist, .bddetail) > .empty { color: var(--av-fg-2); line-height: 1.5; }
+  .routine-row { display: grid; grid-template-columns: minmax(0, 1fr) 24px;
+    gap: 4px; padding: 9px 8px; border-radius: 6px; }
+  .routine-row.sel { background: var(--av-hover); }
+  .routine-row.paused .routine-select { color: var(--av-fg-3); }
+  .routine-select { text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+  .routine-meta { display: block; font-size: var(--av-fs-md); line-height: 1.5; color: var(--av-fg-3); margin-top: 4px; }
+  .routine-row .routine-small { min-height: 24px; justify-self: start; color: var(--av-fg-3);
+    background: none; border: 0; font: inherit; cursor: pointer; }
+  .routine-enable { display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; cursor: pointer; }
+  .routine-row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+  .routine-editor { display: flex; flex-direction: column; gap: 12px; padding: 4px 6px 12px; min-width: 0; overflow-wrap: anywhere; }
+  .routine-editor input, .routine-editor select { min-height: 28px; min-width: 0; box-sizing: border-box;
+    font: inherit; color: var(--av-fg); background: var(--av-input-bg); border: 1px solid var(--av-input-border); border-radius: 5px; padding: 4px 6px;
+    color-scheme: dark; }
+  body:is([data-theme="paper"], [data-theme="polaroid"], .vscode-light[data-theme="follow"]) .routine-editor :is(input, select) { color-scheme: light; }
+  .routine-name { width: 100%; }
+  .routine-input { padding: 0; }
+  .routine-input .compose-editor { min-height: 90px; max-height: 190px; overflow-y: auto; }
+  .routine-cadence { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .routine-cadence .num { width: 72px; }
+  .routine-timezone, .routine-status, .routine-save, .routine-last { color: var(--av-fg-3); font-size: var(--av-fs-md); white-space: normal; }
+  .routine-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .routine-actions .routine-save { margin-left: auto; }
+  .routine-actions button, .routine-association button, .routine-error button { min-height: 28px; }
+  .routine-actions [data-routine-run] { color: var(--av-btn-fg, var(--vscode-button-foreground)); background: var(--vscode-button-background); }
+  .routine-error { color: var(--av-red); font-size: var(--av-fs-md); display: flex; flex-wrap: wrap; gap: 8px; }
+  .routine-error:empty { display: none; }
+  .routine-association { font-size: var(--av-fs-md); }
+  .routine-association button + button { margin-left: 8px; }
+  .routine-editor [hidden] { display: none; }
+  @container board (max-width: 480px) {
+    #bottomdrawer.routines { --bd-list: min(160px, 34%); }
+    .routine-row { padding-inline: 2px; }
+    .routine-editor { padding-inline: 0; }
+  }
 `;

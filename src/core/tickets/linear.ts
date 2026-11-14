@@ -1,4 +1,5 @@
 import * as tickets from '../tickets';
+import * as graphql from './graphql';
 
 export const SOURCE_ID = 'linear';
 
@@ -17,7 +18,7 @@ export const OFFER: TicketSourceOffer = {
   detail: 'Personal API key'
 };
 
-export function priorityValue(value: number): TicketPriority {
+function priorityValue(value: number): TicketPriority {
   const scale: TicketTone[] = ['none', 'urgent', 'high', 'medium', 'low'];
   const valid = Number.isInteger(value) && value >= 0 && value <= 4 ? value : 0;
   return {
@@ -31,11 +32,11 @@ export function priorityValue(value: number): TicketPriority {
 /** Linear's priority scale, index = `priority.value`. */
 const PRIORITY_NAMES = ['None', 'Urgent', 'High', 'Medium', 'Low'];
 
-export function priorityName(value: number): string {
+function priorityName(value: number): string {
   return PRIORITY_NAMES[value] ?? 'None';
 }
 
-export function urgency(priority: number): number {
+function urgency(priority: number): number {
   return priority || 5;
 }
 
@@ -96,7 +97,7 @@ query Backlog($filter: IssueFilter!, $after: String) {
 }`;
 
 /** The GraphQL `IssueFilter` for a `TicketFilter`, built from values not strings. */
-export function issueFilter(filter: TicketFilterView, scopeId: string): Record<string, unknown> {
+function issueFilter(filter: TicketFilterView, scopeId: string): Record<string, unknown> {
   if (!scopeId || !filter.priorities.every((value) => /^[0-4]$/.test(value)))
     throw new Error('Invalid Linear ticket filter');
   const out: Record<string, unknown> = {};
@@ -136,7 +137,7 @@ const STATE_TYPE_RANK: Record<string, number> = {
 };
 
 /** People and workflow identities belong to the selected team; labels are presentation only. */
-export function toOptions(data: unknown, scopeId: string): TicketOptions {
+function toOptions(data: unknown, scopeId: string): TicketOptions {
   const d = data as {
     viewer?: unknown;
     users?: { nodes?: unknown[] };
@@ -215,22 +216,14 @@ export function toOptions(data: unknown, scopeId: string): TicketOptions {
   return { scopeId, ...(viewerId ? { viewerId } : {}), assignees, states, priorities };
 }
 
-/**
- * The pure half: a Linear `issues` response -> `Ticket[]`. Nodes missing the
- * fields a card needs are skipped rather than rendered half-blank. Kept separate
- * from the fetch so it can be tested without a network.
- */
-export function toTickets(
-  data: unknown,
-  scopeId: string,
-  sourceId = SOURCE_ID
+function toTickets(
+  nodes: unknown[],
+  scopeId: string
 ): (tickets.Ticket & { priority: TicketPriority })[] {
-  const nodes = (data as { issues?: { nodes?: unknown[] } })?.issues?.nodes;
-  if (!Array.isArray(nodes)) return [];
-
   const rows: (tickets.Ticket & { priority: TicketPriority })[] = [];
+  // Skipping a bad node would return the well-formed siblings.
   for (const raw of nodes) {
-    if (!raw || typeof raw !== 'object') continue;
+    if (!raw || typeof raw !== 'object') throw incomplete();
     const n = raw as {
       id?: unknown;
       identifier?: unknown;
@@ -241,14 +234,14 @@ export function toTickets(
       state?: { id?: unknown; name?: unknown; type?: unknown };
       assignee?: { displayName?: unknown };
     };
-    if (typeof n.id !== 'string' || typeof n.identifier !== 'string') continue;
-    if (typeof n.title !== 'string' || typeof n.url !== 'string') continue;
+    if (typeof n.id !== 'string' || typeof n.identifier !== 'string') throw incomplete();
+    if (typeof n.title !== 'string' || typeof n.url !== 'string') throw incomplete();
 
     const priority = typeof n.priority === 'number' ? n.priority : 0;
     rows.push({
       scopeId,
       id: n.id,
-      key: tickets.ticketKey(sourceId, n.id),
+      key: tickets.ticketKey(SOURCE_ID, n.id),
       identifier: n.identifier,
       title: n.title,
       priority: priorityValue(priority),
@@ -271,13 +264,12 @@ export class LinearSource implements tickets.TicketSource {
   private memoEpoch = 0;
   constructor(
     private readonly apiKey: string,
-    private readonly endpoint: string = LINEAR_ENDPOINT,
-    private readonly sourceId = SOURCE_ID
+    private readonly endpoint: string = LINEAR_ENDPOINT
   ) {}
 
   async discoverScopes(signal?: AbortSignal): Promise<TicketScope[]> {
-    signal = readSignal(signal);
-    const nodes = await this.pages(TEAMS_QUERY, {}, (data) => record(data).teams, signal);
+    const walk = graphql.walkSignal(signal);
+    const nodes = await this.walk(TEAMS_QUERY, {}, (data) => record(data).teams, walk);
     const scopes = new Map<string, TicketScope>();
     for (const raw of nodes) {
       const node = record(raw);
@@ -303,17 +295,18 @@ export class LinearSource implements tickets.TicketSource {
     requested: TicketFilterView,
     signal?: AbortSignal
   ): Promise<tickets.TicketRead> {
+    const walk = graphql.walkSignal(signal);
     const memo = this.memo?.scopeId === scopeId ? this.memo.options : undefined;
     if (!memo && !tickets.prunable(requested)) {
       const [rows, options] = await Promise.all([
-        this.issues(scopeId, requested, signal),
-        this.options(scopeId, signal)
+        this.loadIssues(scopeId, requested, walk),
+        this.loadOptions(scopeId, walk)
       ]);
       return { tickets: rows, options, filter: requested };
     }
-    const options = memo ?? (await this.options(scopeId, signal));
+    const options = memo ?? (await this.loadOptions(scopeId, walk));
     const filter = tickets.normalizeFilter(requested, options);
-    return { tickets: await this.issues(scopeId, filter, signal), options, filter };
+    return { tickets: await this.loadIssues(scopeId, filter, walk), options, filter };
   }
 
   invalidate(): void {
@@ -327,19 +320,12 @@ export class LinearSource implements tickets.TicketSource {
     filter: TicketFilterView,
     signal?: AbortSignal
   ): Promise<tickets.Ticket[]> {
-    const nodes = await this.pages(
-      ISSUES_QUERY,
-      { filter: issueFilter(filter, scopeId) },
-      (data) => record(data).issues,
-      signal
-    );
-    const rows = toTickets({ issues: { nodes } }, scopeId, this.sourceId);
-    return [...new Map(rows.map((row) => [row.id, row])).values()];
+    return this.loadIssues(scopeId, filter, graphql.walkSignal(signal));
   }
 
   async detail(scopeId: string, id: string, signal?: AbortSignal): Promise<TicketDetail> {
     const data = record(
-      await this.query(
+      await this.request(
         `query TicketDetail($id: String!) {
       issue(id: $id) {
         id identifier title url description
@@ -349,7 +335,7 @@ export class LinearSource implements tickets.TicketSource {
       }
     }`,
         { id },
-        signal
+        graphql.walkSignal(signal)
       )
     );
     const issue = record(data.issue);
@@ -372,7 +358,7 @@ export class LinearSource implements tickets.TicketSource {
     )
       throw incomplete();
     return {
-      key: tickets.ticketKey(this.sourceId, id),
+      key: tickets.ticketKey(SOURCE_ID, id),
       scopeId,
       identifier: issue.identifier,
       title: issue.title,
@@ -391,19 +377,37 @@ export class LinearSource implements tickets.TicketSource {
 
   /** The team's filter choices, memoised for later reads unless invalidated meanwhile. */
   async options(scopeId: string, signal?: AbortSignal): Promise<TicketOptions> {
+    return this.loadOptions(scopeId, graphql.walkSignal(signal));
+  }
+
+  private async loadOptions(scopeId: string, signal: AbortSignal): Promise<TicketOptions> {
     const epoch = this.memoEpoch;
     const options = await this.teamOptions(scopeId, signal);
     if (epoch === this.memoEpoch) this.memo = { scopeId, options };
     return options;
   }
 
-  private async teamOptions(scopeId: string, signal?: AbortSignal): Promise<TicketOptions> {
-    signal = readSignal(signal);
+  private async loadIssues(
+    scopeId: string,
+    filter: TicketFilterView,
+    signal: AbortSignal
+  ): Promise<tickets.Ticket[]> {
+    const nodes = await this.walk(
+      ISSUES_QUERY,
+      { filter: issueFilter(filter, scopeId) },
+      (data) => record(data).issues,
+      signal
+    );
+    const rows = toTickets(nodes, scopeId);
+    return [...new Map(rows.map((row) => [row.id, row])).values()];
+  }
+
+  private async teamOptions(scopeId: string, signal: AbortSignal): Promise<TicketOptions> {
     if (!scopeId) throw incomplete();
     const [users, states, meta] = await Promise.all([
-      this.pages(MEMBERS_QUERY, { scopeId }, (data) => record(record(data).team).members, signal),
-      this.pages(STATES_QUERY, { scopeId }, (data) => record(record(data).team).states, signal),
-      this.query(OPTIONS_QUERY, {}, signal)
+      this.walk(MEMBERS_QUERY, { scopeId }, (data) => record(record(data).team).members, signal),
+      this.walk(STATES_QUERY, { scopeId }, (data) => record(record(data).team).states, signal),
+      this.request(OPTIONS_QUERY, {}, signal)
     ]);
     const data = record(meta);
     if (typeof record(data.viewer).id !== 'string' || !Array.isArray(data.issuePriorityValues))
@@ -420,70 +424,34 @@ export class LinearSource implements tickets.TicketSource {
     );
   }
 
-  private async pages(
+  private walk(
     query: string,
     variables: Record<string, unknown>,
     connection: (data: unknown) => unknown,
-    signal?: AbortSignal
+    signal: AbortSignal
   ): Promise<unknown[]> {
-    const nodes: unknown[] = [];
-    const seen = new Set<string>();
-    let after: string | undefined;
-    // A pathological cursor stream must fail rather than silently truncate a catalog.
-    for (let page = 0; page < 1000; page++) {
-      const data = await this.query(query, { ...variables, after }, signal);
-      const value = record(connection(data));
-      const info = record(value.pageInfo);
-      if (!Array.isArray(value.nodes) || typeof info.hasNextPage !== 'boolean') throw incomplete();
-      nodes.push(...(value.nodes as unknown[]));
-      if (!info.hasNextPage) return nodes;
-      if (typeof info.endCursor !== 'string' || !info.endCursor || seen.has(info.endCursor))
-        throw incomplete();
-      after = info.endCursor;
-      seen.add(after);
-    }
-    throw incomplete();
+    return graphql.walkConnection(
+      signal,
+      async (after) => connection(await this.request(query, { ...variables, after }, signal)),
+      incomplete
+    );
   }
 
-  private async query(
+  private request(
     query: string,
     variables: Record<string, unknown>,
-    signal?: AbortSignal
+    signal: AbortSignal
   ): Promise<unknown> {
-    try {
-      const res = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: this.apiKey },
-        body: JSON.stringify({ query, variables }),
-        signal: readSignal(signal)
-      });
-      const json = record(await res.json().catch(() => undefined));
-      const errors = Array.isArray(json.errors) ? json.errors.map(record) : [];
-      if (!res.ok || errors.length) {
-        const rejected =
-          res.status === 401 ||
-          errors.some((error) => {
-            const extension = record(error.extensions);
-            return (
-              extension.code === 'UNAUTHENTICATED' ||
-              extension.code === 'AUTHENTICATION_ERROR' ||
-              extension.type === 'authentication error'
-            );
-          });
-        const messages = errors
-          .map((error) => error.message)
-          .filter((message): message is string => typeof message === 'string' && !!message.trim());
-        if (!messages.length && typeof json.message === 'string') messages.push(json.message);
-        throw new tickets.TicketSourceError(
-          rejected ? 'credentials' : 'service',
-          messages.length ? messages.join('; ') : `Linear responded ${res.status} ${res.statusText}`
-        );
-      }
-      if (!json.data || typeof json.data !== 'object') throw incomplete();
-      return json.data;
-    } catch (error) {
-      throw tickets.sourceError(error);
-    }
+    return graphql.graphqlRequest({
+      endpoint: this.endpoint,
+      authorization: this.apiKey,
+      query,
+      variables,
+      signal,
+      credentials: linearCredentials,
+      fallback: (status, statusText) => `Linear responded ${status} ${statusText}`,
+      fail: incomplete
+    });
   }
 }
 
@@ -496,8 +464,16 @@ function incomplete(): tickets.TicketSourceError {
   return new tickets.TicketSourceError('service', 'Linear returned an incomplete response.');
 }
 
-function readSignal(signal?: AbortSignal): AbortSignal {
-  return signal
-    ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
-    : AbortSignal.timeout(15_000);
+function linearCredentials(status: number, errors: Record<string, unknown>[]): boolean {
+  return (
+    status === 401 ||
+    errors.some((error) => {
+      const extension = record(error.extensions);
+      return (
+        extension.code === 'UNAUTHENTICATED' ||
+        extension.code === 'AUTHENTICATION_ERROR' ||
+        extension.type === 'authentication error'
+      );
+    })
+  );
 }

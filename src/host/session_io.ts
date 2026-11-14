@@ -1,3 +1,4 @@
+import * as composeImages from '../core/compose_images';
 import * as skills from './skills';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -515,10 +516,7 @@ export async function sendMessage(
   // Weighed on the enriched text, because that is what actually goes out: a
   // mention with an empty box is a message.
   const sent = delivery.deliveryText(body);
-  const blocks = (images ?? []).map((image) => ({
-    mediaType: image.mediaType,
-    data: image.dataUrl.slice(image.dataUrl.indexOf(',') + 1)
-  }));
+  const blocks = composeImages.imageBlocks(images ?? []);
   if (!sent && !blocks.length) {
     await staged?.discard();
     return;

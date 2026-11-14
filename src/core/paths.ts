@@ -21,6 +21,8 @@ export const DUMP_DIR = path.join(CLAUDE_DIR, 'squadron');
 export const CLAUDE_SKILLS_DIR = path.join(CLAUDE_DIR, 'skills');
 /** Everything this extension writes down. Store dirs below hang off this. */
 export const STATE_DIR = path.join(os.homedir(), '.squadron');
+export const ROUTINES_DIR = path.join(STATE_DIR, 'routines');
+export const ROUTINE_RUNS_DIR = path.join(STATE_DIR, 'routine-runs');
 export const BRIEFING_DIR = path.join(STATE_DIR, 'briefing');
 export const SETTINGS_FILE = path.join(CLAUDE_DIR, 'settings.json');
 /**
@@ -326,6 +328,7 @@ export const SHIM_NAMES = [
   'squadron-answer',
   'squadron-wait',
   'squadron-step',
+  'squadron-routine',
   'squadron-attach',
   'squadron-fetch-file'
 ] as const;

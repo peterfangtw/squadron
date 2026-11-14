@@ -253,8 +253,13 @@ async function serveIncomingEvidence(
       incomingRefusal: 'unsupported-capability'
     };
   const capability = await port.incomingAccess();
-  const holder = await port.incomingHolder?.();
-  if (!holder?.incoming || !capability || !incoming.sameHost(capability.host, request.expectedHost))
+  const holderRequired = request.query.kind !== 'receiver';
+  const holder = holderRequired ? await port.incomingHolder?.() : undefined;
+  if (
+    (holderRequired && !holder?.incoming) ||
+    !capability ||
+    !incoming.sameHost(capability.host, request.expectedHost)
+  )
     return {
       ok: false,
       reason: 'The owning activation changed.',

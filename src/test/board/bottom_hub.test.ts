@@ -132,7 +132,7 @@ describe('the bottom hub', () => {
     p.push(stateMessage(owned(), { workflows: WORKFLOWS, thread: threadView({ pid: 5 }) }));
     assert.deepEqual(
       $$(p, '#bottomhub button:not([hidden])').map((b) => b.textContent),
-      ['Agents', 'Workflows', 'Remote', 'Warm 0', 'Keep-awake']
+      ['Agents', 'Workflows', 'Routines 0', 'Remote', 'Warm 0', 'Keep-awake']
     );
   });
 
@@ -152,7 +152,7 @@ describe('the bottom hub', () => {
     p.push(stateMessage(board()));
     assert.deepEqual(
       $$(p, '#bottomhub button:not([hidden])').map((b) => b.textContent),
-      ['Agents', '+ New workflow', 'Remote', 'Warm 0', 'Keep-awake']
+      ['Agents', '+ New workflow', 'Routines 0', 'Remote', 'Warm 0', 'Keep-awake']
     );
   });
 

@@ -1,3 +1,5 @@
+import * as routineEditor from './routine_editor';
+import * as composeInput from './compose_input';
 import * as ticketDetails from './ticket_details';
 import { refreshMentionSources } from './mentions';
 /**
@@ -282,8 +284,12 @@ window.addEventListener('message', (e: MessageEvent<PanelMessage>) => {
     takePorts(msg);
     return;
   }
+  if (msg.type === 'routineLoaded' || msg.type === 'routineActionResult') {
+    routineEditor.takeReply(msg);
+    return;
+  }
   if (msg.type === 'pickedFiles') {
-    takePickedFiles(msg);
+    if (!composeInput.takeFiles(msg)) takePickedFiles(msg);
     return;
   }
   if (msg.type === 'saveWorkflowResult') {
@@ -373,6 +379,7 @@ window.addEventListener('message', (e: MessageEvent<PanelMessage>) => {
   // Before any surface repaints, and whichever sheet is up: a flip that a
   // push agrees with while its surface is shut is still the write landing.
   holds.settle();
+  routineEditor.reconcileRuns();
   sweepRecycled(replaced);
   if (!defaultDraftInitialized && (chats.active() || ui.state.defaultCwd !== undefined)) {
     defaultDraftInitialized = true;

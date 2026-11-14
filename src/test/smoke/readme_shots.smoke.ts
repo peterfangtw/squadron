@@ -110,6 +110,8 @@ boot.section(
         await open(state(now, groups, { warmCache: true }), thread);
         await push(state(now, groups, { warmCache: true }), thread);
         await dockWidth(520);
+        if (!(await boot.panel().locator('#bottomhub .warm-tab').isVisible()))
+          await boot.panel().locator('#bottomhub-more').click();
         await boot.panel().locator('#bottomhub .warm-tab').click();
         await boot.panel().locator('#bottomdrawer.warm:not([hidden])').waitFor();
         await settle(2500);

@@ -36,7 +36,7 @@ describe('the verb list', () => {
     assert.deepEqual(read, ['list', 'models']);
     assert.ok(verbs.isWriteVerb('end'));
     assert.ok(verbs.isWriteVerb('warm'));
-    assert.equal(verbs.VERBS.length, 12);
+    assert.equal(verbs.VERBS.length, 13);
     assert.ok(!verbs.isWriteVerb('list'));
     assert.ok(!verbs.isWriteVerb('workflow-validation'));
   });

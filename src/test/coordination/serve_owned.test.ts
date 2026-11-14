@@ -616,6 +616,52 @@ describe('serveOwned, a Remote open', () => {
 });
 
 describe('incoming arms require negotiated owner services', () => {
+  it('proves a local receiver without Remote while retaining Remote admission for launch evidence', async () => {
+    let challenged = 0;
+    const served = port(undefined, {
+      incomingAccess: () =>
+        Promise.resolve({ version: 1, host: fixture.host, localRoot: fixture.receiver.cwd }),
+      incomingHolder: () => Promise.resolve(undefined),
+      evidence: (challenge, query) => {
+        challenged++;
+        return Promise.resolve({
+          version: 1,
+          host: fixture.host,
+          receiver: fixture.receiver,
+          currentSessionId: 'current',
+          challenge,
+          query
+        });
+      }
+    });
+    const request: RequestBody = {
+      kind: 'incomingEvidenceV1',
+      version: 1,
+      windowId: 'w1',
+      expectedHost: fixture.host,
+      challenge: fixture.UUID,
+      query: { kind: 'receiver', receiver: fixture.receiver }
+    };
+    assert.equal((await serve(request, served)).ok, true);
+    assert.equal(challenged, 1);
+    assert.equal(
+      (await serve({ ...request, query: { kind: 'attempt', attempt: fixture.attempt } }, served))
+        .ok,
+      false
+    );
+    assert.equal(challenged, 1);
+    assert.equal(
+      (
+        await serve(
+          { ...request, expectedHost: { ...fixture.host, incarnation: fixture.OTHER_UUID } },
+          served
+        )
+      ).ok,
+      false
+    );
+    assert.equal(challenged, 1);
+  });
+
   it('refuses starts and evidence before any child, holder or owned lookup', async () => {
     const f = fixture;
     const bodies: RequestBody[] = [
